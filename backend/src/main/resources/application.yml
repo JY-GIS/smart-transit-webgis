@@ -1,0 +1,16 @@
+spring:
+  application:
+    name: smart-transit-backend
+
+  datasource:
+    url: jdbc:postgresql://127.0.0.1:15433/smart_transit
+    username: smart_transit
+    password: ${SMART_TRANSIT_DB_PASSWORD}
+
+server:
+  port: 8080
+
+mybatis:
+  mapper-locations: "classpath*:mapper/**/*.xml"
+  configuration:
+    map-underscore-to-camel-case: true

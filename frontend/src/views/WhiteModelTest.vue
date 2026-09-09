@@ -74,6 +74,88 @@ onMounted(async () => {
             })
         }
 
+        // 加载福田区 OSM 主要路网数据
+        // const futianRoads = await Cesium.GeoJsonDataSource.load(
+        //     'test-data/futian-bus-roads.geojson',
+        //     {
+        //         stroke: Cesium.Color.ORANGE.withAlpha(0.9),
+        //         strokeWidth: 2,
+        //         clampToGround: false,
+        //     }
+        // )
+
+        // // 贴地道路只分类到 Terrain，不再同时分类 3D Tiles
+        // for (const entity of futianRoads.entities.values) {
+        //     if (entity.polyline) {
+        //         entity.polyline.classificationType =
+        //             new Cesium.ConstantProperty(Cesium.ClassificationType.TERRAIN)
+        //     }
+        // }
+
+        // viewer.dataSources.add(futianRoads)
+        // console.info('福田区 OSM 道路加载完成')
+
+        const roadResponse = await fetch(
+            'test-data/futian-bus-roads.geojson'
+        )
+
+        if (!roadResponse.ok) {
+            throw new Error(`道路 GeoJSON 加载失败：${roadResponse.status}`)
+        }
+
+        const roadGeoJson = (await roadResponse.json()) as {
+            features: Array<{
+                geometry?: {
+                    type?: string
+                    coordinates?: Array<Array<[number, number]>>
+                }
+            }>
+        }
+
+        const roadInstances: Cesium.GeometryInstance[] = []
+
+        for (const feature of roadGeoJson.features) {
+            const geometry = feature.geometry
+
+            if (geometry?.type !== 'MultiLineString' || !geometry.coordinates)  {
+                continue
+            }
+
+            for (const line of geometry.coordinates) {
+                if (line.length < 2) continue
+
+                roadInstances.push(
+                    new Cesium.GeometryInstance({
+                        geometry: new Cesium.PolylineGeometry({
+                            positions: Cesium.Cartesian3.fromDegreesArray(
+                                line.flatMap(([longitude, latitude]) => [
+                                    longitude,
+                                    latitude
+                                ])
+                            ),
+                            width: 2,
+                            vertexFormat: Cesium.PolylineMaterialAppearance.VERTEX_FORMAT,
+                        }),
+                    })
+                )
+            }
+        }
+
+        viewer.scene.primitives.add(
+            new Cesium.Primitive({
+                geometryInstances: roadInstances,
+                appearance: new Cesium.PolylineMaterialAppearance({
+                    material: Cesium.Material.fromType('Color', {
+                        color: Cesium.Color.ORANGE.withAlpha(0.9),
+                    }),
+                }),
+                allowPicking: false,
+                releaseGeometryInstances: true
+            })
+        )
+
+        console.info(`福田 OSM 道路 Primitive 已创建：${roadInstances.length} 条线`)
+        
         // 福田区附近视角：经度、纬度、相机高度（米）
         viewer.camera.flyTo({
             destination: Cesium.Cartesian3.fromDegrees(114.050, 22.490, 5000),

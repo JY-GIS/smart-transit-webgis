@@ -1,18 +1,20 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue'
-import { Viewer } from 'cesium'
+import * as Cesium from 'cesium'
 import 'cesium/Build/Cesium/Widgets/widgets.css'
 
 const cesiumContainer = ref<HTMLDivElement | null>(null)
 
-let viewer: Viewer | undefined
+let viewer: Cesium.Viewer | undefined
 
 onMounted(() => {
   if (!cesiumContainer.value) {
     return
   }
 
-  viewer = new Viewer(cesiumContainer.value)
+  viewer = new Cesium.Viewer(cesiumContainer.value)
+
+  viewer.scene.debugShowFramesPerSecond = true
 })
 
 onBeforeUnmount(() => {

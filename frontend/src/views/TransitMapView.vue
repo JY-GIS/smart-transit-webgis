@@ -1,5 +1,5 @@
 <script setup lang="ts">    
-import { onMounted, onBeforeUnmount, ref } from 'vue'
+import { onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import * as Cesium from 'cesium'
 import 'cesium/Build/Cesium/Widgets/widgets.css'
 
@@ -7,6 +7,7 @@ import 'cesium/Build/Cesium/Widgets/widgets.css'
 import BusRouteInfoPanel from '@/components/transit/BusRouteInfoPanel.vue'
 import { useBusRouteLayer } from '@/composables/useBusRouteLayer'
 import { useBusRouteSelection } from '@/composables/useBusRouteSelection'
+import { useBusStopLayer } from '@/composables/useBusStopLayer'
 import { useCesiumViewer } from '@/composables/useCesiumViewer'
 import { useWhiteModelLayer } from '@/composables/useWhiteModelLayer'
 import { useFutianBoundaryLayer } from '@/composables/useFutianBoundaryLayer'
@@ -30,6 +31,13 @@ const {
     cleanup: cleanupRouteSelection,
 } = useBusRouteSelection()
 
+const {
+    loadBusStops,
+    showRouteStops,
+    clearRouteStops,
+    cleanup: cleanupBusStopLayer,
+} = useBusStopLayer()
+
 // Cesium Viewer 和各基础图层分别管理，页面只按业务顺序调用它们。
 const {
     createViewer,
@@ -50,6 +58,21 @@ function handleCloseRoutePanel() {
     closeRoutePanel(viewer)
 }
 
+function toRouteId(fid: number): string {
+    return `route_${String(fid).padStart(6, '0')}`
+}
+
+watch(selectedRoute, (route) => {
+    if (!route) {
+        clearRouteStops()
+        return
+    }
+
+    const routeId = toRouteId(route.fid)
+
+    showRouteStops(routeId)
+})
+
 // 页面挂载后按“Viewer → 白膜 → 行政区 → 公交线路 → 点击交互”的顺序初始化。
 onMounted(async () => { 
     if ( !cesiumContainer.value) return
@@ -62,6 +85,8 @@ onMounted(async () => {
         await loadFutianBoundary(viewer)
 
         const futianBusRoutes = await loadBusRoutes(viewer)
+
+        await loadBusStops(viewer)
 
         bindRouteSelection(
             viewer,
@@ -88,6 +113,7 @@ onMounted(async () => {
 // 卸载时按“交互监听 → 业务索引 → 图层 → Viewer”的顺序释放资源。
 onBeforeUnmount(() => { 
     cleanupRouteSelection()
+    cleanupBusStopLayer(viewer)
     routeEntitiesByFid.clear()
 
     cleanupFutianBoundary(viewer)

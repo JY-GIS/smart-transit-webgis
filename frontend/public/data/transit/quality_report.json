@@ -1,0 +1,952 @@
+{
+  "status": "partial_success",
+  "source": {
+    "current_route_geojson": "D:\\smart-transit-webgis\\frontend\\public\\test-data\\futian-bus-routes.geojson",
+    "clipped_stop_geojson": "D:\\smart-transit-webgis\\frontend\\public\\test-data\\futian_stops_clip.geojson",
+    "route_id_source": "current route GeoJSON properties.fid",
+    "stop_id_source": "clipped stop GeoJSON properties.fid, preserved from stops_full.fid",
+    "crs": "CRS84 / WGS84"
+  },
+  "total_route_count": 616,
+  "successful_route_count": 541,
+  "generated_route_id_count": 541,
+  "input_clipped_stop_count": 5365,
+  "generated_stop_count": 4934,
+  "route_stop_count": 4934,
+  "ambiguous_route_count": 43,
+  "no_stop_inside_futian_route_count": 32,
+  "unmatched_route_count": 75,
+  "duplicate_rname_group_count": 21,
+  "duplicate_rname_list": [
+    {
+      "rname": "深圳101路大站快车(华新村总站--动物园总站)",
+      "fsname": "深圳华新村总站(公交站)",
+      "lsname": "深圳动物园总站(公交站)",
+      "route_ids": [
+        "route_000001",
+        "route_000003"
+      ],
+      "source_fids": [
+        1,
+        3
+      ],
+      "candidate_stop_record_count": 26,
+      "candidate_order_count": 13,
+      "candidate_counts_per_order": [
+        2
+      ],
+      "reason": "ambiguous",
+      "detail": "重复线路实例缺少可确认的站点来源线路 fid，本次不猜测归属。"
+    },
+    {
+      "rname": "深圳101路大站快车(动物园总站--华新村总站)",
+      "fsname": "深圳动物园总站(公交站)",
+      "lsname": "深圳华新村总站(公交站)",
+      "route_ids": [
+        "route_000002",
+        "route_000004"
+      ],
+      "source_fids": [
+        2,
+        4
+      ],
+      "candidate_stop_record_count": 32,
+      "candidate_order_count": 16,
+      "candidate_counts_per_order": [
+        2
+      ],
+      "reason": "ambiguous",
+      "detail": "重复线路实例缺少可确认的站点来源线路 fid，本次不猜测归属。"
+    },
+    {
+      "rname": "深圳321路越站车1(新田总站--火车站西广场)",
+      "fsname": "深圳新田总站(公交站)",
+      "lsname": "深圳火车站西广场(公交站)",
+      "route_ids": [
+        "route_000053",
+        "route_000054"
+      ],
+      "source_fids": [
+        53,
+        54
+      ],
+      "candidate_stop_record_count": 0,
+      "candidate_order_count": 0,
+      "candidate_counts_per_order": [],
+      "reason": "ambiguous",
+      "detail": "重复线路实例缺少可确认的站点来源线路 fid，本次不猜测归属。"
+    },
+    {
+      "rname": "深圳357路(科学馆地铁站--拓野机器人公司)",
+      "fsname": "深圳科学馆地铁站(公交站)",
+      "lsname": "深圳拓野机器人公司(公交站)",
+      "route_ids": [
+        "route_000071",
+        "route_000073"
+      ],
+      "source_fids": [
+        71,
+        73
+      ],
+      "candidate_stop_record_count": 10,
+      "candidate_order_count": 5,
+      "candidate_counts_per_order": [
+        2
+      ],
+      "reason": "ambiguous",
+      "detail": "重复线路实例缺少可确认的站点来源线路 fid，本次不猜测归属。"
+    },
+    {
+      "rname": "深圳357路(嶂背工业区总站--科学馆地铁公交接驳站)",
+      "fsname": "深圳嶂背工业区总站(公交站)",
+      "lsname": "深圳科学馆地铁公交接驳站(公交站)",
+      "route_ids": [
+        "route_000072",
+        "route_000074"
+      ],
+      "source_fids": [
+        72,
+        74
+      ],
+      "candidate_stop_record_count": 10,
+      "candidate_order_count": 5,
+      "candidate_counts_per_order": [
+        2
+      ],
+      "reason": "ambiguous",
+      "detail": "重复线路实例缺少可确认的站点来源线路 fid，本次不猜测归属。"
+    },
+    {
+      "rname": "深圳366路(龙窝路口--皇岗口岸)",
+      "fsname": "深圳龙窝路口(公交站)",
+      "lsname": "深圳皇岗口岸(公交站)",
+      "route_ids": [
+        "route_000077",
+        "route_000079"
+      ],
+      "source_fids": [
+        77,
+        79
+      ],
+      "candidate_stop_record_count": 12,
+      "candidate_order_count": 6,
+      "candidate_counts_per_order": [
+        2
+      ],
+      "reason": "ambiguous",
+      "detail": "重复线路实例缺少可确认的站点来源线路 fid，本次不猜测归属。"
+    },
+    {
+      "rname": "深圳366路(皇岗口岸--龙窝路口)",
+      "fsname": "深圳皇岗口岸(公交站)",
+      "lsname": "深圳龙窝路口(公交站)",
+      "route_ids": [
+        "route_000078",
+        "route_000080"
+      ],
+      "source_fids": [
+        78,
+        80
+      ],
+      "candidate_stop_record_count": 12,
+      "candidate_order_count": 6,
+      "candidate_counts_per_order": [
+        2
+      ],
+      "reason": "ambiguous",
+      "detail": "重复线路实例缺少可确认的站点来源线路 fid，本次不猜测归属。"
+    },
+    {
+      "rname": "深圳369路(布吉阳光花园总站--南头青青世界总站)",
+      "fsname": "深圳布吉阳光花园总站(公交站)",
+      "lsname": "深圳南头青青世界总站(公交站)",
+      "route_ids": [
+        "route_000081",
+        "route_000082"
+      ],
+      "source_fids": [
+        81,
+        82
+      ],
+      "candidate_stop_record_count": 26,
+      "candidate_order_count": 13,
+      "candidate_counts_per_order": [
+        2
+      ],
+      "reason": "ambiguous",
+      "detail": "重复线路实例缺少可确认的站点来源线路 fid，本次不猜测归属。"
+    },
+    {
+      "rname": "深圳61路区间线(德兴花园--火车站西广场公交总站)",
+      "fsname": "深圳德兴花园(公交站)",
+      "lsname": "深圳火车站西广场公交总站(公交站)",
+      "route_ids": [
+        "route_000101",
+        "route_000103"
+      ],
+      "source_fids": [
+        101,
+        103
+      ],
+      "candidate_stop_record_count": 0,
+      "candidate_order_count": 0,
+      "candidate_counts_per_order": [],
+      "reason": "ambiguous",
+      "detail": "重复线路实例缺少可确认的站点来源线路 fid，本次不猜测归属。"
+    },
+    {
+      "rname": "深圳61路(六约新村总站--火车站西广场公交总站)",
+      "fsname": "深圳六约新村总站(公交站)",
+      "lsname": "深圳火车站西广场公交总站(公交站)",
+      "route_ids": [
+        "route_000102",
+        "route_000104"
+      ],
+      "source_fids": [
+        102,
+        104
+      ],
+      "candidate_stop_record_count": 0,
+      "candidate_order_count": 0,
+      "candidate_counts_per_order": [],
+      "reason": "ambiguous",
+      "detail": "重复线路实例缺少可确认的站点来源线路 fid，本次不猜测归属。"
+    },
+    {
+      "rname": "深圳M222路(简上社区公园南--福田交通枢纽公交场站)",
+      "fsname": "深圳简上社区公园南(公交站)",
+      "lsname": "深圳福田交通枢纽公交场站(公交站)",
+      "route_ids": [
+        "route_000236",
+        "route_000238"
+      ],
+      "source_fids": [
+        236,
+        238
+      ],
+      "candidate_stop_record_count": 22,
+      "candidate_order_count": 11,
+      "candidate_counts_per_order": [
+        2
+      ],
+      "reason": "ambiguous",
+      "detail": "重复线路实例缺少可确认的站点来源线路 fid，本次不猜测归属。"
+    },
+    {
+      "rname": "深圳M222路(福田交通枢纽公交场站--民治综合车场)",
+      "fsname": "深圳福田交通枢纽公交场站(公交站)",
+      "lsname": "深圳民治综合车场(公交站)",
+      "route_ids": [
+        "route_000237",
+        "route_000239"
+      ],
+      "source_fids": [
+        237,
+        239
+      ],
+      "candidate_stop_record_count": 26,
+      "candidate_order_count": 13,
+      "candidate_counts_per_order": [
+        2
+      ],
+      "reason": "ambiguous",
+      "detail": "重复线路实例缺少可确认的站点来源线路 fid，本次不猜测归属。"
+    },
+    {
+      "rname": "深圳M224路(秀峰公交总站--购物公园地铁站)",
+      "fsname": "深圳秀峰公交总站(公交站)",
+      "lsname": "深圳购物公园地铁站(公交站)",
+      "route_ids": [
+        "route_000240",
+        "route_000242"
+      ],
+      "source_fids": [
+        240,
+        242
+      ],
+      "candidate_stop_record_count": 20,
+      "candidate_order_count": 10,
+      "candidate_counts_per_order": [
+        2
+      ],
+      "reason": "ambiguous",
+      "detail": "重复线路实例缺少可确认的站点来源线路 fid，本次不猜测归属。"
+    },
+    {
+      "rname": "深圳M224路(购物公园总站--秀峰公交总站)",
+      "fsname": "深圳购物公园总站(公交站)",
+      "lsname": "深圳秀峰公交总站(公交站)",
+      "route_ids": [
+        "route_000241",
+        "route_000243"
+      ],
+      "source_fids": [
+        241,
+        243
+      ],
+      "candidate_stop_record_count": 28,
+      "candidate_order_count": 14,
+      "candidate_counts_per_order": [
+        2
+      ],
+      "reason": "ambiguous",
+      "detail": "重复线路实例缺少可确认的站点来源线路 fid，本次不猜测归属。"
+    },
+    {
+      "rname": "深圳M329路(招商国任公交首末站--万国城公交首未站)",
+      "fsname": "深圳招商国任公交首末站(公交站)",
+      "lsname": "深圳万国城公交首未站(公交站)",
+      "route_ids": [
+        "route_000250",
+        "route_000251"
+      ],
+      "source_fids": [
+        250,
+        251
+      ],
+      "candidate_stop_record_count": 8,
+      "candidate_order_count": 4,
+      "candidate_counts_per_order": [
+        2
+      ],
+      "reason": "ambiguous",
+      "detail": "重复线路实例缺少可确认的站点来源线路 fid，本次不猜测归属。"
+    },
+    {
+      "rname": "深圳M398路(利金城工业园公交首末站--安托山总站)",
+      "fsname": "深圳利金城工业园公交首末站(公交站)",
+      "lsname": "深圳安托山总站(公交站)",
+      "route_ids": [
+        "route_000264",
+        "route_000265",
+        "route_000266"
+      ],
+      "source_fids": [
+        264,
+        265,
+        266
+      ],
+      "candidate_stop_record_count": 63,
+      "candidate_order_count": 21,
+      "candidate_counts_per_order": [
+        3
+      ],
+      "reason": "ambiguous",
+      "detail": "重复线路实例缺少可确认的站点来源线路 fid，本次不猜测归属。"
+    },
+    {
+      "rname": "深圳M441路(梅山中学--深业花园公交总站)",
+      "fsname": "深圳梅山中学(公交站)",
+      "lsname": "深圳深业花园公交总站(公交站)",
+      "route_ids": [
+        "route_000277",
+        "route_000279"
+      ],
+      "source_fids": [
+        277,
+        279
+      ],
+      "candidate_stop_record_count": 36,
+      "candidate_order_count": 18,
+      "candidate_counts_per_order": [
+        2
+      ],
+      "reason": "ambiguous",
+      "detail": "重复线路实例缺少可确认的站点来源线路 fid，本次不猜测归属。"
+    },
+    {
+      "rname": "深圳M441路(深业花园公交总站--梅山中学)",
+      "fsname": "深圳深业花园公交总站(公交站)",
+      "lsname": "深圳梅山中学(公交站)",
+      "route_ids": [
+        "route_000278",
+        "route_000280"
+      ],
+      "source_fids": [
+        278,
+        280
+      ],
+      "candidate_stop_record_count": 36,
+      "candidate_order_count": 18,
+      "candidate_counts_per_order": [
+        2
+      ],
+      "reason": "ambiguous",
+      "detail": "重复线路实例缺少可确认的站点来源线路 fid，本次不猜测归属。"
+    },
+    {
+      "rname": "深圳M519路(海上世界公交接驳站--皇庭广场公交首末站)",
+      "fsname": "深圳海上世界公交接驳站(公交站)",
+      "lsname": "深圳皇庭广场公交首末站(公交站)",
+      "route_ids": [
+        "route_000302",
+        "route_000304"
+      ],
+      "source_fids": [
+        302,
+        304
+      ],
+      "candidate_stop_record_count": 24,
+      "candidate_order_count": 12,
+      "candidate_counts_per_order": [
+        2
+      ],
+      "reason": "ambiguous",
+      "detail": "重复线路实例缺少可确认的站点来源线路 fid，本次不猜测归属。"
+    },
+    {
+      "rname": "深圳M519路(皇庭广场公交首末站--海上世界公交接驳站)",
+      "fsname": "深圳皇庭广场公交首末站(公交站)",
+      "lsname": "深圳海上世界公交接驳站(公交站)",
+      "route_ids": [
+        "route_000303",
+        "route_000305"
+      ],
+      "source_fids": [
+        303,
+        305
+      ],
+      "candidate_stop_record_count": 22,
+      "candidate_order_count": 11,
+      "candidate_counts_per_order": [
+        2
+      ],
+      "reason": "ambiguous",
+      "detail": "重复线路实例缺少可确认的站点来源线路 fid，本次不猜测归属。"
+    },
+    {
+      "rname": "深圳莲花山公园巴士1号(莲花山东南门--莲花山东南门)",
+      "fsname": "深圳莲花山东南门(公交站)",
+      "lsname": "深圳莲花山东南门(公交站)",
+      "route_ids": [
+        "route_000601",
+        "route_000603"
+      ],
+      "source_fids": [
+        601,
+        603
+      ],
+      "candidate_stop_record_count": 18,
+      "candidate_order_count": 9,
+      "candidate_counts_per_order": [
+        2
+      ],
+      "reason": "ambiguous",
+      "detail": "重复线路实例缺少可确认的站点来源线路 fid，本次不猜测归属。"
+    }
+  ],
+  "unmatched_routes": [
+    {
+      "route_id": "route_000001",
+      "source_fid": 1,
+      "rname": "深圳101路大站快车(华新村总站--动物园总站)",
+      "reason": "ambiguous"
+    },
+    {
+      "route_id": "route_000003",
+      "source_fid": 3,
+      "rname": "深圳101路大站快车(华新村总站--动物园总站)",
+      "reason": "ambiguous"
+    },
+    {
+      "route_id": "route_000002",
+      "source_fid": 2,
+      "rname": "深圳101路大站快车(动物园总站--华新村总站)",
+      "reason": "ambiguous"
+    },
+    {
+      "route_id": "route_000004",
+      "source_fid": 4,
+      "rname": "深圳101路大站快车(动物园总站--华新村总站)",
+      "reason": "ambiguous"
+    },
+    {
+      "route_id": "route_000053",
+      "source_fid": 53,
+      "rname": "深圳321路越站车1(新田总站--火车站西广场)",
+      "reason": "ambiguous"
+    },
+    {
+      "route_id": "route_000054",
+      "source_fid": 54,
+      "rname": "深圳321路越站车1(新田总站--火车站西广场)",
+      "reason": "ambiguous"
+    },
+    {
+      "route_id": "route_000071",
+      "source_fid": 71,
+      "rname": "深圳357路(科学馆地铁站--拓野机器人公司)",
+      "reason": "ambiguous"
+    },
+    {
+      "route_id": "route_000073",
+      "source_fid": 73,
+      "rname": "深圳357路(科学馆地铁站--拓野机器人公司)",
+      "reason": "ambiguous"
+    },
+    {
+      "route_id": "route_000072",
+      "source_fid": 72,
+      "rname": "深圳357路(嶂背工业区总站--科学馆地铁公交接驳站)",
+      "reason": "ambiguous"
+    },
+    {
+      "route_id": "route_000074",
+      "source_fid": 74,
+      "rname": "深圳357路(嶂背工业区总站--科学馆地铁公交接驳站)",
+      "reason": "ambiguous"
+    },
+    {
+      "route_id": "route_000077",
+      "source_fid": 77,
+      "rname": "深圳366路(龙窝路口--皇岗口岸)",
+      "reason": "ambiguous"
+    },
+    {
+      "route_id": "route_000079",
+      "source_fid": 79,
+      "rname": "深圳366路(龙窝路口--皇岗口岸)",
+      "reason": "ambiguous"
+    },
+    {
+      "route_id": "route_000078",
+      "source_fid": 78,
+      "rname": "深圳366路(皇岗口岸--龙窝路口)",
+      "reason": "ambiguous"
+    },
+    {
+      "route_id": "route_000080",
+      "source_fid": 80,
+      "rname": "深圳366路(皇岗口岸--龙窝路口)",
+      "reason": "ambiguous"
+    },
+    {
+      "route_id": "route_000081",
+      "source_fid": 81,
+      "rname": "深圳369路(布吉阳光花园总站--南头青青世界总站)",
+      "reason": "ambiguous"
+    },
+    {
+      "route_id": "route_000082",
+      "source_fid": 82,
+      "rname": "深圳369路(布吉阳光花园总站--南头青青世界总站)",
+      "reason": "ambiguous"
+    },
+    {
+      "route_id": "route_000101",
+      "source_fid": 101,
+      "rname": "深圳61路区间线(德兴花园--火车站西广场公交总站)",
+      "reason": "ambiguous"
+    },
+    {
+      "route_id": "route_000103",
+      "source_fid": 103,
+      "rname": "深圳61路区间线(德兴花园--火车站西广场公交总站)",
+      "reason": "ambiguous"
+    },
+    {
+      "route_id": "route_000102",
+      "source_fid": 102,
+      "rname": "深圳61路(六约新村总站--火车站西广场公交总站)",
+      "reason": "ambiguous"
+    },
+    {
+      "route_id": "route_000104",
+      "source_fid": 104,
+      "rname": "深圳61路(六约新村总站--火车站西广场公交总站)",
+      "reason": "ambiguous"
+    },
+    {
+      "route_id": "route_000236",
+      "source_fid": 236,
+      "rname": "深圳M222路(简上社区公园南--福田交通枢纽公交场站)",
+      "reason": "ambiguous"
+    },
+    {
+      "route_id": "route_000238",
+      "source_fid": 238,
+      "rname": "深圳M222路(简上社区公园南--福田交通枢纽公交场站)",
+      "reason": "ambiguous"
+    },
+    {
+      "route_id": "route_000237",
+      "source_fid": 237,
+      "rname": "深圳M222路(福田交通枢纽公交场站--民治综合车场)",
+      "reason": "ambiguous"
+    },
+    {
+      "route_id": "route_000239",
+      "source_fid": 239,
+      "rname": "深圳M222路(福田交通枢纽公交场站--民治综合车场)",
+      "reason": "ambiguous"
+    },
+    {
+      "route_id": "route_000240",
+      "source_fid": 240,
+      "rname": "深圳M224路(秀峰公交总站--购物公园地铁站)",
+      "reason": "ambiguous"
+    },
+    {
+      "route_id": "route_000242",
+      "source_fid": 242,
+      "rname": "深圳M224路(秀峰公交总站--购物公园地铁站)",
+      "reason": "ambiguous"
+    },
+    {
+      "route_id": "route_000241",
+      "source_fid": 241,
+      "rname": "深圳M224路(购物公园总站--秀峰公交总站)",
+      "reason": "ambiguous"
+    },
+    {
+      "route_id": "route_000243",
+      "source_fid": 243,
+      "rname": "深圳M224路(购物公园总站--秀峰公交总站)",
+      "reason": "ambiguous"
+    },
+    {
+      "route_id": "route_000250",
+      "source_fid": 250,
+      "rname": "深圳M329路(招商国任公交首末站--万国城公交首未站)",
+      "reason": "ambiguous"
+    },
+    {
+      "route_id": "route_000251",
+      "source_fid": 251,
+      "rname": "深圳M329路(招商国任公交首末站--万国城公交首未站)",
+      "reason": "ambiguous"
+    },
+    {
+      "route_id": "route_000264",
+      "source_fid": 264,
+      "rname": "深圳M398路(利金城工业园公交首末站--安托山总站)",
+      "reason": "ambiguous"
+    },
+    {
+      "route_id": "route_000265",
+      "source_fid": 265,
+      "rname": "深圳M398路(利金城工业园公交首末站--安托山总站)",
+      "reason": "ambiguous"
+    },
+    {
+      "route_id": "route_000266",
+      "source_fid": 266,
+      "rname": "深圳M398路(利金城工业园公交首末站--安托山总站)",
+      "reason": "ambiguous"
+    },
+    {
+      "route_id": "route_000277",
+      "source_fid": 277,
+      "rname": "深圳M441路(梅山中学--深业花园公交总站)",
+      "reason": "ambiguous"
+    },
+    {
+      "route_id": "route_000279",
+      "source_fid": 279,
+      "rname": "深圳M441路(梅山中学--深业花园公交总站)",
+      "reason": "ambiguous"
+    },
+    {
+      "route_id": "route_000278",
+      "source_fid": 278,
+      "rname": "深圳M441路(深业花园公交总站--梅山中学)",
+      "reason": "ambiguous"
+    },
+    {
+      "route_id": "route_000280",
+      "source_fid": 280,
+      "rname": "深圳M441路(深业花园公交总站--梅山中学)",
+      "reason": "ambiguous"
+    },
+    {
+      "route_id": "route_000302",
+      "source_fid": 302,
+      "rname": "深圳M519路(海上世界公交接驳站--皇庭广场公交首末站)",
+      "reason": "ambiguous"
+    },
+    {
+      "route_id": "route_000304",
+      "source_fid": 304,
+      "rname": "深圳M519路(海上世界公交接驳站--皇庭广场公交首末站)",
+      "reason": "ambiguous"
+    },
+    {
+      "route_id": "route_000303",
+      "source_fid": 303,
+      "rname": "深圳M519路(皇庭广场公交首末站--海上世界公交接驳站)",
+      "reason": "ambiguous"
+    },
+    {
+      "route_id": "route_000305",
+      "source_fid": 305,
+      "rname": "深圳M519路(皇庭广场公交首末站--海上世界公交接驳站)",
+      "reason": "ambiguous"
+    },
+    {
+      "route_id": "route_000601",
+      "source_fid": 601,
+      "rname": "深圳莲花山公园巴士1号(莲花山东南门--莲花山东南门)",
+      "reason": "ambiguous"
+    },
+    {
+      "route_id": "route_000603",
+      "source_fid": 603,
+      "rname": "深圳莲花山公园巴士1号(莲花山东南门--莲花山东南门)",
+      "reason": "ambiguous"
+    },
+    {
+      "route_id": "route_000085",
+      "source_fid": 85,
+      "rname": "深圳381路(三联广场--罗湖区中医院临时始发站)",
+      "reason": "no_stop_inside_futian_boundary"
+    },
+    {
+      "route_id": "route_000095",
+      "source_fid": 95,
+      "rname": "深圳57路(清水河总站--长岭东公交场站)",
+      "reason": "no_stop_inside_futian_boundary"
+    },
+    {
+      "route_id": "route_000113",
+      "source_fid": 113,
+      "rname": "深圳69路(银湖度假村总站--长岭东公交场站)",
+      "reason": "no_stop_inside_futian_boundary"
+    },
+    {
+      "route_id": "route_000176",
+      "source_fid": 176,
+      "rname": "深圳E9路(创新科技中心公交首末站--华韵路公交首末站)",
+      "reason": "no_stop_inside_futian_boundary"
+    },
+    {
+      "route_id": "route_000177",
+      "source_fid": 177,
+      "rname": "深圳E9路(华韵路公交首末站--创新科技中心公交首末站)",
+      "reason": "no_stop_inside_futian_boundary"
+    },
+    {
+      "route_id": "route_000295",
+      "source_fid": 295,
+      "rname": "深圳M486路(香山里花园公交总站--欢乐海岸总站)",
+      "reason": "no_stop_inside_futian_boundary"
+    },
+    {
+      "route_id": "route_000322",
+      "source_fid": 322,
+      "rname": "深圳N16路(清水河--火车站)",
+      "reason": "no_stop_inside_futian_boundary"
+    },
+    {
+      "route_id": "route_000339",
+      "source_fid": 339,
+      "rname": "深圳P1018路(宝吉路口--软件产业基地)",
+      "reason": "no_stop_inside_futian_boundary"
+    },
+    {
+      "route_id": "route_000340",
+      "source_fid": 340,
+      "rname": "深圳P101路(坑梓基地总站--后海地铁站)",
+      "reason": "no_stop_inside_futian_boundary"
+    },
+    {
+      "route_id": "route_000355",
+      "source_fid": 355,
+      "rname": "深圳P159路(观禧花园--软件产业基地)",
+      "reason": "no_stop_inside_futian_boundary"
+    },
+    {
+      "route_id": "route_000384",
+      "source_fid": 384,
+      "rname": "深圳P319路(象角塘西--朗山路中)",
+      "reason": "no_stop_inside_futian_boundary"
+    },
+    {
+      "route_id": "route_000385",
+      "source_fid": 385,
+      "rname": "深圳P319路(朗山路西--雪象新村东)",
+      "reason": "no_stop_inside_futian_boundary"
+    },
+    {
+      "route_id": "route_000389",
+      "source_fid": 389,
+      "rname": "深圳P328路(科技南路--清湖地铁站)",
+      "reason": "no_stop_inside_futian_boundary"
+    },
+    {
+      "route_id": "route_000390",
+      "source_fid": 390,
+      "rname": "深圳P334路(招商观园--大冲1)",
+      "reason": "no_stop_inside_futian_boundary"
+    },
+    {
+      "route_id": "route_000391",
+      "source_fid": 391,
+      "rname": "深圳P363路(厦村--后海地铁站)",
+      "reason": "no_stop_inside_futian_boundary"
+    },
+    {
+      "route_id": "route_000395",
+      "source_fid": 395,
+      "rname": "深圳P36路(后海地铁站--鹏惠花园(临深))",
+      "reason": "no_stop_inside_futian_boundary"
+    },
+    {
+      "route_id": "route_000419",
+      "source_fid": 419,
+      "rname": "深圳P470路(软件产业基地--阳台山东地铁站)",
+      "reason": "no_stop_inside_futian_boundary"
+    },
+    {
+      "route_id": "route_000424",
+      "source_fid": 424,
+      "rname": "深圳P492路(大冲1--墩背社区)",
+      "reason": "no_stop_inside_futian_boundary"
+    },
+    {
+      "route_id": "route_000426",
+      "source_fid": 426,
+      "rname": "深圳P51路(尚峰花园--彩虹科技大厦)",
+      "reason": "no_stop_inside_futian_boundary"
+    },
+    {
+      "route_id": "route_000427",
+      "source_fid": 427,
+      "rname": "深圳P51路(朗山路中--龙珠花园1)",
+      "reason": "no_stop_inside_futian_boundary"
+    },
+    {
+      "route_id": "route_000431",
+      "source_fid": 431,
+      "rname": "深圳P555路(软件产业基地--华夏动漫产业园)",
+      "reason": "no_stop_inside_futian_boundary"
+    },
+    {
+      "route_id": "route_000433",
+      "source_fid": 433,
+      "rname": "深圳P570路(阳台山东地铁站--软件产业基地)",
+      "reason": "no_stop_inside_futian_boundary"
+    },
+    {
+      "route_id": "route_000437",
+      "source_fid": 437,
+      "rname": "深圳P617路(金众蓝钻风景--大冲1)",
+      "reason": "no_stop_inside_futian_boundary"
+    },
+    {
+      "route_id": "route_000438",
+      "source_fid": 438,
+      "rname": "深圳P629路(水斗老围村--科技园总站)",
+      "reason": "no_stop_inside_futian_boundary"
+    },
+    {
+      "route_id": "route_000444",
+      "source_fid": 444,
+      "rname": "深圳P717路(大冲1--市康宁医院坪山院区)",
+      "reason": "no_stop_inside_futian_boundary"
+    },
+    {
+      "route_id": "route_000464",
+      "source_fid": 464,
+      "rname": "深圳T40A假日优点巴士(杨梅坑--深圳北站东广场)",
+      "reason": "no_stop_inside_futian_boundary"
+    },
+    {
+      "route_id": "route_000465",
+      "source_fid": 465,
+      "rname": "深圳T40C路(杨梅坑--深圳北站东广场)",
+      "reason": "no_stop_inside_futian_boundary"
+    },
+    {
+      "route_id": "route_000537",
+      "source_fid": 537,
+      "rname": "深圳高峰专线92路(科苑南公交总站--华盛珑悦花园公交首末站)",
+      "reason": "no_stop_inside_futian_boundary"
+    },
+    {
+      "route_id": "route_000563",
+      "source_fid": 563,
+      "rname": "深圳高快巴士41路(坂田象角塘总站--软件产业基地)",
+      "reason": "no_stop_inside_futian_boundary"
+    },
+    {
+      "route_id": "route_000564",
+      "source_fid": 564,
+      "rname": "深圳高快巴士42路(坂田五和总站--深大沧海校区)",
+      "reason": "no_stop_inside_futian_boundary"
+    },
+    {
+      "route_id": "route_000567",
+      "source_fid": 567,
+      "rname": "深圳高快巴士48路(丹竹头立交--软件产业基地)",
+      "reason": "no_stop_inside_futian_boundary"
+    },
+    {
+      "route_id": "route_000599",
+      "source_fid": 599,
+      "rname": "深圳机场巴士深圳罗湖汽车站线(深圳罗湖汽车站(口岸)--东莞南城候机楼)",
+      "reason": "no_stop_inside_futian_boundary"
+    }
+  ],
+  "abnormal_data_list": [],
+  "quality_checks": {
+    "current_route_fid_unique": true,
+    "clipped_stop_fid_unique": true,
+    "stop_ids_unique": true,
+    "all_route_stop_stop_ids_exist": true,
+    "stop_sequence_is_integer": true,
+    "route_stop_sequence_unique_per_route": true,
+    "routes_json_modified": false
+  },
+  "spot_checks": {
+    "M103": [
+      {
+        "route_id": "route_000185",
+        "source_fid": 185,
+        "rname": "深圳M103路(下沙总站--下沙总站)",
+        "stop_count": 39,
+        "min_stop_sequence": 1,
+        "max_stop_sequence": 39,
+        "complete_39_stops": true
+      },
+      {
+        "route_id": "route_000186",
+        "source_fid": 186,
+        "rname": "深圳M103路(长岭东公交场站--下沙总站)",
+        "stop_count": 21,
+        "min_stop_sequence": 17,
+        "max_stop_sequence": 37,
+        "complete_39_stops": false
+      }
+    ],
+    "101": [
+      {
+        "route_ids": [
+          "route_000001",
+          "route_000003"
+        ],
+        "rname": "深圳101路大站快车(华新村总站--动物园总站)",
+        "candidate_counts_per_order": [
+          2
+        ],
+        "mapping_status": "ambiguous"
+      },
+      {
+        "route_ids": [
+          "route_000002",
+          "route_000004"
+        ],
+        "rname": "深圳101路大站快车(动物园总站--华新村总站)",
+        "candidate_counts_per_order": [
+          2
+        ],
+        "mapping_status": "ambiguous"
+      }
+    ]
+  },
+  "outputs": {
+    "routes.json": "not_modified",
+    "stops.json": "replaced_with_futian_clipped_data",
+    "route_stops.json": "replaced_with_futian_clipped_data",
+    "quality_report.json": "updated"
+  }
+}

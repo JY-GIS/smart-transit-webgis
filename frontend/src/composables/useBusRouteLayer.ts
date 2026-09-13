@@ -1,4 +1,5 @@
 import * as Cesium from 'cesium'
+import { ref } from 'vue'
 import type { BusRouteProperties } from '@/types/busRoute'
 import { TRANSIT_CONFIG } from '@/config/transit.config'
 
@@ -45,6 +46,8 @@ export function readBusRouteProperties(
 export function useBusRouteLayer() {
     // 一个 fid 可能对应多个线段 Entity，保留数组可以兼容原始 MultiLineString。
     const routeEntitiesByFid = new Map<number, Cesium.Entity[]>()
+    const busRoutesVisible = ref(true)
+    let dataSource: Cesium.GeoJsonDataSource | undefined
 
     function indexRouteEntities(
         dataSource: Cesium.GeoJsonDataSource,
@@ -74,7 +77,7 @@ export function useBusRouteLayer() {
 
     async function loadBusRoutes(viewer: Cesium.Viewer) {
         // GeoJSONDataSource 会保留每个要素的 properties，并为线要素创建 Entity。
-        const dataSource = await Cesium.GeoJsonDataSource.load(
+        dataSource = await Cesium.GeoJsonDataSource.load(
             TRANSIT_CONFIG.routesUrl,
             {
                 stroke: Cesium.Color.GOLD.withAlpha(
@@ -96,6 +99,7 @@ export function useBusRouteLayer() {
         }
 
         viewer.dataSources.add(dataSource)
+        dataSource.show = busRoutesVisible.value
 
         // 图层加入 Viewer 后再建立索引，保证索引对象与当前数据源一致。
         indexRouteEntities(
@@ -114,9 +118,19 @@ export function useBusRouteLayer() {
         return dataSource
     }
 
+    function setBusRoutesVisible(visible: boolean) {
+        busRoutesVisible.value = visible
+
+        if (dataSource) {
+            dataSource.show = visible
+        }
+    }
+
     return {
         routeEntitiesByFid,
         loadBusRoutes,
         indexRouteEntities,
+        busRoutesVisible,
+        setBusRoutesVisible,
     }
 }

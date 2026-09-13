@@ -21,6 +21,8 @@ let viewer: Cesium.Viewer | undefined
 const {
     routeEntitiesByFid,
     loadBusRoutes,
+    busRoutesVisible,
+    setBusRoutesVisible,
 } = useBusRouteLayer()
 
 // 线路选择 composable 负责 Cesium 选中事件、属性读取、面板状态和高亮恢复。
@@ -46,6 +48,8 @@ const {
 
 const {
     loadWhiteModel,
+    whiteModelVisible,
+    setWhiteModelVisible,
     cleanupWhiteModel,
 } = useWhiteModelLayer()
 
@@ -56,6 +60,14 @@ const {
 
 function handleCloseRoutePanel() {
     closeRoutePanel(viewer)
+}
+
+function toggleBusRoutes() {
+    setBusRoutesVisible(!busRoutesVisible.value)
+}
+
+function toggleWhiteModel() {
+    setWhiteModelVisible(!whiteModelVisible.value)
 }
 
 function toRouteId(fid: number): string {
@@ -127,6 +139,29 @@ onBeforeUnmount(() => {
 
 <template> 
     <div ref="cesiumContainer" class="cesium-container">
+        <div class="layer-controls" aria-label="图层控制">
+            <button
+                class="layer-control-button"
+                :class="{ 'is-active': busRoutesVisible }"
+                type="button"
+                :aria-pressed="busRoutesVisible"
+                @click="toggleBusRoutes"
+            >
+                <span class="layer-control-dot" aria-hidden="true"></span>
+                {{ busRoutesVisible ? '隐藏公交线路' : '显示公交线路' }}
+            </button>
+            <button
+                class="layer-control-button"
+                :class="{ 'is-active': whiteModelVisible }"
+                type="button"
+                :aria-pressed="whiteModelVisible"
+                @click="toggleWhiteModel"
+            >
+                <span class="layer-control-dot" aria-hidden="true"></span>
+                {{ whiteModelVisible ? '隐藏城市白膜' : '显示城市白膜' }}
+            </button>
+        </div>
+
         <!-- 信息面板覆盖在 Cesium 容器上方，不参与 Cesium Entity 绘制。 -->
         <BusRouteInfoPanel
             :route="selectedRoute"
@@ -140,5 +175,65 @@ onBeforeUnmount(() => {
     position: relative;
     width: 100%;
     height: 100%;
+}
+
+.layer-controls {
+    position: absolute;
+    z-index: 10;
+    top: 20px;
+    left: 20px;
+    display: flex;
+    gap: 10px;
+    pointer-events: none;
+}
+
+.layer-control-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 138px;
+    padding: 10px 14px;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 6px;
+    color: #e9f5ff;
+    background: rgba(18, 32, 48, 0.86);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.24);
+    cursor: pointer;
+    font: inherit;
+    font-size: 14px;
+    line-height: 1.2;
+    pointer-events: auto;
+    transition: background-color 160ms ease, border-color 160ms ease;
+}
+
+.layer-control-button:hover {
+    border-color: rgba(255, 255, 255, 0.7);
+    background: rgba(29, 51, 72, 0.94);
+}
+
+.layer-control-button.is-active {
+    border-color: rgba(87, 220, 255, 0.75);
+}
+
+.layer-control-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #7d8b96;
+}
+
+.layer-control-button.is-active .layer-control-dot {
+    background: #51d6ff;
+    box-shadow: 0 0 8px rgba(81, 214, 255, 0.85);
+}
+
+@media (max-width: 640px) {
+    .layer-controls {
+        top: 12px;
+        right: 12px;
+        left: 12px;
+        flex-direction: column;
+        align-items: flex-start;
+    }
 }
 </style>

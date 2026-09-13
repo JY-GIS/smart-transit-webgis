@@ -1,10 +1,12 @@
 import * as Cesium from 'cesium'
+import { ref } from 'vue'
 import { CESIUM_CONFIG } from '@/config/cesium.config'
 
 // 白膜图层封装：负责加载 Re:Earth 3D Tiles 和监听瓦片状态。
 export function useWhiteModelLayer() {
     // 保存 tileset 及事件移除函数，支持重复调用和页面卸载清理。
     let tileset: Cesium.Cesium3DTileset | undefined
+    const whiteModelVisible = ref(true)
 
     let removeAllTilesLoadedListener:
         | (() => void)
@@ -19,6 +21,7 @@ export function useWhiteModelLayer() {
     ) {
         // 避免重复添加同一个 3D Tileset。
         if (tileset && !tileset.isDestroyed()) {
+            tileset.show = whiteModelVisible.value
             return tileset
         }
 
@@ -33,6 +36,7 @@ export function useWhiteModelLayer() {
             )
 
         viewer.scene.primitives.add(tileset)
+        tileset.show = whiteModelVisible.value
 
         // 当前视角瓦片加载完成不代表整个城市数据都已下载完成。
         removeAllTilesLoadedListener =
@@ -70,6 +74,14 @@ export function useWhiteModelLayer() {
         return tileset
     }
 
+    function setWhiteModelVisible(visible: boolean) {
+        whiteModelVisible.value = visible
+
+        if (tileset && !tileset.isDestroyed()) {
+            tileset.show = visible
+        }
+    }
+
     function cleanupWhiteModel(
         viewer: Cesium.Viewer | undefined,
     ) {
@@ -94,6 +106,8 @@ export function useWhiteModelLayer() {
 
     return {
         loadWhiteModel,
+        whiteModelVisible,
+        setWhiteModelVisible,
         cleanupWhiteModel,
     }
 }

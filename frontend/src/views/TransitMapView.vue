@@ -28,7 +28,9 @@ const {
 
 const {
     busState,
+    isBusLoaded,
     load: loadSimulatedBus,
+    reload: reloadSimulatedBus,
     start: startSimulatedBus,
     stop: stopSimulatedBus,
     clear: clearSimulatedBus,
@@ -185,7 +187,7 @@ onBeforeUnmount(() => {
             <button
                 class="bus-control-button"
                 type="button"
-                :disabled="busState.status === 'running'"
+                :disabled="!isBusLoaded || busState.status === 'running'"
                 @click="startSimulatedBus"
             >
                 开始
@@ -206,6 +208,13 @@ onBeforeUnmount(() => {
                 @click="clearSimulatedBus"
             >
                 清理
+            </button>
+            <button
+                class="bus-control-button"
+                type="button"
+                @click="reloadSimulatedBus"
+            >
+                重新加载
             </button>
         </div>
 

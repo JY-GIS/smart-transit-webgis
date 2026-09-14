@@ -30,6 +30,8 @@ function createInitialState(): SimulatedBusState {
 export function useSimulatedBus() {
     const busState = ref<SimulatedBusState>(createInitialState())
 
+    const isBusLoaded = ref(false)
+
     let viewer: Cesium.Viewer | undefined
     let busDataSource: Cesium.CustomDataSource | undefined
     let busEntity: Cesium.Entity | undefined
@@ -39,6 +41,11 @@ export function useSimulatedBus() {
         | (() => void)
         | undefined
     let lastTickTime: Cesium.JulianDate | undefined
+
+    // 清理车辆时不清理线路索引，重新加载时可以复用这份已经加载好的线路数据
+    let loadedRouteEntitiesByFid:
+        | Map<number, Cesium.Entity[]>
+        | undefined
 
     // 从现有公交线路 Entity 中读取 Polyline 坐标
     function extractRoutePositions(
@@ -188,6 +195,8 @@ export function useSimulatedBus() {
 
         viewer = viewerInstance
 
+        loadedRouteEntitiesByFid = routeEntitiesByFid
+
         const positions = extractRoutePositions(
             routeEntitiesByFid,
             M103_SIMULATED_BUS_CONFIG.routeFid,
@@ -205,6 +214,8 @@ export function useSimulatedBus() {
         ensureBusEntity()
 
         updateBusState('idle', 0, currentPosition)
+
+        isBusLoaded.value = true
     }
 
     // 每次 Cesium 时钟跳动时，更新车辆位置
@@ -249,7 +260,7 @@ export function useSimulatedBus() {
     }
 
     function start() {
-        if (!viewer || !routePath || !busEntity) {
+        if (!isBusLoaded.value || !viewer || !routePath || !busEntity) {
             return
         }
 
@@ -293,17 +304,35 @@ export function useSimulatedBus() {
         lastTickTime = undefined
 
         busState.value = createInitialState()
+
+        isBusLoaded.value = false
+    }
+
+    // 重新加载车辆，复用已经读取过的线路数据
+    function reload() {
+        if (!viewer || !loadedRouteEntitiesByFid) {
+            return
+        }
+
+        load(
+            viewer,
+            loadedRouteEntitiesByFid,
+
+        )
     }
 
     // 页面卸载时由 TransitMapView 调用
     function cleanup() {
         clear()
         viewer = undefined
+        loadedRouteEntitiesByFid = undefined
     }
 
     return {
         busState,
+        isBusLoaded,
         load,
+        reload,
         start,
         stop,
         clear,

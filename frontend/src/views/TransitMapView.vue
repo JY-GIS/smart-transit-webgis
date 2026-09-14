@@ -11,6 +11,7 @@ import { useBusStopLayer } from '@/composables/useBusStopLayer'
 import { useCesiumViewer } from '@/composables/useCesiumViewer'
 import { useWhiteModelLayer } from '@/composables/useWhiteModelLayer'
 import { useFutianBoundaryLayer } from '@/composables/useFutianBoundaryLayer'
+import { useSimulatedBus } from '@/composables/useSimulatedBus'
 
 const cesiumContainer = ref<HTMLElement | null>(null)
 
@@ -24,6 +25,15 @@ const {
     busRoutesVisible,
     setBusRoutesVisible,
 } = useBusRouteLayer()
+
+const {
+    busState,
+    load: loadSimulatedBus,
+    start: startSimulatedBus,
+    stop: stopSimulatedBus,
+    clear: clearSimulatedBus,
+    cleanup: cleanupSimulatedBus,
+} = useSimulatedBus()
 
 // 线路选择 composable 负责 Cesium 选中事件、属性读取、面板状态和高亮恢复。
 const {
@@ -57,6 +67,8 @@ const {
     loadFutianBoundary,
     cleanupFutianBoundary,
 } = useFutianBoundaryLayer()
+
+// ===========================【函数】===========================
 
 function handleCloseRoutePanel() {
     closeRoutePanel(viewer)
@@ -98,6 +110,8 @@ onMounted(async () => {
 
         const futianBusRoutes = await loadBusRoutes(viewer)
 
+        loadSimulatedBus(viewer, routeEntitiesByFid)
+
         await loadBusStops(viewer)
 
         bindRouteSelection(
@@ -126,6 +140,7 @@ onMounted(async () => {
 onBeforeUnmount(() => { 
     cleanupRouteSelection()
     cleanupBusStopLayer(viewer)
+    cleanupSimulatedBus()
     routeEntitiesByFid.clear()
 
     cleanupFutianBoundary(viewer)
@@ -159,6 +174,38 @@ onBeforeUnmount(() => {
             >
                 <span class="layer-control-dot" aria-hidden="true"></span>
                 {{ whiteModelVisible ? '隐藏城市白膜' : '显示城市白膜' }}
+            </button>
+        </div>
+
+        <div class="bus-controls" aria-label="模拟公交车辆控制">
+            <span class="bus-controls__label">
+                M103：{{ busState.status }}
+            </span>
+
+            <button
+                class="bus-control-button"
+                type="button"
+                :disabled="busState.status === 'running'"
+                @click="startSimulatedBus"
+            >
+                开始
+            </button>
+
+            <button
+                class="bus-control-button"
+                type="button"
+                :disabled="busState.status !== 'running'"
+                @click="stopSimulatedBus"
+            >
+                停止
+            </button>
+
+            <button
+                class="bus-control-button"
+                type="button"
+                @click="clearSimulatedBus"
+            >
+                清理
             </button>
         </div>
 
@@ -235,5 +282,39 @@ onBeforeUnmount(() => {
         flex-direction: column;
         align-items: flex-start;
     }
+}
+
+.bus-controls {
+    position: absolute;
+    z-index: 10;
+    top: 72px;
+    left: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    color: #e9f5ff;
+    background: rgba(18, 32, 48, 0.86);
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 6px;
+}
+
+.bus-controls__label {
+    margin-right: 4px;
+    font-size: 13px;
+}
+
+.bus-control-button {
+    padding: 6px 10px;
+    color: #e9f5ff;
+    background: rgba(45, 75, 100, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.bus-control-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
 }
 </style>

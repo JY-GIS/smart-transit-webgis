@@ -10,6 +10,7 @@ export const CESIUM_CONFIG = {
     viewer: {
         infoBox: false,
         selectionIndicator: false,
+        shouldAnimate: true
     },
 
     // 开发调试开关，发布前可改为 false。

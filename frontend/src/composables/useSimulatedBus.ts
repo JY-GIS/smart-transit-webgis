@@ -3,6 +3,7 @@ import { ref } from 'vue'
 
 import type {
     SimulatedBusConfig,
+    SimulatedBusEntityProperties,
     SimulatedBusPath,
     SimulatedBusState,
     SimulatedBusStatus,
@@ -174,10 +175,19 @@ export function useSimulatedBus() {
             false
         )
 
+        const entityProperties: SimulatedBusEntityProperties = {
+            entityType: 'simulated-bus',
+            busId: M103_SIMULATED_BUS_CONFIG.id,
+            routeFid: M103_SIMULATED_BUS_CONFIG.routeFid,
+        }
+
         busEntity = busDataSource.entities.add({
             id: M103_SIMULATED_BUS_CONFIG.id,
             name: 'M103 模拟车辆',
             position: positionProperty,
+            // 将车辆业务元数据挂到 Cesium Entity
+            properties: entityProperties,
+
             point: {
                 pixelSize: 18,
                 color: Cesium.Color.RED,

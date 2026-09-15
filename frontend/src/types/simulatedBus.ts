@@ -47,3 +47,15 @@ export interface SimulatedBusPath {
     // 整条线路的总长度
     totalDistance: number
 }
+
+// Entity 被点击后，使用 entityType 区分“模拟车辆”和“公交线路”
+export interface SimulatedBusEntityProperties {
+    // 固定字符串用于区分不同类型的 Cesium 业务对象
+    entityType: 'simulated-bus'
+
+    // 车辆业务唯一标识
+    busId: string
+
+    // 车辆所属的具体公交线路，与 routeEntitiesByFid 的 key 对应
+    routeFid: number
+}

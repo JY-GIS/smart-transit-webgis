@@ -1,0 +1,3 @@
+# GitHub Linguist：排除由真实数据生成的数据库快照文件
+database/import_routes_raw.sql linguist-generated
+database/load_stops_and_route_stops.sql linguist-generated

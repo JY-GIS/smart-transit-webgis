@@ -69,7 +69,7 @@ const emit = defineEmits<{
 <style scoped>
 .route-panel {
     position: absolute;
-    top: 24px;
+    top: 180px;
     left: 24px;
     right: auto;
     z-index: 20;

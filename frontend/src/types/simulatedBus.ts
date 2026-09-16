@@ -12,10 +12,50 @@ export interface SimulatedBusConfig {
 
     routeFid: number
 
+    /**
+     * 线路站点关系数据中的线路编号。
+     *
+     * routeFid 用于线路 GeoJSON
+     * routeId 用于 route_stops.json
+     */
+    routeId: string
+
     speedMetersPerSecond: number
 
     // 是否到达终点后重新从起点开始。
     loop: boolean
+}
+
+// 车辆实时状态中使用的站点快照和业务状态需要的信息
+export interface SimulatedBusStopSnapshot {
+    stopId: string
+    stopName: string
+    stopSequence: number
+
+    // 该站点在线路起点方向上的累计里程
+    distanceAlongRouteMeters: number
+}
+
+/**
+ * 线路加载阶段生成的站点映射结果
+ *
+ * 它比 SimulatedBusStopSnapshot 多出：
+ * - 原始经纬度
+ * - 投影到的路径线段
+ * - 投影误差
+ */
+export interface SimulatedBusRouteStop extends SimulatedBusStopSnapshot {
+    longitude: number
+    latitude: number
+
+    // 站点投影到线路后的偏移距离
+    snapOffsetMeters: number
+
+    // 站点落在哪一条路径线段上
+    pathSegmentIndex: number
+
+    // 站点在线段内部的比例，范围通常为 0 到 1
+    segmentFraction: number
 }
 
 // 模拟车辆当前状态
@@ -24,11 +64,28 @@ export interface SimulatedBusState {
 
     routeFid: number
 
+    routeId: string
+
     // 当前车辆状态：未开始、运行中、已停止
     status: SimulatedBusStatus
 
     // 当前已经走过的路径距离
     distanceMeters: number
+
+    // 当前线路的总长度
+    totalDistanceMeters: number
+
+    // 最近已经经过的站点
+    previousStop: SimulatedBusStopSnapshot | null
+
+    // 沿当前运行方向即将到达的站点
+    nextStop: SimulatedBusStopSnapshot | null
+
+    // 距离下一站的线路距离
+    distanceToNextStopMeters: number | null
+
+    // 当前线路运行进度，范围为 0 到 100
+    routeProgressPercent: number
 
     position: Cesium.Cartesian3 | undefined
 }

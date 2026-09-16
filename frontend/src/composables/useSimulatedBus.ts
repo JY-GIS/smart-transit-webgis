@@ -1,18 +1,28 @@
 import * as Cesium from 'cesium'
 import { ref } from 'vue'
 
+import type { OrderedBusStop } from '@/types/busStop'
 import type {
     SimulatedBusConfig,
     SimulatedBusEntityProperties,
     SimulatedBusPath,
+    SimulatedBusRouteStop,
     SimulatedBusState,
     SimulatedBusStatus,
 } from '@/types/simulatedBus'
+
+import {
+    buildRoutePath,
+    getPositionAtDistance,
+    getRouteProgress,
+    mapStopsToRoute,
+} from '@/utils/simulatedBusRoute'
 
 // 使用 M103 的路线测试
 const M103_SIMULATED_BUS_CONFIG: SimulatedBusConfig = {
     id: 'simulated-bus-m103-001',
     routeFid: 185,
+    routeId: 'route_000185',
     speedMetersPerSecond: 12,
     loop: true,
 }
@@ -22,8 +32,14 @@ function createInitialState(): SimulatedBusState {
     return {
         id: M103_SIMULATED_BUS_CONFIG.id,
         routeFid: M103_SIMULATED_BUS_CONFIG.routeFid,
+        routeId: M103_SIMULATED_BUS_CONFIG.routeId,
         status: 'idle',
         distanceMeters: 0,
+        totalDistanceMeters: 0,
+        previousStop: null,
+        nextStop: null,
+        distanceToNextStopMeters: null,
+        routeProgressPercent: 0,
         position: undefined,
     }
 }
@@ -37,6 +53,9 @@ export function useSimulatedBus() {
     let busDataSource: Cesium.CustomDataSource | undefined
     let busEntity: Cesium.Entity | undefined
     let routePath: SimulatedBusPath | undefined
+    let mappedRouteStops:
+        | SimulatedBusRouteStop[]
+        | undefined
     let currentPosition: Cesium.Cartesian3 | undefined
     let removeClockTickListener:
         | (() => void)
@@ -46,6 +65,11 @@ export function useSimulatedBus() {
     // 清理车辆时不清理线路索引，重新加载时可以复用这份已经加载好的线路数据
     let loadedRouteEntitiesByFid:
         | Map<number, Cesium.Entity[]>
+        | undefined
+
+    // 清理车辆时保留原始有序站点
+    let loadedRouteStops:
+        | OrderedBusStop[]
         | undefined
 
     // 从现有公交线路 Entity 中读取 Polyline 坐标
@@ -69,84 +93,45 @@ export function useSimulatedBus() {
         return positions
     }
 
-    // 计算每一段线路长度以及累计长度
-    function buildRoutePath(positions: Cesium.Cartesian3[]): SimulatedBusPath {
-        if (positions.length < 2) {
-            throw new Error('模拟车辆线路至少需要两个坐标点')
-        }
-
-        const segmentLengths: number[] = []
-        const cumulativeDistances: number[] = [0]
-
-        for (let index = 0; index < positions.length - 1; index++) {
-            const start = positions[index]
-            const end = positions[index + 1]
-
-            const segmentLength = Cesium.Cartesian3.distance(start, end)
-
-            segmentLengths.push(segmentLength)
-
-            const previousDistance = cumulativeDistances[cumulativeDistances.length - 1]
-
-            cumulativeDistances.push(previousDistance + segmentLength)
-        }
-
-        const totalDistance = cumulativeDistances[cumulativeDistances.length - 1] ?? 0
-
-        return {
-            positions,
-            segmentLengths,
-            cumulativeDistances,
-            totalDistance,
-        }
-    }
-
-    // 根据已经行驶的距离，计算车辆在 Polyline 上的位置
-    function getPositionAtDistance(path: SimulatedBusPath, distanceMeters: number): Cesium.Cartesian3 {
-        const distance = Math.max(
-            0,
-            Math.min(
-                distanceMeters,
-                path.totalDistance,
-            )
-        )
-
-        let segmentIndex = path.segmentLengths.length - 1
-
-        for (let i = 0; i < path.segmentLengths.length; i++) {
-            const segmentEnd = path.cumulativeDistances[i + 1]
-
-            if (distance <= segmentEnd) {
-                segmentIndex = i
-                break
-            }
-        }
-
-        const segmentStartDistance = path.cumulativeDistances[segmentIndex] ?? 0
-
-        const segmentLength = path.segmentLengths[segmentIndex] ?? 0
-
-        const segmentProgress = segmentLength === 0 ? 0 : (distance - segmentStartDistance) / segmentLength
-
-        const start = path.positions[segmentIndex]
-
-        const end = path.positions[segmentIndex + 1]
-
-        // Cartesian3.lerp 在两个三维坐标之间做线性插值
-        return Cesium.Cartesian3.lerp(
-            start,
-            end,
-            segmentProgress,
-            new Cesium.Cartesian3(),
-        )
-    }
-
     function updateBusState(status: SimulatedBusStatus, distanceMeters: number, position: Cesium.Cartesian3 | undefined) {
+        const routeProgress =
+            routePath && mappedRouteStops
+                ? getRouteProgress(
+                    routePath,
+                    mappedRouteStops,
+                    distanceMeters,
+                )
+                : {
+                    previousStop: busState.value.previousStop,
+
+                    nextStop: busState.value.nextStop,
+
+                    distanceToNextStopMeters: busState.value.distanceToNextStopMeters,
+
+                    routeProgressPercent: busState.value.routeProgressPercent,
+                }
+
         busState.value = {
             id: M103_SIMULATED_BUS_CONFIG.id,
+
             routeFid: M103_SIMULATED_BUS_CONFIG.routeFid,
+
+            routeId: M103_SIMULATED_BUS_CONFIG.routeId,
+
             status,
+
             distanceMeters,
+
+            totalDistanceMeters: routePath?.totalDistance ?? busState.value.totalDistanceMeters,
+
+            previousStop: routeProgress.previousStop,
+
+            nextStop: routeProgress.nextStop,
+
+            distanceToNextStopMeters: routeProgress.distanceToNextStopMeters,
+
+            routeProgressPercent: routeProgress.routeProgressPercent,
+
             position: position ? Cesium.Cartesian3.clone(position) : undefined,
         }
     }
@@ -200,12 +185,18 @@ export function useSimulatedBus() {
     }
 
     // 读取现有线路并创建一辆模拟车辆
-    function load(viewerInstance: Cesium.Viewer, routeEntitiesByFid: Map<number, Cesium.Entity[]>) {
+    function load(
+        viewerInstance: Cesium.Viewer,
+        routeEntitiesByFid: Map<number, Cesium.Entity[]>,
+        orderedStops: OrderedBusStop[] = [],
+    ) {
         clear()
 
         viewer = viewerInstance
 
         loadedRouteEntitiesByFid = routeEntitiesByFid
+
+        loadedRouteStops = orderedStops
 
         const positions = extractRoutePositions(
             routeEntitiesByFid,
@@ -218,6 +209,11 @@ export function useSimulatedBus() {
         if (routePath.totalDistance <= 0) {
             throw new Error('M103 线路长度无效，无法创建模拟车辆')
         }
+
+        mappedRouteStops = mapStopsToRoute(
+            routePath,
+            orderedStops,
+        )
 
         currentPosition = getPositionAtDistance(routePath, 0)
 
@@ -310,6 +306,7 @@ export function useSimulatedBus() {
         busDataSource = undefined
         busEntity = undefined
         routePath = undefined
+        mappedRouteStops = undefined
         currentPosition = undefined
         lastTickTime = undefined
 
@@ -320,14 +317,18 @@ export function useSimulatedBus() {
 
     // 重新加载车辆，复用已经读取过的线路数据
     function reload() {
-        if (!viewer || !loadedRouteEntitiesByFid) {
+        if (
+            !viewer ||
+            !loadedRouteEntitiesByFid ||
+            !loadedRouteStops
+        ) {
             return
         }
 
         load(
             viewer,
             loadedRouteEntitiesByFid,
-
+            loadedRouteStops,
         )
     }
 
@@ -336,6 +337,7 @@ export function useSimulatedBus() {
         clear()
         viewer = undefined
         loadedRouteEntitiesByFid = undefined
+        loadedRouteStops = undefined
     }
 
     return {

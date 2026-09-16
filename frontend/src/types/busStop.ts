@@ -19,3 +19,16 @@ export interface BusRouteStopRelation {
     // 当前线路中的站序，必须是数字
     stop_sequence: number
 }
+
+// 专门提供给车辆站点进度计算使用
+export interface OrderedBusStop {
+    routeId: string
+
+    stopId: string
+    stopName: string
+
+    longitude: number
+    latitude: number
+
+    stopSequence: number
+}

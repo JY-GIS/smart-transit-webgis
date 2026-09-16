@@ -2,6 +2,7 @@ import * as Cesium from 'cesium'
 import type {
     BusRouteStopRelation,
     BusStopRecord,
+    OrderedBusStop,
 } from '@/types/busStop'
 
 import { TRANSIT_CONFIG } from '@/config/transit.config'
@@ -59,6 +60,37 @@ export function useBusStopLayer() {
         for (const relations of routeStopsByRouteId.values()) {
             relations.sort((a, b) => a.stop_sequence - b.stop_sequence)
         }
+    }
+
+    // 根据线路编号取得已经排好顺序的站点
+    function getOrderedRouteStops(routeId: string): OrderedBusStop[] {
+        if (!dataLoaded) {
+            throw new Error('公交站点数据尚未加载，不能读取线路站点')
+        }
+
+        const relations = routeStopsByRouteId.get(routeId) ?? []
+
+        return relations.map((relation) => {
+            const stop = stopsById.get(relation.stop_id)
+
+            if (!stop) {
+                throw new Error(
+                    `找不到线路站点：${relation.stop_id}`,
+                )
+            }
+
+            return {
+                routeId: relation.route_id,
+
+                stopId: stop.stop_id,
+                stopName: stop.stop_name,
+
+                longitude: stop.longitude,
+                latitude: stop.latitude,
+
+                stopSequence: relation.stop_sequence,
+            }
+        })
     }
 
     async function loadBusStops(viewer: Cesium.Viewer) {
@@ -147,6 +179,7 @@ export function useBusStopLayer() {
 
     return {
         loadBusStops,
+        getOrderedRouteStops,
         showRouteStops,
         clearRouteStops,
         cleanup,

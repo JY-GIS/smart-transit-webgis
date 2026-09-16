@@ -47,6 +47,7 @@ const {
 
 const {
     loadBusStops,
+    getOrderedRouteStops,
     showRouteStops,
     clearRouteStops,
     cleanup: cleanupBusStopLayer,
@@ -112,9 +113,14 @@ onMounted(async () => {
 
         const futianBusRoutes = await loadBusRoutes(viewer)
 
-        loadSimulatedBus(viewer, routeEntitiesByFid)
-
         await loadBusStops(viewer)
+
+        const m103OrderedStops =
+            getOrderedRouteStops(
+            toRouteId(185),
+        )
+
+        loadSimulatedBus(viewer, routeEntitiesByFid,m103OrderedStops)
 
         bindRouteSelection(
             viewer,
@@ -183,6 +189,44 @@ onBeforeUnmount(() => {
             <span class="bus-controls__label">
                 M103：{{ busState.status }}
             </span>
+
+                <div
+                    class="bus-progress"
+                    aria-live="polite"
+                    aria-label="M103 车辆站点进度"
+                >
+                    <span class="bus-progress__item">
+                        进度：
+                        {{ busState.routeProgressPercent.toFixed(1) }}%
+                    </span>
+
+                    <span class="bus-progress__item">
+                        上一站：
+                        {{ busState.previousStop?.stopName ?? '—' }}
+                    </span>
+
+                    <span class="bus-progress__item">
+                        下一站：
+                        {{ busState.nextStop?.stopName ?? '已到终点' }}
+                    </span>
+
+                    <span class="bus-progress__item">
+                        距下一站：
+                        <template
+                            v-if="
+                                busState.distanceToNextStopMeters !== null
+                            "
+                        >
+                            {{
+                                busState.distanceToNextStopMeters.toFixed(0)
+                            }} 米
+                        </template>
+
+                        <template v-else>
+                            —
+                        </template>
+                    </span>
+                </div>
 
             <button
                 class="bus-control-button"
@@ -325,5 +369,19 @@ onBeforeUnmount(() => {
 .bus-control-button:disabled {
     cursor: not-allowed;
     opacity: 0.45;
+}
+
+.bus-progress {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 230px;
+    color: #c8d8e6;
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+.bus-progress__item {
+    white-space: nowrap;
 }
 </style>

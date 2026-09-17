@@ -7,6 +7,25 @@ import type {
 
 import { TRANSIT_CONFIG } from '@/config/transit.config'
 
+interface ApiResponse<T> {
+    code: number
+    msg?: string
+    data: T
+}
+
+interface StopApiRecord {
+    stopId: string
+    stopName: string
+    longitude: number
+    latitude: number
+}
+
+interface RouteStopApiRelation {
+    routeId: string
+    stopId: string
+    stopSequence: number
+}
+
 // 公交站点图层。
 // 只管理站点数据和站点 Entity，不管理线路选择状态。
 export function useBusStopLayer() {
@@ -21,14 +40,37 @@ export function useBusStopLayer() {
     // 标记静态数据是否已经读取完成。
     let dataLoaded = false
 
-    async function fetchJson<T>(url: string): Promise<T> {
+    async function fetchApiData<T>(url: string): Promise<T> {
         const response = await fetch(url)
 
         if (!response.ok) {
-            throw new Error(`公交站点数据加载失败:${url},HTTP ${response.status}`)
+            throw new Error(`公交数据接口请求失败:${url},HTTP ${response.status}`)
         }
 
-        return response.json() as Promise<T>
+        const result = (await response.json()) as ApiResponse<T>
+
+        if (result.code !== 1) {
+            throw new Error(`公交数据接口返回失败:${url},${result.msg ?? '未知错误'}`)
+        }
+
+        return result.data
+    }
+
+    function normalizeStop(record: StopApiRecord): BusStopRecord {
+        return {
+            stop_id: record.stopId,
+            stop_name: record.stopName,
+            longitude: record.longitude,
+            latitude: record.latitude,
+        }
+    }
+
+    function normalizeRouteStop(record: RouteStopApiRelation): BusRouteStopRelation {
+        return {
+            route_id: record.routeId,
+            stop_id: record.stopId,
+            stop_sequence: record.stopSequence,
+        }
     }
 
     function buildIndexes(stops: BusStopRecord[], routeStops: BusRouteStopRelation[]) {
@@ -95,10 +137,13 @@ export function useBusStopLayer() {
 
     async function loadBusStops(viewer: Cesium.Viewer) {
         if (!dataLoaded) {
-            const [stops, routeStops] = await Promise.all([
-                fetchJson<BusStopRecord[]>(TRANSIT_CONFIG.stopsUrl),
-                fetchJson<BusRouteStopRelation[]>(TRANSIT_CONFIG.routeStopsUrl),
+            const [stopRecords, routeStopRecords] = await Promise.all([
+                fetchApiData<StopApiRecord[]>(TRANSIT_CONFIG.stopsUrl),
+                fetchApiData<RouteStopApiRelation[]>(TRANSIT_CONFIG.routeStopsUrl),
             ])
+
+            const stops = stopRecords.map(normalizeStop)
+            const routeStops = routeStopRecords.map(normalizeRouteStop)
 
             buildIndexes(stops, routeStops)
 

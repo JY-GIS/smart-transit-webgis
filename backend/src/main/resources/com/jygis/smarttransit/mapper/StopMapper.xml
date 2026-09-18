@@ -16,4 +16,42 @@
         ORDER BY stop_id
     </select>
 
+    <select id="findNearby"
+            resultType="com.jygis.smarttransit.pojo.NearbyStop">
+        WITH query_point AS (
+            SELECT
+                ST_SetSRID(
+                    ST_MakePoint(
+                        CAST(#{longitude} AS double precision),
+                        CAST(#{latitude} AS double precision)
+                    ),
+                    4326
+                )::geography AS point_geog
+        )
+
+        SELECT
+            s.stop_id,
+            s.stop_name,
+            s.longitude,
+            s.latitude,
+
+            ST_Distance(
+                s.geom::geography,
+                query_point.point_geog
+            ) AS distance_meters
+
+        FROM public.stops s
+
+        CROSS JOIN query_point
+
+        WHERE
+            ST_DWithin(
+                s.geom::geography,
+                query_point.point_geog,
+                CAST(#{radiusMeters} AS double precision)
+            )
+
+        ORDER BY distance_meters, s.stop_id
+    </select>
+
 </mapper>

@@ -13,6 +13,11 @@ type RouteStyleSnapshot = {
     depthFailMaterial: Cesium.MaterialProperty
 }
 
+// 通过回调复用已有点击事件，避免重复注册
+type MapClickHandler = (
+    position: Cesium.Cartesian2,
+) => void
+
 // 读取模拟车辆 Entity 上的业务元数据
 function readSimulatedBusProperties(entity: Cesium.Entity, time: Cesium.JulianDate): SimulatedBusEntityProperties | null {
     const values = entity.properties?.getValue(time) as
@@ -181,6 +186,7 @@ export function useBusRouteSelection() {
         viewer: Cesium.Viewer,
         dataSource: Cesium.GeoJsonDataSource,
         routeEntitiesByFid: Map<number, Cesium.Entity[]>,
+        onMapClick?: MapClickHandler,
     ) {
         removeRouteSelectionListener?.()
 
@@ -290,6 +296,9 @@ export function useBusRouteSelection() {
             // 点击空白、普通道路或其他图层时，清除公交线路选择
             viewer.selectedEntity = undefined
             clearRouteSelection()
+
+            // 将地图点击位置交给附近公交站查询功能
+            onMapClick?.(click.position)
         }
 
         // 统一接管左键点击

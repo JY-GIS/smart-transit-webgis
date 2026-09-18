@@ -12,8 +12,13 @@ import { useCesiumViewer } from '@/composables/useCesiumViewer'
 import { useWhiteModelLayer } from '@/composables/useWhiteModelLayer'
 import { useFutianBoundaryLayer } from '@/composables/useFutianBoundaryLayer'
 import { useSimulatedBus } from '@/composables/useSimulatedBus'
+import { useNearbyBusStops } from '@/composables/useNearbyBusStops'
+
+import type { NearbyQueryCenter } from '@/types/busStop'
 
 const cesiumContainer = ref<HTMLElement | null>(null)
+
+const nearbyQueryEnabled = ref(false)
 
 // viewer 属于当前页面实例，页面卸载时必须销毁，避免 WebGL 资源泄漏。
 let viewer: Cesium.Viewer | undefined
@@ -46,6 +51,12 @@ const {
 } = useBusRouteSelection()
 
 const {
+    queryNearby,
+    clearNearbyQuery,
+    cleanup: cleanupNearbyBusStops,
+} = useNearbyBusStops()
+
+const {
     loadBusStops,
     getOrderedRouteStops,
     showRouteStops,
@@ -75,6 +86,71 @@ const {
 
 function handleCloseRoutePanel() {
     closeRoutePanel(viewer)
+}
+
+function toggleNearbyQuery() {
+    if (nearbyQueryEnabled.value) {
+        // 结束查询模式时，取消请求并清除旧结果。
+        nearbyQueryEnabled.value = false
+        clearNearbyQuery()
+        return
+    }
+    nearbyQueryEnabled.value = true
+}
+
+function getClickCenter(clickPosition: Cesium.Cartesian2): NearbyQueryCenter | null { 
+    const currentViewer = viewer
+
+    if (!currentViewer || currentViewer.isDestroyed()) {
+        return null
+    }
+
+    const ray = currentViewer.camera.getPickRay(clickPosition)
+
+    if (!ray) {
+        return null
+    }
+
+    const cartesian = currentViewer.scene.globe.pick(
+        ray, 
+        currentViewer.scene
+    ) ?? currentViewer.camera.pickEllipsoid(
+        clickPosition, 
+        currentViewer.scene.globe.ellipsoid
+    )
+
+    if (!cartesian) {
+        return null
+    }
+
+    const cartographic = Cesium.Cartographic.fromCartesian(cartesian)
+
+    return {
+        longitude: Cesium.Math.toDegrees(cartographic.longitude),
+        latitude: Cesium.Math.toDegrees(cartographic.latitude),
+    }
+}
+
+// 地图点击到后端查询的桥接函数
+function handleNearbyMapClick(clickPosition: Cesium.Cartesian2) {
+    if (!nearbyQueryEnabled.value) {
+        return
+    }
+
+    const currentViewer = viewer
+
+    if (!currentViewer || currentViewer.isDestroyed()) {
+        return
+    }
+
+    const center = getClickCenter(clickPosition)
+
+    if (!center) {
+        clearNearbyQuery()
+        return
+    }
+
+    void queryNearby(currentViewer, center)
 }
 
 function toggleBusRoutes() {
@@ -126,6 +202,7 @@ onMounted(async () => {
             viewer,
             futianBusRoutes,
             routeEntitiesByFid,
+            handleNearbyMapClick,
         )
 
         // 初始化完成后飞到福田区附近视角：经度、纬度、相机高度（米）。
@@ -147,6 +224,7 @@ onMounted(async () => {
 // 卸载时按“交互监听 → 业务索引 → 图层 → Viewer”的顺序释放资源。
 onBeforeUnmount(() => { 
     cleanupRouteSelection()
+    cleanupNearbyBusStops(viewer)
     cleanupBusStopLayer(viewer)
     cleanupSimulatedBus()
     routeEntitiesByFid.clear()
@@ -182,6 +260,20 @@ onBeforeUnmount(() => {
             >
                 <span class="layer-control-dot" aria-hidden="true"></span>
                 {{ whiteModelVisible ? '隐藏城市白膜' : '显示城市白膜' }}
+            </button>
+            <button
+                class="layer-control-button"
+                :class="{ 'is-active': nearbyQueryEnabled }"
+                type="button"
+                :aria-pressed="nearbyQueryEnabled"
+                @click="toggleNearbyQuery"
+            >
+                <span class="layer-control-dot" aria-hidden="true"></span>
+                {{
+                    nearbyQueryEnabled
+                        ? '结束附近站点查询'
+                        : '开始附近站点查询'
+                }}
             </button>
         </div>
 

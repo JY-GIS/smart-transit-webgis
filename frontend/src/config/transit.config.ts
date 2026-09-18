@@ -5,6 +5,17 @@ export const TRANSIT_CONFIG = {
     // 公交站点记录数据。
     stopsUrl: '/api/stops',
 
+    // 附近公交站查询接口。
+    nearbyStopsUrl: '/api/stops/nearby',
+
+    // 附近查询参数配置。
+    nearbyQuery: {
+        defaultRadiusMeters: 500,
+
+        // 限制请求范围
+        maxRadiusMeters: 5000,
+    },
+
     // 线路—站点关系数据。
     routeStopsUrl: '/api/route-stops',
 

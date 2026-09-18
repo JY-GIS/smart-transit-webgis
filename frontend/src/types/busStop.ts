@@ -32,3 +32,28 @@ export interface OrderedBusStop {
 
     stopSequence: number
 }
+
+// 后端附近公交站查询结果
+export interface NearbyBusStopRecord {
+    stopId: string
+    stopName: string
+
+    longitude: number
+    latitude: number
+
+    distanceMeters: number
+}
+
+// 附近公交站 Cesium 地图上的查询中心
+export interface NearbyQueryCenter {
+    longitude: number
+    latitude: number
+}
+
+// 附近查询的状态
+export type NearbyQueryStatus =
+    | 'idle'
+    | 'loading'
+    | 'success'
+    | 'empty'
+    | 'error'

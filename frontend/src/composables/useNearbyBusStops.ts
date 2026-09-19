@@ -68,7 +68,7 @@ export function useNearbyBusStops() {
     function isValidRadius(radiusMeters: number): boolean {
         return (
             typeof radiusMeters === 'number' && radiusMeters > 0 &&
-            radiusMeters < TRANSIT_CONFIG.nearbyQuery.maxRadiusMeters
+            radiusMeters <= TRANSIT_CONFIG.nearbyQuery.maxRadiusMeters
         )
     }
 
@@ -176,9 +176,14 @@ export function useNearbyBusStops() {
             polyline: {
                 positions: radiusOutlinePositions,
                 width: 4,
-                clampToGround: true,
+                // clampToGround: true,
                 material: new Cesium.ColorMaterialProperty(Cesium.Color.CYAN.withAlpha(0.95)),
                 classificationType: new Cesium.ConstantProperty(Cesium.ClassificationType.TERRAIN),
+                depthFailMaterial: new Cesium.PolylineGlowMaterialProperty({
+                    color: Cesium.Color.CYAN.withAlpha(0.95),
+                    glowPower: 0.25,
+                    taperPower: 1.0,
+                }),
             },
         })
 

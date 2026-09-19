@@ -27,31 +27,69 @@
                     ),
                     4326
                 )::geography AS point_geog
+        ),
+
+        candidate_stops AS (
+            SELECT
+                s.stop_id,
+                s.stop_name,
+                s.longitude,
+                s.latitude,
+                s.geom,
+
+                ST_Distance(
+                    s.geom::geography,
+                    query_point.point_geog
+                ) AS distance_meters
+
+            FROM public.stops s
+            CROSS JOIN query_point
+
+            WHERE
+                ST_DWithin(
+                    s.geom::geography,
+                    query_point.point_geog,
+                    CAST(#{radiusMeters} AS double precision)
+                )
+        ),
+
+        clustered_stops AS (
+            SELECT
+                candidate_stops.*,
+
+                ST_ClusterDBSCAN(
+                    ST_Transform(geom, 3857),
+                    10,
+                    1
+                ) OVER (
+                    PARTITION BY stop_name
+                    ORDER BY stop_id
+                ) AS cluster_id
+
+            FROM candidate_stops
+        ),
+
+        ranked_stops AS (
+            SELECT
+                clustered_stops.*,
+
+                ROW_NUMBER() OVER (
+                    PARTITION BY stop_name, cluster_id
+                    ORDER BY distance_meters, stop_id
+                ) AS row_number
+
+            FROM clustered_stops
         )
 
         SELECT
-            s.stop_id,
-            s.stop_name,
-            s.longitude,
-            s.latitude,
-
-            ST_Distance(
-                s.geom::geography,
-                query_point.point_geog
-            ) AS distance_meters
-
-        FROM public.stops s
-
-        CROSS JOIN query_point
-
-        WHERE
-            ST_DWithin(
-                s.geom::geography,
-                query_point.point_geog,
-                CAST(#{radiusMeters} AS double precision)
-            )
-
-        ORDER BY distance_meters, s.stop_id
+            stop_id,
+            stop_name,
+            longitude,
+            latitude,
+            distance_meters
+        FROM ranked_stops
+        WHERE row_number = 1
+        ORDER BY distance_meters, stop_id
     </select>
 
 </mapper>

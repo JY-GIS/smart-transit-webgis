@@ -5,6 +5,7 @@ import 'cesium/Build/Cesium/Widgets/widgets.css'
 
 // 页面组件只负责组装各个图层和交互模块，具体实现放在 composables 中。
 import BusRouteInfoPanel from '@/components/transit/BusRouteInfoPanel.vue'
+import NearbyBusStopPanel from '@/components/transit/NearbyBusStopPanel.vue'
 import { useBusRouteLayer } from '@/composables/useBusRouteLayer'
 import { useBusRouteSelection } from '@/composables/useBusRouteSelection'
 import { useBusStopLayer } from '@/composables/useBusStopLayer'
@@ -51,6 +52,10 @@ const {
 } = useBusRouteSelection()
 
 const {
+    nearbyStops,
+    queryRadiusMeters,
+    queryStatus,
+    errorMessage,
     queryNearby,
     clearNearbyQuery,
     cleanup: cleanupNearbyBusStops,
@@ -88,13 +93,18 @@ function handleCloseRoutePanel() {
     closeRoutePanel(viewer)
 }
 
+function handleClearNearbyQuery() {
+    nearbyQueryEnabled.value = false
+    clearNearbyQuery()
+}
+
 function toggleNearbyQuery() {
     if (nearbyQueryEnabled.value) {
-        // 结束查询模式时，取消请求并清除旧结果。
-        nearbyQueryEnabled.value = false
-        clearNearbyQuery()
+        handleClearNearbyQuery()
         return
     }
+    // 重新进入查询模式前清理旧结果，避免上一次结果残留。
+    clearNearbyQuery()
     nearbyQueryEnabled.value = true
 }
 
@@ -358,6 +368,13 @@ onBeforeUnmount(() => {
         <BusRouteInfoPanel
             :route="selectedRoute"
             @close="handleCloseRoutePanel"
+        />
+        <NearbyBusStopPanel
+            :stops="nearbyStops"
+            :status="queryStatus"
+            :error-message="errorMessage"
+            :radius-meters="queryRadiusMeters"
+            @clear="handleClearNearbyQuery"
         />
     </div>
 </template>

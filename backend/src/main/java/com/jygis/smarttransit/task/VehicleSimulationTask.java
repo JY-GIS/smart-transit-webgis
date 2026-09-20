@@ -1,6 +1,7 @@
 package com.jygis.smarttransit.task;
 
 import com.jygis.smarttransit.config.VehicleSimulationProperties;
+import com.jygis.smarttransit.config.VehicleSimulationProperties.VehicleSeed;
 import com.jygis.smarttransit.pojo.RouteSimulationProfile;
 import com.jygis.smarttransit.pojo.VehiclePositionSnapshot;
 import com.jygis.smarttransit.pojo.VehicleRuntimeState;
@@ -13,9 +14,11 @@ import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
- * 后端单车模拟定时任务。
+ * 后端多车辆模拟定时任务。
  *
  * 职责：
  * - 第一次执行时加载 M103 线路档案；
@@ -23,6 +26,12 @@ import java.time.Instant;
  * - 后续根据真实时间差推进累计里程；
  * - 调用 VehicleSimulationService 计算最新位置；
  * - 用新状态整体替换旧状态。
+ *
+ * 当前阶段：
+ * - 一条线路；
+ * - 三辆车辆；
+ * - 每辆车具有独立速度和累计里程；
+ * - 所有车辆共享同一个 RouteSimulationProfile。
  */
 @Slf4j
 @Component
@@ -38,6 +47,11 @@ public class VehicleSimulationTask {
     private final VehicleRuntimeStore vehicleRuntimeStore;
 
     /**
+     * 当前任务已经加载的线路模拟档案。
+     */
+    private RouteSimulationProfile routeProfile;
+
+    /**
      * 周期推进模拟车辆。
      *
      * - fixedDelayString 表示：上一次任务执行完成后，再等待指定毫秒数，然后开始下一次执行。
@@ -51,95 +65,163 @@ public class VehicleSimulationTask {
             fixedDelayString = "${transit.simulation.tick-interval-milliseconds}"
     )
     public void tick() {
-        /*
-         * enabled=false 时保留定时任务注册，
-         * 但每次调用立即返回，不创建或推进车辆。
-         */
         if (!properties.isEnabled()) {
             return;
         }
 
-        String vehicleId = properties.getVehicleId();
-
+        /*
+         * 全部车辆使用同一个 now。
+         *
+         * 如果在循环内分别调用 Instant.now()，三辆车会得到略有差异的时间基准。
+         * 统一时刻可以确保相同速度的车辆只保留业务上的位置差异。
+         */
         Instant now = Instant.now();
 
+        RouteSimulationProfile currentRouteProfile;
+
         try {
-            VehicleRuntimeState currentState = vehicleRuntimeStore.find(vehicleId);
+            validateVehicleIds();
 
-            if (currentState == null) {
-                initializeVehicle(vehicleId, now);
-
-                return;
-            }
-
-            advanceVehicle( currentState, now);
+            currentRouteProfile = getOrLoadRouteProfile();
         } catch (RuntimeException exception) {
+            /*
+             * 线路 Profile 是全部车辆的共同依赖。
+             * 加载失败时，本次所有车辆都不能继续计算。
+             */
             log.error(
-                    "模拟车辆 tick 执行失败，vehicleId={}",
-                    vehicleId,
+                    "模拟线路档案加载失败，routeId={}",
+                    properties.getRouteId(),
                     exception
             );
+
+            return;
+        }
+
+        for (VehicleSeed vehicleSeed : properties.getVehicles()) {
+
+            try {
+                tickVehicle(
+                        vehicleSeed,
+                        currentRouteProfile,
+                        now
+                );
+            } catch (RuntimeException exception) {
+                /*
+                 * 单辆车失败时只记录该车辆错误，
+                 * 循环继续推进其他车辆。
+                 */
+                log.error(
+                        "模拟车辆 tick 执行失败，vehicleId={}",
+                        vehicleSeed.getVehicleId(),
+                        exception
+                );
+            }
         }
     }
 
     /**
-     * 第一次 tick 时初始化车辆。
+     * 校验配置中的 vehicleId 不重复。
      */
-    private void initializeVehicle(
-            String vehicleId,
+    private void validateVehicleIds() {
+        Set<String> vehicleIds = new HashSet<>();
+
+        for (VehicleSeed vehicleSeed : properties.getVehicles()) {
+
+            String vehicleId = vehicleSeed.getVehicleId();
+
+            if (!vehicleIds.add(vehicleId)) {
+                throw new IllegalStateException("模拟车辆 ID 重复：" + vehicleId);
+            }
+        }
+    }
+
+    /**
+     * 第一次使用时加载线路档案，后续直接复用。
+     */
+    private RouteSimulationProfile getOrLoadRouteProfile() {
+        if (routeProfile == null) {
+            routeProfile = vehicleSimulationService.loadRouteProfile(properties.getRouteId());
+
+            log.info(
+                    "模拟线路档案加载完成，routeId={}，" + "routeLength={}m，stopCount={}",
+                    properties.getRouteId(),
+                    routeProfile.routeInfo().getTotalLengthMeters(),
+                    routeProfile.stops().size()
+            );
+        }
+
+        return routeProfile;
+    }
+
+    /**
+     * 初始化或推进一辆车。
+     */
+    private void tickVehicle(
+            VehicleSeed vehicleSeed,
+            RouteSimulationProfile currentRouteProfile,
             Instant now
     ) {
-        String routeId = properties.getRouteId();
+        String vehicleId = vehicleSeed.getVehicleId();
+
+        VehicleRuntimeState currentState = vehicleRuntimeStore.find(vehicleId);
+
+        if (currentState == null) {
+            initializeVehicle(
+                    vehicleSeed,
+                    currentRouteProfile,
+                    now
+            );
+
+            return;
+        }
+
+        advanceVehicle(currentState, now);
+    }
+    /**
+     * 按 VehicleSeed 的初始进度创建一辆车。
+     */
+    private void initializeVehicle(
+            VehicleSeed vehicleSeed,
+            RouteSimulationProfile currentRouteProfile,
+            Instant now
+    ) {
+        double totalLengthMeters = currentRouteProfile.routeInfo().getTotalLengthMeters();
 
         /*
-         * 线路 Profile 只在车辆初始化时加载一次。
-         *
-         * 后续 tick 会从 VehicleRuntimeState 中复用，不会每秒重新查询线路长度和全部站点。
+         * 初始里程 = 线路总长度 × 初始进度比例
          */
-        RouteSimulationProfile routeProfile =
-                vehicleSimulationService
-                        .loadRouteProfile(
-                                routeId
-                        );
-
-        double initialDistanceMeters = 0.0;
+        double initialDistanceMeters = totalLengthMeters * vehicleSeed.getInitialProgressRatio();
 
         VehiclePositionSnapshot initialSnapshot =
                 vehicleSimulationService
                         .calculateSnapshot(
-                                vehicleId,
-                                routeProfile,
+                                vehicleSeed.getVehicleId(),
+                                currentRouteProfile,
                                 initialDistanceMeters
                         );
 
         VehicleRuntimeState initialState =
                 new VehicleRuntimeState(
-                        vehicleId,
-                        routeProfile,
-                        properties.getSpeedMetersPerSecond(),
+                        vehicleSeed.getVehicleId(),
+                        currentRouteProfile,
+                        vehicleSeed.getSpeedMetersPerSecond(),
                         initialDistanceMeters,
                         now,
                         initialSnapshot
                 );
 
-        /*
-         * 所有初始化步骤成功后再保存状态。
-         *
-         * 如果先保存半成品，再进行位置查询，其他线程可能读取到缺少 Snapshot 的状态。
-         */
-        vehicleRuntimeStore.save(
-                initialState
-        );
+        vehicleRuntimeStore.save(initialState);
 
         log.info(
-                "模拟车辆初始化完成，vehicleId={}，routeId={}，"
-                        + "speed={}m/s，routeLength={}m",
-                vehicleId,
-                routeId,
+                "模拟车辆初始化完成，vehicleId={}，"
+                        + "routeId={}，speed={}m/s，"
+                        + "initialProgress={}%，"
+                        + "initialDistance={}m",
+                initialState.vehicleId(),
+                currentRouteProfile.routeInfo().getRouteId(),
                 initialState.speedMetersPerSecond(),
-                routeProfile
-                        .routeInfo()
-                        .getTotalLengthMeters()
+                vehicleSeed.getInitialProgressRatio() * 100.0,
+                initialDistanceMeters
         );
     }
 

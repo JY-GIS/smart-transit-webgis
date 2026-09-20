@@ -3,6 +3,7 @@ package com.jygis.smarttransit.service;
 import com.jygis.smarttransit.pojo.VehicleRuntimeState;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -36,6 +37,13 @@ public class VehicleRuntimeStore {
         }
 
         return states.get(vehicleId);
+    }
+
+    /**
+     * 返回当前全部车辆运行状态的只读快照。
+     */
+    public List<VehicleRuntimeState> findAll() {
+        return List.copyOf(states.values());
     }
 
     /**

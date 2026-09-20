@@ -7,6 +7,7 @@ import com.jygis.smarttransit.pojo.VehiclePositionSnapshot;
 import com.jygis.smarttransit.pojo.VehicleRuntimeState;
 import com.jygis.smarttransit.service.VehicleRuntimeStore;
 import com.jygis.smarttransit.service.VehicleSimulationService;
+import com.jygis.smarttransit.realtime.VehiclePositionPublisher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -45,6 +46,8 @@ public class VehicleSimulationTask {
     private final VehicleSimulationService vehicleSimulationService;
 
     private final VehicleRuntimeStore vehicleRuntimeStore;
+
+    private final VehiclePositionPublisher vehiclePositionPublisher;
 
     /**
      * 当前任务已经加载的线路模拟档案。
@@ -107,15 +110,22 @@ public class VehicleSimulationTask {
                 );
             } catch (RuntimeException exception) {
                 /*
-                 * 单辆车失败时只记录该车辆错误，
-                 * 循环继续推进其他车辆。
+                 * 单辆车失败时只记录该车辆错误，循环继续推进其他车辆。
                  */
-                log.error(
-                        "模拟车辆 tick 执行失败，vehicleId={}",
-                        vehicleSeed.getVehicleId(),
-                        exception
-                );
+                log.error("模拟车辆 tick 执行失败，vehicleId={}", vehicleSeed.getVehicleId(), exception);
             }
+        }
+
+        /*
+         * 必须等本轮所有车辆完成初始化或推进后再统一发布。
+         */
+        try {
+            vehiclePositionPublisher.publishCurrentPositions();
+        } catch (RuntimeException exception) {
+            /*
+             * WebSocket 发布失败不回滚已经计算完成的车辆状态
+             */
+            log.error("车辆实时位置发布失败", exception);
         }
     }
 

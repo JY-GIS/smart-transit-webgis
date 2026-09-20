@@ -1,0 +1,199 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.jygis.smarttransit.mapper.VehicleSimulationMapper">
+
+    <!--
+        查询车辆模拟需要的线路基础信息
+    -->
+    <select id="findRouteSimulationInfo"
+            resultType="com.jygis.smarttransit.pojo.RouteSimulationInfo">
+        WITH route_context AS (
+            SELECT
+                r.route_id,
+                r.fid,
+                r.rname,
+
+                ST_Transform(
+                    <!--
+                        ST_LineMerge：把 MultiLineString 合并成 LineString
+                    -->
+                    ST_LineMerge(r.geom),
+                    32650
+                ) AS metric_line
+
+            FROM public.routes r
+
+            WHERE r.route_id = #{routeId}
+                AND ST_GeometryType(
+                        ST_LineMerge(r.geom)
+                    ) = 'ST_LineString'
+        )
+
+        SELECT
+            route_id,
+            fid AS route_fid,
+            rname AS route_name,
+            <!--
+              ST_Length：计算线长度
+            -->
+            ST_Length(metric_line) AS total_length_meters
+
+        FROM route_context
+    </select>
+
+    <!--
+        查询线路中每个站点的沿线进度和累计里程
+    -->
+    <select id="findRouteStopMeasures"
+            resultType="com.jygis.smarttransit.pojo.RouteStopMeasure">
+        WITH route_context AS (
+            SELECT
+                r.route_id,
+
+                ST_Transform(
+                    ST_LineMerge(r.geom),
+                    32650
+                ) AS metric_line
+
+            FROM public.routes r
+
+            WHERE r.route_id = #{routeId}
+                AND ST_GeometryType(
+                        ST_LineMerge(r.geom)
+                    ) = 'ST_LineString'
+        ),
+
+        ordered_stops AS (
+            SELECT
+                rs.route_id,
+                rs.stop_id,
+                s.stop_name,
+                rs.stop_sequence,
+
+                ST_Transform(
+                    s.geom,
+                    32650
+                ) AS metric_stop,
+
+                MIN(rs.stop_sequence) OVER () AS first_sequence,
+                MAX(rs.stop_sequence) OVER () AS last_sequence
+
+            FROM public.route_stops rs
+
+            JOIN public.stops s
+                ON s.stop_id = rs.stop_id
+
+            WHERE rs.route_id = #{routeId}
+        ),
+
+        located_stops AS (
+            SELECT
+                os.*,
+                rc.metric_line,
+
+                ST_Length(
+                    rc.metric_line
+                ) AS total_length_meters,
+
+                ST_LineLocatePoint(
+                    rc.metric_line,
+                    os.metric_stop
+                ) AS raw_progress_ratio
+
+            FROM ordered_stops os
+
+            JOIN route_context rc
+                ON rc.route_id = os.route_id
+        ),
+
+        effective_stops AS (
+            SELECT
+                *,
+
+                CASE
+                    WHEN stop_sequence = first_sequence
+                        THEN 0.0
+
+                    WHEN stop_sequence = last_sequence
+                        THEN 1.0
+
+                    ELSE raw_progress_ratio
+                END AS progress_ratio
+
+            FROM located_stops
+        )
+
+        SELECT
+            route_id,
+            stop_id,
+            stop_name,
+            stop_sequence,
+            progress_ratio,
+
+            total_length_meters
+                * progress_ratio
+                AS distance_along_route_meters,
+
+            ST_Distance(
+                metric_stop,
+
+                ST_LineInterpolatePoint(
+                    metric_line,
+                    progress_ratio
+                    )
+            ) AS snap_offset_meters
+
+        FROM effective_stops
+
+        ORDER BY stop_sequence
+    </select>
+
+    <!--
+        根据 0～1 的线路进度计算车辆经纬度
+    -->
+    <select id="findPositionAtProgress"
+            resultType="com.jygis.smarttransit.pojo.RouteInterpolatedPosition">
+        WITH route_context AS (
+            SELECT
+                r.route_id,
+
+                ST_Transform(
+                    ST_LineMerge(r.geom),
+                    32650
+                ) AS metric_line
+
+            FROM public.routes r
+
+            WHERE r.route_id = #{routeId}
+                AND ST_GeometryType(
+                        ST_LineMerge(r.geom)
+                    ) = 'ST_LineString'
+        ),
+
+        interpolated_position AS (
+            SELECT
+                ST_Transform(
+                    ST_LineInterpolatePoint(
+                        metric_line,
+                        CAST(
+                            #{progressRatio}
+                            AS double precision
+                        )
+                    ),
+                    4326
+                ) AS position
+
+            FROM route_context
+        )
+
+        SELECT
+            ST_X(position) AS longitude,
+            ST_Y(position) AS latitude
+
+        FROM interpolated_position
+    </select>
+
+</mapper>

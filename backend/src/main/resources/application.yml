@@ -14,3 +14,18 @@ mybatis:
   mapper-locations: "classpath*:com/jygis/smarttransit/mapper/**/*.xml"
   configuration:
     map-underscore-to-camel-case: true
+
+# 后端车辆模拟配置
+transit:
+  simulation:
+    enabled: true
+
+    # 第一阶段只运行一辆 M103
+    route-id: route_000185
+    vehicle-id: simulated-bus-m103-001
+
+    # 12 m/s ≈ 43.2 km/h
+    speed-meters-per-second: 12
+
+    # 每次任务完成后等待 1000 毫秒再执行下一次
+    tick-interval-milliseconds: 1000

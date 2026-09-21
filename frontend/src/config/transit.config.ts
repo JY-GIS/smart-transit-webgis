@@ -36,6 +36,9 @@ export const TRANSIT_CONFIG = {
 
         // 连接意外断开后等待 5 秒重连。
         reconnectDelayMilliseconds: 5000,
+
+        // 两次服务端位置快照之间的客户端插值时间。
+        interpolationDurationMilliseconds: 1000,
     },
 
 } as const

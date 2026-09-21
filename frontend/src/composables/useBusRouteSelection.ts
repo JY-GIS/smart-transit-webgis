@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 import * as Cesium from 'cesium'
 import type { BusRouteProperties } from '@/types/busRoute'
-import type { SimulatedBusEntityProperties } from '@/types/simulatedBus'
+import type { RealtimeVehicleEntityProperties } from '@/types/realtimeVehicle'
 import { readBusRouteProperties } from './useBusRouteLayer'
 
 // 公交线路选择交互：监听 Cesium 选中 Entity，读取属性并高亮同一 fid 的全部片段。
@@ -18,26 +18,26 @@ type MapClickHandler = (
     position: Cesium.Cartesian2,
 ) => void
 
-// 读取模拟车辆 Entity 上的业务元数据
-function readSimulatedBusProperties(entity: Cesium.Entity, time: Cesium.JulianDate): SimulatedBusEntityProperties | null {
+// 读取实时车辆 Entity 上的业务元数据
+function readRealtimeVehicleProperties(entity: Cesium.Entity, time: Cesium.JulianDate): RealtimeVehicleEntityProperties | null {
     const values = entity.properties?.getValue(time) as
         | Record<string, unknown>
         | undefined
 
-    if (!values || values.entityType !== 'simulated-bus') {
+    if (!values || values.entityType !== 'realtime-vehicle') {
         return null
     }
 
-    const busId = String(values.busId ?? '')
+    const vehicleId = String(values.vehicleId ?? '')
     const routeFid = Number(values.routeFid)
 
-    if (!busId || !Number.isFinite(routeFid)) {
+    if (!vehicleId || !Number.isFinite(routeFid)) {
         return null
     }
 
     return {
-        entityType: 'simulated-bus',
-        busId,
+        entityType: 'realtime-vehicle',
+        vehicleId,
         routeFid,
     }
 }
@@ -211,7 +211,7 @@ export function useBusRouteSelection() {
             const topEntity = pickedEntities[0]
 
             const topBusProperties = topEntity
-                ? readSimulatedBusProperties(
+                ? readRealtimeVehicleProperties(
                     topEntity,
                     currentTime,
                 )
@@ -228,14 +228,14 @@ export function useBusRouteSelection() {
 
             // 车辆优先级最高
             const busEntity = pickedEntities.find(
-                (entity) => readSimulatedBusProperties(
+                (entity) => readRealtimeVehicleProperties(
                     entity,
                     currentTime,
                 ) !== null
             )
 
             if (busEntity) {
-                const busProperties = readSimulatedBusProperties(
+                const busProperties = readRealtimeVehicleProperties(
                     busEntity,
                     currentTime,
                 )

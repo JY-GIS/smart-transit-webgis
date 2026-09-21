@@ -12,9 +12,9 @@ import { useBusStopLayer } from '@/composables/useBusStopLayer'
 import { useCesiumViewer } from '@/composables/useCesiumViewer'
 import { useWhiteModelLayer } from '@/composables/useWhiteModelLayer'
 import { useFutianBoundaryLayer } from '@/composables/useFutianBoundaryLayer'
-import { useSimulatedBus } from '@/composables/useSimulatedBus'
 import { useNearbyBusStops } from '@/composables/useNearbyBusStops'
 import { useRealtimeVehicles } from '@/composables/useRealtimeVehicles'
+import { useRealtimeVehicleLayer } from '@/composables/useRealtimeVehicleLayer'
 
 import type { NearbyQueryCenter } from '@/types/busStop'
 
@@ -32,17 +32,6 @@ const {
     busRoutesVisible,
     setBusRoutesVisible,
 } = useBusRouteLayer()
-
-const {
-    busState,
-    isBusLoaded,
-    load: loadSimulatedBus,
-    reload: reloadSimulatedBus,
-    start: startSimulatedBus,
-    stop: stopSimulatedBus,
-    clear: clearSimulatedBus,
-    cleanup: cleanupSimulatedBus,
-} = useSimulatedBus()
 
 // 线路选择 composable 负责 Cesium 选中事件、属性读取、面板状态和高亮恢复。
 const {
@@ -64,16 +53,21 @@ const {
 
 const {
     loadBusStops,
-    getOrderedRouteStops,
     showRouteStops,
     clearRouteStops,
     cleanup: cleanupBusStopLayer,
 } = useBusStopLayer()
 
 const {
+    vehicles: realtimeVehicles,
     connect: connectRealtimeVehicles,
     disconnect: disconnectRealtimeVehicles,
 } = useRealtimeVehicles()
+
+const {
+    updateVehicles: updateRealtimeVehicleLayer,
+    cleanup: cleanupRealtimeVehicleLayer,
+} = useRealtimeVehicleLayer()
 
 // Cesium Viewer 和各基础图层分别管理，页面只按业务顺序调用它们。
 const {
@@ -192,6 +186,17 @@ watch(selectedRoute, (route) => {
     showRouteStops(routeId)
 })
 
+watch(realtimeVehicles, (snapshots) => {
+    const currentViewer = viewer
+
+    // Viewer 尚未创建时先保留数据，暂不绘制
+    if (!currentViewer || currentViewer.isDestroyed()) {
+        return
+    }
+
+    updateRealtimeVehicleLayer(currentViewer, snapshots)
+})
+
 // 页面挂载后按“Viewer → 白膜 → 行政区 → 公交线路 → 点击交互”的顺序初始化。
 onMounted(async () => { 
     // WebSocket 与 Cesium 图层初始化相互独立
@@ -202,6 +207,8 @@ onMounted(async () => {
     try {
         viewer = await createViewer(cesiumContainer.value)
 
+        updateRealtimeVehicleLayer(viewer, realtimeVehicles.value)
+
         await loadWhiteModel(viewer)
 
         await loadFutianBoundary(viewer)
@@ -209,13 +216,6 @@ onMounted(async () => {
         const futianBusRoutes = await loadBusRoutes(viewer)
 
         await loadBusStops(viewer)
-
-        const m103OrderedStops =
-            getOrderedRouteStops(
-            toRouteId(185),
-        )
-
-        loadSimulatedBus(viewer, routeEntitiesByFid,m103OrderedStops)
 
         bindRouteSelection(
             viewer,
@@ -243,11 +243,11 @@ onMounted(async () => {
 // 卸载时按“交互监听 → 业务索引 → 图层 → Viewer”的顺序释放资源。
 onBeforeUnmount(() => { 
     void disconnectRealtimeVehicles()
-    
+
     cleanupRouteSelection()
     cleanupNearbyBusStops(viewer)
     cleanupBusStopLayer(viewer)
-    cleanupSimulatedBus()
+    cleanupRealtimeVehicleLayer(viewer)
     routeEntitiesByFid.clear()
 
     cleanupFutianBoundary(viewer)
@@ -295,83 +295,6 @@ onBeforeUnmount(() => {
                         ? '结束附近站点查询'
                         : '开始附近站点查询'
                 }}
-            </button>
-        </div>
-
-        <div class="bus-controls" aria-label="模拟公交车辆控制">
-            <span class="bus-controls__label">
-                M103：{{ busState.status }}
-            </span>
-
-                <div
-                    class="bus-progress"
-                    aria-live="polite"
-                    aria-label="M103 车辆站点进度"
-                >
-                    <span class="bus-progress__item">
-                        进度：
-                        {{ busState.routeProgressPercent.toFixed(1) }}%
-                    </span>
-
-                    <span class="bus-progress__item">
-                        上一站：
-                        {{ busState.previousStop?.stopName ?? '—' }}
-                    </span>
-
-                    <span class="bus-progress__item">
-                        下一站：
-                        {{ busState.nextStop?.stopName ?? '已到终点' }}
-                    </span>
-
-                    <span class="bus-progress__item">
-                        距下一站：
-                        <template
-                            v-if="
-                                busState.distanceToNextStopMeters !== null
-                            "
-                        >
-                            {{
-                                busState.distanceToNextStopMeters.toFixed(0)
-                            }} 米
-                        </template>
-
-                        <template v-else>
-                            —
-                        </template>
-                    </span>
-                </div>
-
-            <button
-                class="bus-control-button"
-                type="button"
-                :disabled="!isBusLoaded || busState.status === 'running'"
-                @click="startSimulatedBus"
-            >
-                开始
-            </button>
-
-            <button
-                class="bus-control-button"
-                type="button"
-                :disabled="busState.status !== 'running'"
-                @click="stopSimulatedBus"
-            >
-                停止
-            </button>
-
-            <button
-                class="bus-control-button"
-                type="button"
-                @click="clearSimulatedBus"
-            >
-                清理
-            </button>
-            <button
-                class="bus-control-button"
-                type="button"
-                @click="reloadSimulatedBus"
-            >
-                重新加载
             </button>
         </div>
 
@@ -455,53 +378,5 @@ onBeforeUnmount(() => {
         flex-direction: column;
         align-items: flex-start;
     }
-}
-
-.bus-controls {
-    position: absolute;
-    z-index: 10;
-    top: 72px;
-    left: 20px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 10px;
-    color: #e9f5ff;
-    background: rgba(18, 32, 48, 0.86);
-    border: 1px solid rgba(255, 255, 255, 0.35);
-    border-radius: 6px;
-}
-
-.bus-controls__label {
-    margin-right: 4px;
-    font-size: 13px;
-}
-
-.bus-control-button {
-    padding: 6px 10px;
-    color: #e9f5ff;
-    background: rgba(45, 75, 100, 0.9);
-    border: 1px solid rgba(255, 255, 255, 0.25);
-    border-radius: 4px;
-    cursor: pointer;
-}
-
-.bus-control-button:disabled {
-    cursor: not-allowed;
-    opacity: 0.45;
-}
-
-.bus-progress {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 230px;
-    color: #c8d8e6;
-    font-size: 12px;
-    line-height: 1.4;
-}
-
-.bus-progress__item {
-    white-space: nowrap;
 }
 </style>

@@ -49,3 +49,14 @@ export interface RealtimeVehiclePositionSnapshot {
 
     distanceToNextStopMeters: number | null
 }
+
+/**
+ * 挂载到 Cesium 车辆 Entity 上的业务属性。
+ */
+export interface RealtimeVehicleEntityProperties {
+    entityType: 'realtime-vehicle'
+
+    vehicleId: string
+
+    routeFid: number
+}

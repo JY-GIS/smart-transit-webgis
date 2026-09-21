@@ -43,6 +43,12 @@ export default defineConfig({
         target: 'http://localhost:8080',
         changeOrigin: true,
       },
+      // --- WebSocket 握手代理 ---
+      '/ws': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        ws: true, // ws: true 表示这个代理需要支持 HTTP Upgrade，将普通 HTTP 握手升级为 WebSocket 长连接
+      },
     },
   },
   resolve: {

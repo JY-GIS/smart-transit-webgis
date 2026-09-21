@@ -25,4 +25,17 @@ export const TRANSIT_CONFIG = {
         strokeAlpha: 0.95,
         clampToGround: false,
     },
+
+    // 后端实时车辆 STOMP 配置
+    realtimeVehicles: {
+        // WebSocket 最初建立连接时使用的握手路径。
+        webSocketPath: '/ws',
+
+        // 连接成功后订阅的车辆位置主题。
+        topic: '/topic/vehicles',
+
+        // 连接意外断开后等待 5 秒重连。
+        reconnectDelayMilliseconds: 5000,
+    },
+
 } as const

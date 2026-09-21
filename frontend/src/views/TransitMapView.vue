@@ -14,6 +14,7 @@ import { useWhiteModelLayer } from '@/composables/useWhiteModelLayer'
 import { useFutianBoundaryLayer } from '@/composables/useFutianBoundaryLayer'
 import { useSimulatedBus } from '@/composables/useSimulatedBus'
 import { useNearbyBusStops } from '@/composables/useNearbyBusStops'
+import { useRealtimeVehicles } from '@/composables/useRealtimeVehicles'
 
 import type { NearbyQueryCenter } from '@/types/busStop'
 
@@ -68,6 +69,11 @@ const {
     clearRouteStops,
     cleanup: cleanupBusStopLayer,
 } = useBusStopLayer()
+
+const {
+    connect: connectRealtimeVehicles,
+    disconnect: disconnectRealtimeVehicles,
+} = useRealtimeVehicles()
 
 // Cesium Viewer 和各基础图层分别管理，页面只按业务顺序调用它们。
 const {
@@ -188,6 +194,9 @@ watch(selectedRoute, (route) => {
 
 // 页面挂载后按“Viewer → 白膜 → 行政区 → 公交线路 → 点击交互”的顺序初始化。
 onMounted(async () => { 
+    // WebSocket 与 Cesium 图层初始化相互独立
+    connectRealtimeVehicles()
+
     if ( !cesiumContainer.value) return
 
     try {
@@ -233,6 +242,8 @@ onMounted(async () => {
 
 // 卸载时按“交互监听 → 业务索引 → 图层 → Viewer”的顺序释放资源。
 onBeforeUnmount(() => { 
+    void disconnectRealtimeVehicles()
+    
     cleanupRouteSelection()
     cleanupNearbyBusStops(viewer)
     cleanupBusStopLayer(viewer)

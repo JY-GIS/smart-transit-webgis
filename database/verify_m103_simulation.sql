@@ -289,13 +289,15 @@ FROM projection_details
 ORDER BY stop_sequence;
 
 -- ============================================================
--- 7. 汇总阶段 1 验证结果
+-- 7. 汇总原始独立投影的验证结果
 --
 -- middle_progress_strictly_increasing 只检查中间站点使用
 -- ST_LineLocatePoint 得到的进度是否按 stop_sequence 严格递增。
 -- 首末站的锚定不会掩盖中间站点可能存在的回退或重复。
 --
--- stage_1_success 只有在所有核心条件均满足时才为 true。
+-- original_independent_projection_success 只有在原始独立投影的所有
+-- 核心条件均满足时才为 true。M103 在这里保留失败结果是有价值的：
+-- 它直接展示 ST_LineLocatePoint 不理解公交站序所造成的闭环歧义。
 -- 如果为 false，应结合本结果集中的失败项和上一节的逐站明细排查，
 -- 不应直接修改原始线路或站点数据来“让验证通过”。
 -- ============================================================
@@ -514,8 +516,431 @@ SELECT
         AND ss.missing_projection_count = 0
         AND ss.middle_progress_strictly_increasing
         AND ss.snap_offset_over_50m_count = 0
-    ) AS stage_1_success
+    ) AS original_independent_projection_success
 FROM route_summary rs
 CROSS JOIN stop_summary ss;
+
+-- ============================================================
+-- 8. 按 stop_sequence 约束的递归单调投影逐站明细
+--
+-- 与第 6 节的原始独立投影不同，本节从第一站开始按站序递归：
+-- - 第一站锚定为全局 progress 0；
+-- - 中间站只使用上一站之后、50 米范围内的有序线段候选；
+-- - 最后一站根据动态 stop_count 判断并锚定为全局 progress 1。
+--
+-- 为什么不直接在整个剩余 LineString 上再次调用 ST_LineLocatePoint：
+-- 第 6 站在返程线段上的几何距离更近，会直接跳到线路后半段。这里将
+-- 线路拆成有序线段，把每个线段内部的局部比例按累计线段长度换算为
+-- 整条线路的全局 progress，再选择最早的合理候选区间。
+--
+-- raw_progress_ratio 继续保留，便于直接比较独立投影与单调投影。
+-- ============================================================
+
+WITH RECURSIVE route_context AS (
+    SELECT
+        r.route_id,
+        ST_Transform(
+            ST_LineMerge(r.geom),
+            32650
+        ) AS metric_line
+    FROM public.routes r
+    WHERE r.route_id = 'route_000185'
+      AND ST_GeometryType(
+            ST_LineMerge(r.geom)
+          ) = 'ST_LineString'
+),
+route_segments AS (
+    SELECT
+        rc.route_id,
+        dump.path[1] AS segment_index,
+        dump.geom AS segment_geom,
+        ST_Length(dump.geom) AS segment_length_meters,
+        COALESCE(
+            SUM(ST_Length(dump.geom)) OVER (
+                ORDER BY dump.path[1]
+                ROWS BETWEEN UNBOUNDED PRECEDING
+                    AND 1 PRECEDING
+            ),
+            0.0
+        ) AS segment_start_distance_meters
+    FROM route_context rc
+    CROSS JOIN LATERAL
+        ST_DumpSegments(rc.metric_line) AS dump
+),
+ordered_stops AS (
+    SELECT
+        rs.route_id,
+        rs.stop_id,
+        s.stop_name,
+        rs.stop_sequence,
+        ST_Transform(s.geom, 32650) AS metric_stop,
+        rc.metric_line,
+        ST_Length(rc.metric_line) AS total_length_meters,
+        ST_LineLocatePoint(
+            rc.metric_line,
+            ST_Transform(s.geom, 32650)
+        ) AS raw_progress_ratio,
+        ROW_NUMBER() OVER (
+            ORDER BY rs.stop_sequence
+        ) AS stop_order,
+        COUNT(*) OVER () AS stop_count
+    FROM public.route_stops rs
+    JOIN public.stops s
+      ON s.stop_id = rs.stop_id
+    JOIN route_context rc
+      ON rc.route_id = rs.route_id
+    WHERE rs.route_id = 'route_000185'
+),
+monotonic_stops AS (
+    SELECT
+        os.*,
+        0.0::double precision AS progress_ratio
+    FROM ordered_stops os
+    WHERE os.stop_order = 1
+
+    UNION ALL
+
+    SELECT
+        os.*,
+        CASE
+            WHEN os.stop_order = os.stop_count
+                THEN 1.0::double precision
+            WHEN previous.progress_ratio >= 1.0
+                THEN 1.0::double precision
+            ELSE candidate.progress_ratio
+        END AS progress_ratio
+    FROM monotonic_stops previous
+    JOIN ordered_stops os
+      ON os.stop_order = previous.stop_order + 1
+    LEFT JOIN LATERAL (
+        WITH candidate_segments AS (
+            SELECT
+                (
+                    segment.segment_start_distance_meters
+                    + segment.segment_length_meters
+                    * ST_LineLocatePoint(
+                        segment.segment_geom,
+                        os.metric_stop
+                    )
+                ) / previous.total_length_meters
+                    AS progress_ratio,
+                ST_Distance(
+                    segment.segment_geom,
+                    os.metric_stop
+                ) AS snap_offset_meters,
+                segment.segment_index
+                    - ROW_NUMBER() OVER (
+                        ORDER BY segment.segment_index
+                    ) AS candidate_group
+            FROM route_segments segment
+            WHERE ST_DWithin(
+                    segment.segment_geom,
+                    os.metric_stop,
+                    50.0
+                )
+              AND (
+                    segment.segment_start_distance_meters
+                    + segment.segment_length_meters
+                    * ST_LineLocatePoint(
+                        segment.segment_geom,
+                        os.metric_stop
+                    )
+                  ) / previous.total_length_meters
+                    > previous.progress_ratio
+        ),
+        ranked_candidates AS (
+            SELECT
+                candidate_segments.*,
+                MIN(progress_ratio) OVER (
+                    PARTITION BY candidate_group
+                ) AS candidate_group_start
+            FROM candidate_segments
+        )
+        SELECT progress_ratio
+        FROM ranked_candidates
+        ORDER BY
+            candidate_group_start,
+            snap_offset_meters,
+            progress_ratio
+        LIMIT 1
+    ) candidate
+      ON os.stop_order < os.stop_count
+),
+projection_checks AS (
+    SELECT
+        ms.*,
+        ms.total_length_meters
+            * ms.progress_ratio
+            AS distance_along_route_meters,
+        ST_Distance(
+            ms.metric_stop,
+            ST_LineInterpolatePoint(
+                ms.metric_line,
+                ms.progress_ratio
+            )
+        ) AS snap_offset_meters,
+        LAG(ms.progress_ratio) OVER (
+            ORDER BY ms.stop_sequence
+        ) AS previous_progress_ratio,
+        LAG(
+            ms.total_length_meters * ms.progress_ratio
+        ) OVER (
+            ORDER BY ms.stop_sequence
+        ) AS previous_distance_along_route_meters
+    FROM monotonic_stops ms
+)
+SELECT
+    stop_sequence,
+    stop_id,
+    stop_name,
+    ROUND(raw_progress_ratio::numeric, 9)
+        AS original_raw_progress_ratio,
+    ROUND(progress_ratio::numeric, 9)
+        AS progress_ratio,
+    ROUND(distance_along_route_meters::numeric, 3)
+        AS distance_along_route_meters,
+    ROUND(snap_offset_meters::numeric, 3)
+        AS snap_offset_meters,
+    CASE
+        WHEN previous_progress_ratio IS NULL THEN NULL
+        ELSE progress_ratio > previous_progress_ratio
+    END AS progress_strictly_increases,
+    CASE
+        WHEN previous_distance_along_route_meters IS NULL THEN NULL
+        ELSE distance_along_route_meters
+            > previous_distance_along_route_meters
+    END AS distance_strictly_increases
+FROM projection_checks
+ORDER BY stop_sequence;
+
+-- ============================================================
+-- 9. 递归单调投影汇总与靠站状态机前置条件
+--
+-- 50 米沿用项目原验证脚本中的站点匹配质量阈值。
+-- 若 offset_over_50m_stop_count 大于 0，不会调整 progress 掩盖问题；
+-- offending_stops 会明确列出需要继续检查的站点。
+-- ============================================================
+
+WITH RECURSIVE route_context AS (
+    SELECT
+        r.route_id,
+        ST_Transform(
+            ST_LineMerge(r.geom),
+            32650
+        ) AS metric_line
+    FROM public.routes r
+    WHERE r.route_id = 'route_000185'
+      AND ST_GeometryType(
+            ST_LineMerge(r.geom)
+          ) = 'ST_LineString'
+),
+route_segments AS (
+    SELECT
+        rc.route_id,
+        dump.path[1] AS segment_index,
+        dump.geom AS segment_geom,
+        ST_Length(dump.geom) AS segment_length_meters,
+        COALESCE(
+            SUM(ST_Length(dump.geom)) OVER (
+                ORDER BY dump.path[1]
+                ROWS BETWEEN UNBOUNDED PRECEDING
+                    AND 1 PRECEDING
+            ),
+            0.0
+        ) AS segment_start_distance_meters
+    FROM route_context rc
+    CROSS JOIN LATERAL
+        ST_DumpSegments(rc.metric_line) AS dump
+),
+ordered_stops AS (
+    SELECT
+        rs.route_id,
+        rs.stop_id,
+        s.stop_name,
+        rs.stop_sequence,
+        ST_Transform(s.geom, 32650) AS metric_stop,
+        rc.metric_line,
+        ST_Length(rc.metric_line) AS total_length_meters,
+        ROW_NUMBER() OVER (
+            ORDER BY rs.stop_sequence
+        ) AS stop_order,
+        COUNT(*) OVER () AS stop_count
+    FROM public.route_stops rs
+    JOIN public.stops s
+      ON s.stop_id = rs.stop_id
+    JOIN route_context rc
+      ON rc.route_id = rs.route_id
+    WHERE rs.route_id = 'route_000185'
+),
+monotonic_stops AS (
+    SELECT
+        os.*,
+        0.0::double precision AS progress_ratio
+    FROM ordered_stops os
+    WHERE os.stop_order = 1
+
+    UNION ALL
+
+    SELECT
+        os.*,
+        CASE
+            WHEN os.stop_order = os.stop_count
+                THEN 1.0::double precision
+            WHEN previous.progress_ratio >= 1.0
+                THEN 1.0::double precision
+            ELSE candidate.progress_ratio
+        END AS progress_ratio
+    FROM monotonic_stops previous
+    JOIN ordered_stops os
+      ON os.stop_order = previous.stop_order + 1
+    LEFT JOIN LATERAL (
+        WITH candidate_segments AS (
+            SELECT
+                (
+                    segment.segment_start_distance_meters
+                    + segment.segment_length_meters
+                    * ST_LineLocatePoint(
+                        segment.segment_geom,
+                        os.metric_stop
+                    )
+                ) / previous.total_length_meters
+                    AS progress_ratio,
+                ST_Distance(
+                    segment.segment_geom,
+                    os.metric_stop
+                ) AS snap_offset_meters,
+                segment.segment_index
+                    - ROW_NUMBER() OVER (
+                        ORDER BY segment.segment_index
+                    ) AS candidate_group
+            FROM route_segments segment
+            WHERE ST_DWithin(
+                    segment.segment_geom,
+                    os.metric_stop,
+                    50.0
+                )
+              AND (
+                    segment.segment_start_distance_meters
+                    + segment.segment_length_meters
+                    * ST_LineLocatePoint(
+                        segment.segment_geom,
+                        os.metric_stop
+                    )
+                  ) / previous.total_length_meters
+                    > previous.progress_ratio
+        ),
+        ranked_candidates AS (
+            SELECT
+                candidate_segments.*,
+                MIN(progress_ratio) OVER (
+                    PARTITION BY candidate_group
+                ) AS candidate_group_start
+            FROM candidate_segments
+        )
+        SELECT progress_ratio
+        FROM ranked_candidates
+        ORDER BY
+            candidate_group_start,
+            snap_offset_meters,
+            progress_ratio
+        LIMIT 1
+    ) candidate
+      ON os.stop_order < os.stop_count
+),
+projection_checks AS (
+    SELECT
+        ms.*,
+        ms.total_length_meters
+            * ms.progress_ratio
+            AS distance_along_route_meters,
+        ST_Distance(
+            ms.metric_stop,
+            ST_LineInterpolatePoint(
+                ms.metric_line,
+                ms.progress_ratio
+            )
+        ) AS snap_offset_meters,
+        LAG(ms.progress_ratio) OVER (
+            ORDER BY ms.stop_sequence
+        ) AS previous_progress_ratio,
+        LAG(
+            ms.total_length_meters * ms.progress_ratio
+        ) OVER (
+            ORDER BY ms.stop_sequence
+        ) AS previous_distance_along_route_meters
+    FROM monotonic_stops ms
+),
+projection_summary AS (
+    SELECT
+        COUNT(*) AS stop_count,
+        COUNT(*) FILTER (
+            WHERE previous_progress_ratio IS NOT NULL
+              AND (
+                    progress_ratio <= previous_progress_ratio
+                    OR distance_along_route_meters
+                        <= previous_distance_along_route_meters
+                  )
+        ) AS non_monotonic_stop_count,
+        MAX(snap_offset_meters) AS max_snap_offset_meters,
+        AVG(snap_offset_meters) AS avg_snap_offset_meters,
+        COUNT(*) FILTER (
+            WHERE snap_offset_meters > 50
+        ) AS offset_over_50m_stop_count,
+        ARRAY_AGG(
+            FORMAT(
+                '%s:%s(%sm)',
+                stop_sequence,
+                stop_name,
+                ROUND(snap_offset_meters::numeric, 3)
+            )
+            ORDER BY stop_sequence
+        ) FILTER (
+            WHERE snap_offset_meters > 50
+        ) AS offending_stops,
+        MIN(progress_ratio) FILTER (
+            WHERE stop_order = 1
+        ) AS first_progress_ratio,
+        MAX(progress_ratio) FILTER (
+            WHERE stop_order = stop_count
+        ) AS last_progress_ratio,
+        MIN(distance_along_route_meters) FILTER (
+            WHERE stop_order = 1
+        ) AS first_distance_meters,
+        MAX(distance_along_route_meters) FILTER (
+            WHERE stop_order = stop_count
+        ) AS last_distance_meters,
+        MAX(total_length_meters) AS total_length_meters
+    FROM projection_checks
+)
+SELECT
+    stop_count,
+    non_monotonic_stop_count,
+    ROUND(max_snap_offset_meters::numeric, 3)
+        AS max_snap_offset_meters,
+    ROUND(avg_snap_offset_meters::numeric, 3)
+        AS avg_snap_offset_meters,
+    offset_over_50m_stop_count,
+    offending_stops,
+    ROUND(first_progress_ratio::numeric, 9)
+        AS first_progress_ratio,
+    ROUND(last_progress_ratio::numeric, 9)
+        AS last_progress_ratio,
+    ROUND(first_distance_meters::numeric, 3)
+        AS first_distance_meters,
+    ROUND(last_distance_meters::numeric, 3)
+        AS last_distance_meters,
+    ROUND(total_length_meters::numeric, 3)
+        AS total_length_meters,
+    (
+        non_monotonic_stop_count = 0
+        AND first_progress_ratio = 0
+        AND last_progress_ratio = 1
+        AND first_distance_meters = 0
+        AND ABS(
+            last_distance_meters - total_length_meters
+        ) <= 0.001
+        AND offset_over_50m_stop_count = 0
+    ) AS ready_for_stop_state_machine
+FROM projection_summary;
 
 COMMIT;

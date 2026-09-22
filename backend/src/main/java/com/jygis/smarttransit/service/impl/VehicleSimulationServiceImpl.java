@@ -156,10 +156,10 @@ public class VehicleSimulationServiceImpl implements VehicleSimulationService {
         );
 
         /*
-         * 当前阶段已知 RouteStopMeasure 的 distanceAlongRouteMeters
-         * 并不严格按照 stopSequence 单调递增。
+         * findRouteStopMeasures 已按公交站序执行单调约束投影，
+         * loadRouteProfile 也会拒绝进度或里程不递增的数据。
          *
-         * 因此这里暂时不能使用二分查找。
+         * 当前仍保留线性扫描，避免在本次投影修复中顺带重构上一站/下一站查找逻辑。
          */
         RouteStopMeasure previousStop =
                 findPreviousStop(
@@ -275,6 +275,8 @@ public class VehicleSimulationServiceImpl implements VehicleSimulationService {
             List<RouteStopMeasure> stops
     ) {
         int previousSequence = Integer.MIN_VALUE;
+        Double previousProgressRatio = null;
+        Double previousStopDistance = null;
 
         for (RouteStopMeasure stop : stops) {
             if (stop == null) {
@@ -330,6 +332,21 @@ public class VehicleSimulationServiceImpl implements VehicleSimulationService {
                 );
             }
 
+            /*
+             * stopSequence 递增并不能证明车辆沿线路的停靠顺序正确。
+             * 递归投影结果还必须保证 progressRatio 严格递增。
+             */
+            if (previousProgressRatio != null
+                    && progressRatio <= previousProgressRatio) {
+
+                throw new IllegalStateException(
+                        "站点 progressRatio 未按 stopSequence 严格递增："
+                                + stop.getStopId()
+                );
+            }
+
+            previousProgressRatio = progressRatio;
+
             Double stopDistance =
                     stop.getDistanceAlongRouteMeters();
 
@@ -346,6 +363,17 @@ public class VehicleSimulationServiceImpl implements VehicleSimulationService {
                 );
             }
 
+            if (previousStopDistance != null
+                    && stopDistance <= previousStopDistance) {
+
+                throw new IllegalStateException(
+                        "站点沿线里程未按 stopSequence 严格递增："
+                                + stop.getStopId()
+                );
+            }
+
+            previousStopDistance = stopDistance;
+
             Double snapOffset =
                     stop.getSnapOffsetMeters();
 
@@ -356,6 +384,35 @@ public class VehicleSimulationServiceImpl implements VehicleSimulationService {
                 throw new IllegalStateException(
                         "站点投影偏移无效："
                                 + stop.getStopId()
+                );
+            }
+        }
+
+        if (!stops.isEmpty()) {
+            RouteStopMeasure firstStop = stops.get(0);
+            RouteStopMeasure lastStop = stops.get(stops.size() - 1);
+
+            /*
+             * 第一站和最后一站使用动态列表边界验证，
+             * 不依赖 M103 当前恰好有 39 个站点。
+             */
+            if (firstStop.getProgressRatio() != 0.0
+                    || Math.abs(firstStop.getDistanceAlongRouteMeters())
+                    > DISTANCE_EPSILON_METERS) {
+
+                throw new IllegalStateException(
+                        "线路第一站没有锚定在线路起点：" + routeId
+                );
+            }
+
+            if (lastStop.getProgressRatio() != 1.0
+                    || Math.abs(
+                            lastStop.getDistanceAlongRouteMeters()
+                                    - totalLengthMeters
+                    ) > DISTANCE_EPSILON_METERS) {
+
+                throw new IllegalStateException(
+                        "线路最后一站没有锚定在线路终点：" + routeId
                 );
             }
         }

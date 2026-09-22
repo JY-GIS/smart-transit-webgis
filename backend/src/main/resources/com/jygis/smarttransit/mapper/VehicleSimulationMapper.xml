@@ -49,7 +49,7 @@
     -->
     <select id="findRouteStopMeasures"
             resultType="com.jygis.smarttransit.pojo.RouteStopMeasure">
-        WITH route_context AS (
+        WITH RECURSIVE route_context AS (
             SELECT
                 r.route_id,
 
@@ -66,6 +66,30 @@
                     ) = 'ST_LineString'
         ),
 
+        route_segments AS (
+
+        <!-- 将整条 LineString 拆成有顺序的两点线段，为同一站点在去程、返程附近产生多个投影候选 -->
+            SELECT
+                rc.route_id,
+                dump.path[1] AS segment_index,
+                dump.geom AS segment_geom,
+                ST_Length(dump.geom) AS segment_length_meters,
+
+                COALESCE(
+                    SUM(ST_Length(dump.geom)) OVER (
+                        ORDER BY dump.path[1]
+                        ROWS BETWEEN UNBOUNDED PRECEDING
+                            AND 1 PRECEDING
+                    ),
+                    0.0
+                ) AS segment_start_distance_meters
+
+            FROM route_context rc
+
+            CROSS JOIN LATERAL
+                ST_DumpSegments(rc.metric_line) AS dump
+        ),
+
         ordered_stops AS (
             SELECT
                 rs.route_id,
@@ -78,8 +102,11 @@
                     32650
                 ) AS metric_stop,
 
-                MIN(rs.stop_sequence) OVER () AS first_sequence,
-                MAX(rs.stop_sequence) OVER () AS last_sequence
+                ROW_NUMBER() OVER (
+                    ORDER BY rs.stop_sequence
+                ) AS stop_order,
+
+                COUNT(*) OVER () AS stop_count
 
             FROM public.route_stops rs
 
@@ -89,41 +116,121 @@
             WHERE rs.route_id = #{routeId}
         ),
 
-        located_stops AS (
+        monotonic_stops AS (
+            <!-- 递归起点：站序中的第一站固定在线路起点，因此全局 progress_ratio 为 0 -->
             SELECT
                 os.*,
                 rc.metric_line,
-
                 ST_Length(
                     rc.metric_line
                 ) AS total_length_meters,
 
-                ST_LineLocatePoint(
-                    rc.metric_line,
-                    os.metric_stop
-                ) AS raw_progress_ratio
+                0.0::double precision AS progress_ratio
 
             FROM ordered_stops os
 
             JOIN route_context rc
                 ON rc.route_id = os.route_id
-        ),
 
-        effective_stops AS (
+            WHERE os.stop_order = 1
+
+            UNION ALL
+
+            <!--
+                中间站只考虑上一站 progress_ratio 之后、且距离站点不超过 50 米的线路线段。
+                最后一站使用动态 stop_count 判断并固定为 1，不硬编码 M103 的站点数量。
+            -->
             SELECT
-                *,
+                os.*,
+                previous.metric_line,
+                previous.total_length_meters,
 
                 CASE
-                    WHEN stop_sequence = first_sequence
-                        THEN 0.0
+                    WHEN os.stop_order = os.stop_count
+                        THEN 1.0::double precision
 
-                    WHEN stop_sequence = last_sequence
-                        THEN 1.0
+                    /*
+                        防止异常数据让中间站提前投影到终点后，
+                        下一轮对零长度子线继续调用 ST_LineLocatePoint。
+                        返回 1 不会掩盖问题：Java 的严格递增校验会拒绝它。
+                    */
+                    WHEN previous.progress_ratio >= 1.0
+                        THEN 1.0::double precision
 
-                    ELSE raw_progress_ratio
+                    ELSE candidate.progress_ratio
                 END AS progress_ratio
 
-            FROM located_stops
+            FROM monotonic_stops previous
+
+            JOIN ordered_stops os
+                ON os.stop_order = previous.stop_order + 1
+
+            LEFT JOIN LATERAL (
+                /*
+                    1. 每条线段产生一个精确的全局 progress 候选；
+                    2. 只保留上一站之后且站点偏移不超过 50 米的候选；
+                    3. 将连续 segment_index 组成候选区间；
+                    4. 选择最早区间中 snap_offset 最小的位置。
+
+                    这样可以选择站序上更早的去程线段，同时不会简单取“刚进入 50 米范围”的区间边缘。
+                */
+                WITH candidate_segments AS (
+                    SELECT
+                        (
+                            segment.segment_start_distance_meters
+                            + segment.segment_length_meters
+                            * ST_LineLocatePoint(
+                                segment.segment_geom,
+                                os.metric_stop
+                            )
+                        ) / previous.total_length_meters
+                            AS progress_ratio,
+
+                        ST_Distance(
+                            segment.segment_geom,
+                            os.metric_stop
+                        ) AS snap_offset_meters,
+
+                        segment.segment_index
+                            - ROW_NUMBER() OVER (
+                                ORDER BY segment.segment_index
+                            ) AS candidate_group
+
+                    FROM route_segments segment
+
+                    WHERE ST_DWithin(
+                            segment.segment_geom,
+                            os.metric_stop,
+                            50.0
+                        )
+                      AND (
+                            segment.segment_start_distance_meters
+                            + segment.segment_length_meters
+                            * ST_LineLocatePoint(
+                                segment.segment_geom,
+                                os.metric_stop
+                            )
+                          ) / previous.total_length_meters
+                            > previous.progress_ratio
+                ),
+                ranked_candidates AS (
+                    SELECT
+                        candidate_segments.*,
+                        MIN(progress_ratio) OVER (
+                            PARTITION BY candidate_group
+                        ) AS candidate_group_start
+                    FROM candidate_segments
+                )
+                SELECT
+                    progress_ratio
+                FROM ranked_candidates
+                ORDER BY
+                    candidate_group_start,
+                    snap_offset_meters,
+                    progress_ratio
+                LIMIT 1
+            ) candidate
+                ON os.stop_order &lt; os.stop_count
         )
 
         SELECT
@@ -146,7 +253,7 @@
                     )
             ) AS snap_offset_meters
 
-        FROM effective_stops
+        FROM monotonic_stops
 
         ORDER BY stop_sequence
     </select>

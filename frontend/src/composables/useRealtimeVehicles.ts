@@ -47,6 +47,10 @@ function isVehicleSnapshot(value: unknown): value is RealtimeVehiclePositionSnap
 
     const distanceToNextStopIsValid = vehicle.distanceToNextStopMeters === null || isFiniteNumber(vehicle.distanceToNextStopMeters)
 
+    const frontVehicleIdIsValid = vehicle.frontVehicleId === null || typeof vehicle.frontVehicleId === 'string'
+
+    const distanceToFrontVehicleIsValid = vehicle.distanceToFrontVehicleMeters === null || (isFiniteNumber(vehicle.distanceToFrontVehicleMeters) && vehicle.distanceToFrontVehicleMeters >= 0)
+
     return (
         typeof vehicle.vehicleId === 'string' &&
         typeof vehicle.routeId === 'string' &&
@@ -56,6 +60,8 @@ function isVehicleSnapshot(value: unknown): value is RealtimeVehiclePositionSnap
         isFiniteNumber(vehicle.distanceMeters) &&
         isFiniteNumber(vehicle.totalDistanceMeters) &&
         isFiniteNumber(vehicle.routeProgressPercent) &&
+        frontVehicleIdIsValid &&
+        distanceToFrontVehicleIsValid &&
         previousStopIsValid &&
         nextStopIsValid &&
         distanceToNextStopIsValid

@@ -204,6 +204,8 @@ public class VehicleSimulationServiceImpl implements VehicleSimulationService {
                 normalizedDistanceMeters,
                 totalDistanceMeters,
                 routeProgressPercent,
+                null,
+                null,
                 toStopSnapshot(previousStop),
                 toStopSnapshot(nextStop),
                 distanceToNextStopMeters

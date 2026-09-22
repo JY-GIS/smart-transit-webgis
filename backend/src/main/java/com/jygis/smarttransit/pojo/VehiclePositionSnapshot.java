@@ -23,6 +23,12 @@ public record VehiclePositionSnapshot(
         // 当前线路进度百分比，范围为 0～100
         double routeProgressPercent,
 
+        // 同线路、同运行方向上距离当前车辆最近的前车编号
+        String frontVehicleId,
+
+        // 当前车辆到前车的线路沿线距离
+        Double distanceToFrontVehicleMeters,
+
         // 最近已经经过的站点
         VehicleStopSnapshot previousStop,
 
@@ -32,4 +38,28 @@ public record VehiclePositionSnapshot(
         // 距离下一站的线路距离
         Double distanceToNextStopMeters
 ) {
+    /**
+     * 返回补充了前车关系的新快照。
+     * record 是不可变对象，不能直接修改已有字段。因此使用 with 方法创建一个新快照，同时保留车辆原有位置数据。
+     */
+    public VehiclePositionSnapshot withFrontVehicle(
+            String newFrontVehicleId,
+            Double newDistanceToFrontVehicleMeters
+    ) {
+        return new VehiclePositionSnapshot(
+                vehicleId,
+                routeId,
+                routeFid,
+                longitude,
+                latitude,
+                distanceMeters,
+                totalDistanceMeters,
+                routeProgressPercent,
+                newFrontVehicleId,
+                newDistanceToFrontVehicleMeters,
+                previousStop,
+                nextStop,
+                distanceToNextStopMeters
+        );
+    }
 }

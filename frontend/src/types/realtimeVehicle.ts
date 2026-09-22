@@ -43,6 +43,10 @@ export interface RealtimeVehiclePositionSnapshot {
 
     routeProgressPercent: number
 
+    frontVehicleId: string | null
+
+    distanceToFrontVehicleMeters: number | null
+
     previousStop: RealtimeVehicleStopSnapshot | null
 
     nextStop: RealtimeVehicleStopSnapshot | null

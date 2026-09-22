@@ -23,6 +23,7 @@ const emit = defineEmits<{
 const displayedDistanceMeters = ref(0)
 const displayedRouteProgressPercent = ref(0)
 const displayedDistanceToNextStopMeters = ref<number | null>(null)
+const displayedDistanceToFrontVehicleMeters = ref<number | null>(null)
 
 interface VehicleMetricAnimation {
     startedAtMilliseconds: number
@@ -33,12 +34,17 @@ interface VehicleMetricAnimation {
     interpolateNextStopDistance: boolean
     startDistanceToNextStopMeters: number | null
     targetDistanceToNextStopMeters: number | null
+
+    interpolateFrontVehicleDistance: boolean
+    startDistanceToFrontVehicleMeters: number | null
+    targetDistanceToFrontVehicleMeters: number | null
 }
 
 let animationFrameId: number | undefined
 let animation: VehicleMetricAnimation | undefined
 let activeVehicleId: string | null = null
 let previousNextStopId: string | null = null
+let previousFrontVehicleId: string | null = null
 
 function formatDistance(distanceMeters: number | null,): string {
     if (distanceMeters === null) {
@@ -79,6 +85,9 @@ function applySnapshotImmediately(vehicle: RealtimeVehiclePositionSnapshot) {
 
     displayedDistanceToNextStopMeters.value =
         vehicle.distanceToNextStopMeters
+
+    displayedDistanceToFrontVehicleMeters.value =
+        vehicle.distanceToFrontVehicleMeters
 }
 
 // 执行一帧面板数字插值
@@ -128,6 +137,19 @@ function animateVehicleMetrics(currentTimeMilliseconds: number) {
         displayedDistanceToNextStopMeters.value = currentAnimation.targetDistanceToNextStopMeters
     }
 
+    // 只有前车没有发生变化时，才能对车距进行线性插值
+    if (
+        currentAnimation.interpolateFrontVehicleDistance &&
+        currentAnimation.startDistanceToFrontVehicleMeters !== null &&
+        currentAnimation.targetDistanceToFrontVehicleMeters !== null
+    ) {
+        displayedDistanceToFrontVehicleMeters.value =
+            currentAnimation.startDistanceToFrontVehicleMeters +
+            progress * (currentAnimation.targetDistanceToFrontVehicleMeters - currentAnimation.startDistanceToFrontVehicleMeters)
+    } else {
+        displayedDistanceToFrontVehicleMeters.value = currentAnimation.targetDistanceToFrontVehicleMeters
+    }
+
     if (progress < 1) {
         animationFrameId = window.requestAnimationFrame(animateVehicleMetrics)
         return
@@ -147,20 +169,24 @@ function animateVehicleMetrics(currentTimeMilliseconds: number) {
         if (!vehicle) {
             activeVehicleId = null
             previousNextStopId = null
+            previousFrontVehicleId = null
 
             displayedDistanceMeters.value = 0
             displayedRouteProgressPercent.value = 0
             displayedDistanceToNextStopMeters.value = null
+            displayedDistanceToFrontVehicleMeters.value = null
 
             return
         }
 
         const nextStopId = vehicle.nextStop?.stopId ?? null
+        const frontVehicleId = vehicle.frontVehicleId
 
         // 第一次打开面板或切换到另一辆车时，不应该从上一辆车的数字插值过来
         if (activeVehicleId !== vehicle.vehicleId) {
             activeVehicleId = vehicle.vehicleId
             previousNextStopId = nextStopId
+            previousFrontVehicleId = frontVehicleId
 
             applySnapshotImmediately(vehicle)
 
@@ -186,6 +212,13 @@ function animateVehicleMetrics(currentTimeMilliseconds: number) {
             displayedDistanceToNextStopMeters.value !== null && 
             vehicle.distanceToNextStopMeters !== null
 
+        // 前车编号相同且新旧距离都有值时才进行插值
+        const interpolateFrontVehicleDistance =
+            previousFrontVehicleId !== null &&
+            previousFrontVehicleId === frontVehicleId &&
+            displayedDistanceToFrontVehicleMeters.value !== null &&
+            vehicle.distanceToFrontVehicleMeters !== null
+
         animation = {
             startedAtMilliseconds: performance.now(),
             startDistanceMeters: displayedDistanceMeters.value,
@@ -195,9 +228,13 @@ function animateVehicleMetrics(currentTimeMilliseconds: number) {
             interpolateNextStopDistance,
             startDistanceToNextStopMeters: displayedDistanceToNextStopMeters.value,
             targetDistanceToNextStopMeters: vehicle.distanceToNextStopMeters,
+            interpolateFrontVehicleDistance,
+            startDistanceToFrontVehicleMeters: displayedDistanceToFrontVehicleMeters.value,
+            targetDistanceToFrontVehicleMeters: vehicle.distanceToFrontVehicleMeters,
         }
 
         previousNextStopId = nextStopId
+        previousFrontVehicleId = frontVehicleId
 
         animationFrameId = window.requestAnimationFrame(animateVehicleMetrics)
     },
@@ -241,7 +278,15 @@ onBeforeUnmount(() => {
                     <span>线路进度</span>
 
                     <strong>
-                        {{ displayedRouteProgressPercent.toFixed(1) }}%
+                        {{ displayedRouteProgressPercent.toFixed(2) }}%
+                    </strong>
+                </div>
+
+                <div class="vehicle-panel__field">
+                    <span>距离前车</span>
+
+                    <strong>
+                        {{ formatDistance(displayedDistanceToFrontVehicleMeters) }}
                     </strong>
                 </div>
 

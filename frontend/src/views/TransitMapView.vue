@@ -1,11 +1,12 @@
 <script setup lang="ts">    
-import { onMounted, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import * as Cesium from 'cesium'
 import 'cesium/Build/Cesium/Widgets/widgets.css'
 
 // 页面组件只负责组装各个图层和交互模块，具体实现放在 composables 中。
 import BusRouteInfoPanel from '@/components/transit/BusRouteInfoPanel.vue'
 import NearbyBusStopPanel from '@/components/transit/NearbyBusStopPanel.vue'
+import RealtimeVehicleInfoPanel from '@/components/transit/RealtimeVehicleInfoPanel.vue'
 import { useBusRouteLayer } from '@/composables/useBusRouteLayer'
 import { useBusRouteSelection } from '@/composables/useBusRouteSelection'
 import { useBusStopLayer } from '@/composables/useBusStopLayer'
@@ -36,6 +37,7 @@ const {
 // 线路选择 composable 负责 Cesium 选中事件、属性读取、面板状态和高亮恢复。
 const {
     selectedRoute,
+    selectedVehicleId,
     bindRouteSelection,
     closeRoutePanel,
     cleanup: cleanupRouteSelection,
@@ -63,6 +65,20 @@ const {
     connect: connectRealtimeVehicles,
     disconnect: disconnectRealtimeVehicles,
 } = useRealtimeVehicles()
+
+const selectedRealtimeVehicle = computed(() => {
+    const vehicleId = selectedVehicleId.value
+
+    if (!vehicleId) {
+        return null
+    }
+
+    return (
+        realtimeVehicles.value.find(
+            (vehicle) => vehicle.vehicleId === vehicleId,
+        ) ?? null
+    )
+})
 
 const {
     updateVehicles: updateRealtimeVehicleLayer,
@@ -300,6 +316,11 @@ onBeforeUnmount(() => {
 
         <!-- 信息面板覆盖在 Cesium 容器上方，不参与 Cesium Entity 绘制。 -->
         <BusRouteInfoPanel
+            :route="selectedRealtimeVehicle ? null : selectedRoute"
+            @close="handleCloseRoutePanel"
+        />
+        <RealtimeVehicleInfoPanel
+            :vehicle="selectedRealtimeVehicle"
             :route="selectedRoute"
             @close="handleCloseRoutePanel"
         />

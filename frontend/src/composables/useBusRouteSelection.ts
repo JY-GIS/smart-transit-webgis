@@ -75,6 +75,9 @@ export function useBusRouteSelection() {
     // 面板只关心当前业务线路属性，不直接暴露 Cesium Entity。
     const selectedRoute = ref<BusRouteProperties | null>(null)
 
+    // 当前选中的实时车辆业务编号
+    const selectedVehicleId = ref<string | null>(null)
+
     // key 使用 Entity.id，允许一条 fid 线路包含多个独立片段。
     const highlightedRouteStyles =
         new Map<string, RouteStyleSnapshot>()
@@ -152,6 +155,7 @@ export function useBusRouteSelection() {
     }
 
     function clearRouteSelection() {
+        selectedVehicleId.value = null
         selectedRoute.value = null
         clearRouteHighlight()
     }
@@ -247,6 +251,8 @@ export function useBusRouteSelection() {
 
                 viewer.selectedEntity = busEntity
 
+                selectedVehicleId.value = busProperties.vehicleId
+
                 selectRouteByFid(
                     busProperties.routeFid,
                     routeEntitiesByFid,
@@ -283,6 +289,9 @@ export function useBusRouteSelection() {
                 }
 
                 viewer.selectedEntity = routeEntity
+
+                // 选择来源已经切换为线路，关闭车辆详情面板
+                selectedVehicleId.value = null
 
                 selectRouteByFid(
                     routeProperties.fid,
@@ -349,6 +358,7 @@ export function useBusRouteSelection() {
 
     return {
         selectedRoute,
+        selectedVehicleId,
         bindRouteSelection,
         closeRoutePanel,
         cleanup,

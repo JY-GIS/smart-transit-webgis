@@ -47,6 +47,13 @@ public class VehicleSimulationProperties {
     private long tickIntervalMilliseconds;
 
     /**
+     * 每次到站后的停留时间，单位为秒。
+     */
+    @Positive
+    private long dwellDurationSeconds;
+
+
+    /**
      * 需要运行的车辆配置列表。
      */
     @NotEmpty // @NotEmpty 保证列表至少有一辆车

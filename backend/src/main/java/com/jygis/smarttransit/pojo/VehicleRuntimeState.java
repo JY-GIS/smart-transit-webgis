@@ -24,6 +24,21 @@ public record VehicleRuntimeState(
         double speedMetersPerSecond,
 
         /**
+         * 当前目标站在 RouteSimulationProfile.stops 中的列表索引。
+         */
+        int targetStopIndex,
+
+        /**
+         * 车辆当前运动状态。
+         */
+        VehicleMotionStatus motionStatus,
+
+        /**
+         * 停站结束时刻。
+         */
+        Instant dwellUntil,
+
+        /**
          * 从模拟启动后累计运行的总里程，单位为米。
          */
         double accumulatedDistanceMeters,
@@ -54,6 +69,11 @@ public record VehicleRuntimeState(
         );
 
         Objects.requireNonNull(
+                motionStatus,
+                "motionStatus 不能为空"
+        );
+
+        Objects.requireNonNull(
                 lastUpdatedAt,
                 "lastUpdatedAt 不能为空"
         );
@@ -77,6 +97,35 @@ public record VehicleRuntimeState(
             );
         }
 
+        if (routeProfile.stops().isEmpty()) {
+            throw new IllegalArgumentException("车辆运行线路不能没有站点");
+        }
+
+        if (targetStopIndex < 0 || targetStopIndex >= routeProfile.stops().size()) {
+
+            throw new IllegalArgumentException(
+                    "targetStopIndex 超出线路站点范围"
+            );
+        }
+
+        /*
+         * 运行状态和停站结束时间必须保持一致
+         */
+        if (motionStatus == VehicleMotionStatus.CRUISING && dwellUntil != null) {
+
+            throw new IllegalArgumentException(
+                    "CRUISING 状态不能提供 dwellUntil"  // CRUISING 不应该携带停站结束时间
+            );
+        }
+
+        if (motionStatus == VehicleMotionStatus.DWELLING
+                && dwellUntil == null) {
+
+            throw new IllegalArgumentException(
+                    "DWELLING 状态必须提供 dwellUntil"  // DWELLING 必须知道什么时候结束停站
+            );
+        }
+
         if (!Double.isFinite(accumulatedDistanceMeters)
                 || accumulatedDistanceMeters < 0) {
 
@@ -84,5 +133,14 @@ public record VehicleRuntimeState(
                     "accumulatedDistanceMeters 必须是有限非负数"
             );
         }
+    }
+
+    /**
+     * 根据内部索引返回当前目标站。
+     */
+    public RouteStopMeasure targetStop() {
+        return routeProfile
+                .stops()
+                .get(targetStopIndex);
     }
 }

@@ -5,6 +5,8 @@ import com.jygis.smarttransit.config.VehicleSimulationProperties.VehicleSeed;
 import com.jygis.smarttransit.pojo.RouteSimulationProfile;
 import com.jygis.smarttransit.pojo.VehiclePositionSnapshot;
 import com.jygis.smarttransit.pojo.VehicleRuntimeState;
+import com.jygis.smarttransit.pojo.RouteStopMeasure;
+import com.jygis.smarttransit.pojo.VehicleMotionStatus;
 import com.jygis.smarttransit.service.VehicleRuntimeStore;
 import com.jygis.smarttransit.service.VehicleSimulationService;
 import com.jygis.smarttransit.realtime.VehiclePositionPublisher;
@@ -17,6 +19,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.List;
 
 /**
  * 后端多车辆模拟定时任务。
@@ -40,6 +43,8 @@ import java.util.Set;
 public class VehicleSimulationTask {
 
     private static final double NANOS_PER_SECOND = 1_000_000_000.0;
+
+    private static final double DISTANCE_EPSILON_METERS = 1e-6;
 
     private final VehicleSimulationProperties properties;
 
@@ -202,6 +207,16 @@ public class VehicleSimulationTask {
          */
         double initialDistanceMeters = totalLengthMeters * vehicleSeed.getInitialProgressRatio();
 
+        /*
+         * 确定车辆启动时面对的目标站。
+         */
+        int initialTargetStopIndex =
+                findInitialTargetStopIndex(
+                        currentRouteProfile.stops(),
+                        initialDistanceMeters
+                );
+
+
         VehiclePositionSnapshot initialSnapshot =
                 vehicleSimulationService
                         .calculateSnapshot(
@@ -215,6 +230,9 @@ public class VehicleSimulationTask {
                         vehicleSeed.getVehicleId(),
                         currentRouteProfile,
                         vehicleSeed.getSpeedMetersPerSecond(),
+                        initialTargetStopIndex,
+                        VehicleMotionStatus.CRUISING,
+                        null,
                         initialDistanceMeters,
                         now,
                         initialSnapshot
@@ -225,11 +243,17 @@ public class VehicleSimulationTask {
         log.info(
                 "模拟车辆初始化完成，vehicleId={}，"
                         + "routeId={}，speed={}m/s，"
+                        + "motionStatus={}，"
+                        + "targetStopSequence={}，"
+                        + "targetStopName={}，"
                         + "initialProgress={}%，"
                         + "initialDistance={}m",
                 initialState.vehicleId(),
                 currentRouteProfile.routeInfo().getRouteId(),
                 initialState.speedMetersPerSecond(),
+                initialState.motionStatus(),
+                initialState.targetStop().getStopSequence(),
+                initialState.targetStop().getStopName(),
                 vehicleSeed.getInitialProgressRatio() * 100.0,
                 initialDistanceMeters
         );
@@ -276,33 +300,81 @@ public class VehicleSimulationTask {
         }
 
         /*
+         * 停站车辆不能继续执行后面的里程推进公式，否则即使状态为 DWELLING，累计里程仍然会增加。
+         */
+        if (currentState.motionStatus() == VehicleMotionStatus.DWELLING) {
+
+            advanceDwellingVehicle(
+                    currentState,
+                    now
+            );
+
+            return;
+        }
+
+        /*
          * Duration.toNanos 返回纳秒数。
          * 除以 10^9 转换成带小数的秒数。
          */
         double elapsedSeconds = elapsed.toNanos() / NANOS_PER_SECOND;
 
         /*
-         * 车辆推进公式：新累计里程 = 旧累计里程 + 速度 × 实际时间差
+         * 按恒定速度计算车辆本次原本想移动的距离。
          */
-        double distanceDeltaMeters =
-                currentState
-                        .speedMetersPerSecond()
-                        * elapsedSeconds;
+        double requestedDistanceDeltaMeters =
+                currentState.speedMetersPerSecond() * elapsedSeconds;
+
+        /*
+         * 目标站保存的是单圈里程，这里将它换算成当前圈次中的累计里程。
+         */
+        double targetAccumulatedDistanceMeters =
+                calculateTargetAccumulatedDistance(
+                        currentState.accumulatedDistanceMeters(),
+                        currentState
+                                .routeProfile()
+                                .routeInfo()
+                                .getTotalLengthMeters(),
+                        currentState
+                                .targetStop()
+                                .getDistanceAlongRouteMeters()
+                );
+
+        double distanceToTargetStopMeters =
+                Math.max(
+                        0,
+                        targetAccumulatedDistanceMeters - currentState.accumulatedDistanceMeters()
+                );
+
+        /*
+         * 如果本次原计划移动的距离已经足以到达目标站，就只移动到站点，不能继续越过站点。
+         */
+        boolean reachesTargetStop =
+                (requestedDistanceDeltaMeters + DISTANCE_EPSILON_METERS) >= distanceToTargetStopMeters;
+
+        double actualDistanceDeltaMeters =
+                reachesTargetStop ? distanceToTargetStopMeters : requestedDistanceDeltaMeters;
 
         double nextAccumulatedDistanceMeters =
-                currentState
-                        .accumulatedDistanceMeters()
-                        + distanceDeltaMeters;
+                currentState.accumulatedDistanceMeters() + actualDistanceDeltaMeters;
 
-        if (!Double.isFinite(
-                nextAccumulatedDistanceMeters
-        )) {
-            throw new IllegalStateException(
-                    "车辆累计里程溢出："
-                            + currentState.vehicleId()
-            );
+        if (!Double.isFinite(nextAccumulatedDistanceMeters)) {
+            throw new IllegalStateException("车辆累计里程溢出：" + currentState.vehicleId());
         }
 
+        /*
+         * 到达目标站后先进入 DWELLING，不能立即把目标切换到下一站。
+         */
+        VehicleMotionStatus nextMotionStatus =
+                reachesTargetStop ? VehicleMotionStatus.DWELLING : VehicleMotionStatus.CRUISING;
+
+        /*
+         * 使用明确的结束时刻，而不是累计“已经停了几个 tick”。
+         * 即使定时任务偶尔延迟，停站判断仍然基于真实时间。
+         */
+        Instant nextDwellUntil =
+                reachesTargetStop
+                        ? now.plusSeconds(properties.getDwellDurationSeconds())
+                        : null;
         VehiclePositionSnapshot nextSnapshot =
                 vehicleSimulationService
                         .calculateSnapshot(
@@ -321,8 +393,10 @@ public class VehicleSimulationTask {
                 new VehicleRuntimeState(
                         currentState.vehicleId(),
                         currentState.routeProfile(),
-                        currentState
-                                .speedMetersPerSecond(),
+                        currentState.speedMetersPerSecond(),
+                        currentState.targetStopIndex(),
+                        nextMotionStatus,
+                        nextDwellUntil,
                         nextAccumulatedDistanceMeters,
                         now,
                         nextSnapshot
@@ -338,6 +412,19 @@ public class VehicleSimulationTask {
                 nextState
         );
 
+        if (reachesTargetStop) {
+            log.info(
+                    "模拟车辆到站，vehicleId={}，"
+                            + "stopSequence={}，"
+                            + "stopName={}，"
+                            + "dwellUntil={}",
+                    nextState.vehicleId(),
+                    nextState.targetStop().getStopSequence(),
+                    nextState.targetStop().getStopName(),
+                    nextState.dwellUntil()
+            );
+        }
+
         /*
          * 每秒打印一次 INFO 会产生大量日志，
          * 因此普通运行过程使用 DEBUG。
@@ -345,14 +432,161 @@ public class VehicleSimulationTask {
         log.debug(
                 "模拟车辆推进完成，vehicleId={}，"
                         + "elapsedSeconds={}，"
+                        + "actualDistanceDelta={}m，"
+                        + "reachesTargetStop={}，"
+                        + "motionStatus={}，"
                         + "accumulatedDistance={}m，"
                         + "routeDistance={}m，"
-                        + "progress={}%",
+                        + "progress={}%，"
+                        + "targetStopSequence={}，"
+                        + "targetStopName={}",
                 nextState.vehicleId(),
                 elapsedSeconds,
+                actualDistanceDeltaMeters,
+                reachesTargetStop,
+                nextState.motionStatus(),
                 nextState.accumulatedDistanceMeters(),
                 nextSnapshot.distanceMeters(),
-                nextSnapshot.routeProgressPercent()
+                nextSnapshot.routeProgressPercent(),
+                nextState.targetStop().getStopSequence(),
+                nextState.targetStop().getStopName()
         );
+    }
+
+    /**
+     * 推进一辆正在站点停留的车辆。
+     */
+    private void advanceDwellingVehicle(
+            VehicleRuntimeState currentState,
+            Instant now
+    ) {
+        /*
+         * 当前时刻仍早于停站结束时刻
+         */
+        if (now.isBefore(currentState.dwellUntil())) {
+
+            VehicleRuntimeState nextDwellingState =
+                    new VehicleRuntimeState(
+                            currentState.vehicleId(),
+                            currentState.routeProfile(),
+                            currentState.speedMetersPerSecond(),
+                            currentState.targetStopIndex(),
+                            VehicleMotionStatus.DWELLING,
+                            currentState.dwellUntil(),
+                            currentState.accumulatedDistanceMeters(),
+                            now,
+                            currentState.latestSnapshot()
+                    );
+
+            vehicleRuntimeStore.save(
+                    nextDwellingState
+            );
+
+            log.debug(
+                    "模拟车辆继续停站，vehicleId={}，"
+                            + "stopSequence={}，"
+                            + "dwellUntil={}",
+                    nextDwellingState.vehicleId(),
+                    nextDwellingState
+                            .targetStop()
+                            .getStopSequence(),
+                    nextDwellingState.dwellUntil()
+            );
+
+            return;
+        }
+
+        /*
+         * 停站时间结束后，才把目标索引切换到下一站。
+         *（ % 负责将最后一个站点索引回到 0 ）
+         */
+        int nextTargetStopIndex =
+                (currentState.targetStopIndex() + 1)
+                        % currentState
+                            .routeProfile()
+                            .stops()
+                            .size();
+
+        VehicleRuntimeState departureState =
+                new VehicleRuntimeState(
+                        currentState.vehicleId(),
+                        currentState.routeProfile(),
+                        currentState.speedMetersPerSecond(),
+                        nextTargetStopIndex,
+                        VehicleMotionStatus.CRUISING,
+                        null,
+                        currentState.accumulatedDistanceMeters(),
+                        now,
+                        currentState.latestSnapshot()
+                );
+
+        vehicleRuntimeStore.save(
+                departureState
+        );
+
+        log.info(
+                "模拟车辆结束停站，vehicleId={}，"
+                        + "nextStopSequence={}，"
+                        + "nextStopName={}",
+                departureState.vehicleId(),
+                departureState.targetStop().getStopSequence(),
+                departureState.targetStop().getStopName()
+        );
+    }
+
+    /**
+     * 把站点的单圈里程转换为车辆当前圈次中的累计里程。
+     *
+     * 例：
+     * - 线路总长：18000m
+     * - 车辆累计里程：19000m
+     * - 目标站单圈里程：2000m
+     *
+     * 目标站对应的累计里程应为：18000 + 2000 = 20000m
+     */
+    private double calculateTargetAccumulatedDistance(
+            double currentAccumulatedDistanceMeters,
+            double totalDistanceMeters,
+            double targetRouteDistanceMeters
+    ) {
+        // Math.floor(current / total) 得到车辆已经进入的圈次。
+        double cycleStartDistanceMeters =
+                Math.floor(currentAccumulatedDistanceMeters / totalDistanceMeters) * totalDistanceMeters;
+
+        double targetAccumulatedDistanceMeters =
+                cycleStartDistanceMeters + targetRouteDistanceMeters;
+
+        /*
+         * 如果计算出的目标已经明显位于车辆身后，说明这个目标属于下一圈。
+         */
+        if (targetAccumulatedDistanceMeters < currentAccumulatedDistanceMeters - DISTANCE_EPSILON_METERS) {
+
+            targetAccumulatedDistanceMeters += totalDistanceMeters;
+        }
+
+        return targetAccumulatedDistanceMeters;
+    }
+
+    /**
+     * 查找车辆初始位置所在或前方的第一个站点。
+     */
+    private int findInitialTargetStopIndex(
+            List<RouteStopMeasure> stops,
+            double initialDistanceMeters
+    ) {
+        if (stops.isEmpty()) {
+            throw new IllegalStateException("模拟线路没有可用站点");
+        }
+
+        for (int index = 0; index < stops.size(); index++) {
+            double stopDistanceMeters = stops.get(index).getDistanceAlongRouteMeters();
+
+            // 减去极小误差，可以让初始位置恰好等于站点里程时，仍然选中当前站点，而不是误选下一站。
+            if (stopDistanceMeters >= initialDistanceMeters - DISTANCE_EPSILON_METERS) {
+                return index;
+            }
+        }
+
+        return 0;
     }
 }

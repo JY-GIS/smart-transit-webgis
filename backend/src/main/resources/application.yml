@@ -26,6 +26,9 @@ transit:
     # 每次任务完成后等待 1000 毫秒再执行下一次
     tick-interval-milliseconds: 1000
 
+    # 车辆到站后停留 5 秒
+    dwell-duration-seconds: 5
+
     vehicles:
       - vehicle-id: simulated-bus-m103-001
         speed-meters-per-second: 12

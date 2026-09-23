@@ -18,39 +18,28 @@ public record VehicleRuntimeState(
 
         RouteSimulationProfile routeProfile,
 
-        /**
-         * 车辆速度，单位为米/秒。
-         */
+        // 车辆速度，单位为米/秒。
         double speedMetersPerSecond,
 
-        /**
-         * 当前目标站在 RouteSimulationProfile.stops 中的列表索引。
-         */
+        // 当前实际速度，单位为米/秒。
+        double currentSpeedMetersPerSecond,
+
+        // 当前目标站在 RouteSimulationProfile.stops 中的列表索引。
         int targetStopIndex,
 
-        /**
-         * 车辆当前运动状态。
-         */
+        // 车辆当前运动状态。
         VehicleMotionStatus motionStatus,
 
-        /**
-         * 停站结束时刻。
-         */
+        // 停站结束时刻。
         Instant dwellUntil,
 
-        /**
-         * 从模拟启动后累计运行的总里程，单位为米。
-         */
+        // 从模拟启动后累计运行的总里程，单位为米。
         double accumulatedDistanceMeters,
 
-        /**
-         * 当前状态最后一次更新时间。
-         */
+        // 当前状态最后一次更新时间。
         Instant lastUpdatedAt,
 
-        /**
-         * 当前车辆最新的对外位置快照。
-         */
+        // 当前车辆最新的对外位置快照。
         VehiclePositionSnapshot latestSnapshot
 ) {
 
@@ -97,6 +86,14 @@ public record VehicleRuntimeState(
             );
         }
 
+        if (!Double.isFinite(currentSpeedMetersPerSecond)
+                || currentSpeedMetersPerSecond < 0) {
+
+            throw new IllegalArgumentException(
+                    "currentSpeedMetersPerSecond 必须是有限非负数"
+            );
+        }
+
         if (routeProfile.stops().isEmpty()) {
             throw new IllegalArgumentException("车辆运行线路不能没有站点");
         }
@@ -108,22 +105,33 @@ public record VehicleRuntimeState(
             );
         }
 
-        /*
-         * 运行状态和停站结束时间必须保持一致
-         */
-        if (motionStatus == VehicleMotionStatus.CRUISING && dwellUntil != null) {
+        if (motionStatus == VehicleMotionStatus.DWELLING) {
 
-            throw new IllegalArgumentException(
-                    "CRUISING 状态不能提供 dwellUntil"  // CRUISING 不应该携带停站结束时间
-            );
-        }
+            if (dwellUntil == null) {
+                throw new IllegalArgumentException(
+                        "DWELLING 状态必须提供 dwellUntil"
+                );
+            }
 
-        if (motionStatus == VehicleMotionStatus.DWELLING
-                && dwellUntil == null) {
+            if (currentSpeedMetersPerSecond != 0) {
+                throw new IllegalArgumentException(
+                        "DWELLING 状态的当前速度必须为 0"
+                );
+            }
 
-            throw new IllegalArgumentException(
-                    "DWELLING 状态必须提供 dwellUntil"  // DWELLING 必须知道什么时候结束停站
-            );
+        } else {
+
+            if (dwellUntil != null) {
+                throw new IllegalArgumentException(
+                        "行驶状态不能提供 dwellUntil"
+                );
+            }
+
+            if (currentSpeedMetersPerSecond <= 0) {
+                throw new IllegalArgumentException(
+                        "行驶状态的当前速度必须大于 0"
+                );
+            }
         }
 
         if (!Double.isFinite(accumulatedDistanceMeters)

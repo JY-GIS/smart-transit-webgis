@@ -8,6 +8,9 @@ public enum VehicleMotionStatus {
     // 车辆正在以巡航速度驶向目标站
     CRUISING,
 
+    // 车辆已经进入目标站前的减速区间
+    APPROACHING,
+
     // 车辆已经到达目标站，正在等待停站结束
     DWELLING
 }

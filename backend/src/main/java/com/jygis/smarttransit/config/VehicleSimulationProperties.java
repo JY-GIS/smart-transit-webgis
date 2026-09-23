@@ -52,6 +52,17 @@ public class VehicleSimulationProperties {
     @Positive
     private long dwellDurationSeconds;
 
+    /**
+     * 开始进站减速的沿线距离，单位为米。
+     */
+    @Positive
+    private double approachDistanceMeters;
+
+    /**
+     * 进站过程允许的最低速度，单位为米/秒。
+     */
+    @Positive
+    private double minimumApproachSpeedMetersPerSecond;
 
     /**
      * 需要运行的车辆配置列表。

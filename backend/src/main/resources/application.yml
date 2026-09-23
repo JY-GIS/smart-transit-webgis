@@ -29,6 +29,12 @@ transit:
     # 车辆到站后停留 5 秒
     dwell-duration-seconds: 5
 
+    # 距目标站 60 米时开始减速
+    approach-distance-meters: 60
+
+    # 进站最低速度为 3 米/秒
+    minimum-approach-speed-meters-per-second: 3
+
     vehicles:
       - vehicle-id: simulated-bus-m103-001
         speed-meters-per-second: 12

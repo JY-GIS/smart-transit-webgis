@@ -89,6 +89,7 @@ public class VehicleSimulationTask {
 
         try {
             validateVehicleIds();
+            validateApproachConfiguration();
 
             currentRouteProfile = getOrLoadRouteProfile();
         } catch (RuntimeException exception) {
@@ -146,6 +147,22 @@ public class VehicleSimulationTask {
 
             if (!vehicleIds.add(vehicleId)) {
                 throw new IllegalStateException("模拟车辆 ID 重复：" + vehicleId);
+            }
+        }
+    }
+
+    /**
+     * 校验进站速度配置与车辆巡航速度之间的关系。
+     */
+    private void validateApproachConfiguration() {
+        for (VehicleSeed vehicleSeed : properties.getVehicles()) {
+
+            if (properties.getMinimumApproachSpeedMetersPerSecond()
+                    > vehicleSeed.getSpeedMetersPerSecond()) {
+
+                throw new IllegalStateException(
+                        "最低进站速度不能大于车辆巡航速度：" + vehicleSeed.getVehicleId()
+                );
             }
         }
     }
@@ -230,6 +247,7 @@ public class VehicleSimulationTask {
                         vehicleSeed.getVehicleId(),
                         currentRouteProfile,
                         vehicleSeed.getSpeedMetersPerSecond(),
+                        vehicleSeed.getSpeedMetersPerSecond(),
                         initialTargetStopIndex,
                         VehicleMotionStatus.CRUISING,
                         null,
@@ -312,20 +330,10 @@ public class VehicleSimulationTask {
             return;
         }
 
-        /*
-         * Duration.toNanos 返回纳秒数。
-         * 除以 10^9 转换成带小数的秒数。
-         */
         double elapsedSeconds = elapsed.toNanos() / NANOS_PER_SECOND;
 
         /*
-         * 按恒定速度计算车辆本次原本想移动的距离。
-         */
-        double requestedDistanceDeltaMeters =
-                currentState.speedMetersPerSecond() * elapsedSeconds;
-
-        /*
-         * 目标站保存的是单圈里程，这里将它换算成当前圈次中的累计里程。
+         * 先计算目标站的累计里程和剩余沿线距离，再根据剩余距离决定本 tick 的状态与速度。
          */
         double targetAccumulatedDistanceMeters =
                 calculateTargetAccumulatedDistance(
@@ -346,13 +354,37 @@ public class VehicleSimulationTask {
                 );
 
         /*
-         * 如果本次原计划移动的距离已经足以到达目标站，就只移动到站点，不能继续越过站点。
+         * 距离大于配置的减速区间：CRUISING；
+         * 距离小于等于配置的减速区间：APPROACHING。
+         */
+        boolean approaching =
+                distanceToTargetStopMeters <= properties.getApproachDistanceMeters();
+
+        VehicleMotionStatus movingMotionStatus =
+                approaching
+                        ? VehicleMotionStatus.APPROACHING
+                        : VehicleMotionStatus.CRUISING;
+
+        /*
+         * 进站区间内使用动态速度，进站区间外使用车辆配置的巡航速度。
+         */
+        double movementSpeedMetersPerSecond =
+                approaching
+                        ? calculateApproachSpeed(currentState.speedMetersPerSecond(), distanceToTargetStopMeters)
+                        : currentState.speedMetersPerSecond();
+
+        double requestedDistanceDeltaMeters = movementSpeedMetersPerSecond * elapsedSeconds;
+
+        /*
+         * 即使减速后本次位移仍可能超过剩余距离，所以继续使用到站吸附限制。
          */
         boolean reachesTargetStop =
                 (requestedDistanceDeltaMeters + DISTANCE_EPSILON_METERS) >= distanceToTargetStopMeters;
 
         double actualDistanceDeltaMeters =
-                reachesTargetStop ? distanceToTargetStopMeters : requestedDistanceDeltaMeters;
+                reachesTargetStop
+                        ? distanceToTargetStopMeters
+                        : requestedDistanceDeltaMeters;
 
         double nextAccumulatedDistanceMeters =
                 currentState.accumulatedDistanceMeters() + actualDistanceDeltaMeters;
@@ -365,7 +397,7 @@ public class VehicleSimulationTask {
          * 到达目标站后先进入 DWELLING，不能立即把目标切换到下一站。
          */
         VehicleMotionStatus nextMotionStatus =
-                reachesTargetStop ? VehicleMotionStatus.DWELLING : VehicleMotionStatus.CRUISING;
+                reachesTargetStop ? VehicleMotionStatus.DWELLING : movingMotionStatus;
 
         /*
          * 使用明确的结束时刻，而不是累计“已经停了几个 tick”。
@@ -394,6 +426,7 @@ public class VehicleSimulationTask {
                         currentState.vehicleId(),
                         currentState.routeProfile(),
                         currentState.speedMetersPerSecond(),
+                        reachesTargetStop ? 0 : movementSpeedMetersPerSecond,
                         currentState.targetStopIndex(),
                         nextMotionStatus,
                         nextDwellUntil,
@@ -435,6 +468,7 @@ public class VehicleSimulationTask {
                         + "actualDistanceDelta={}m，"
                         + "reachesTargetStop={}，"
                         + "motionStatus={}，"
+                        + "currentSpeed={}m/s，"
                         + "accumulatedDistance={}m，"
                         + "routeDistance={}m，"
                         + "progress={}%，"
@@ -445,6 +479,7 @@ public class VehicleSimulationTask {
                 actualDistanceDeltaMeters,
                 reachesTargetStop,
                 nextState.motionStatus(),
+                nextState.currentSpeedMetersPerSecond(),
                 nextState.accumulatedDistanceMeters(),
                 nextSnapshot.distanceMeters(),
                 nextSnapshot.routeProgressPercent(),
@@ -470,6 +505,7 @@ public class VehicleSimulationTask {
                             currentState.vehicleId(),
                             currentState.routeProfile(),
                             currentState.speedMetersPerSecond(),
+                            0,
                             currentState.targetStopIndex(),
                             VehicleMotionStatus.DWELLING,
                             currentState.dwellUntil(),
@@ -512,6 +548,7 @@ public class VehicleSimulationTask {
                         currentState.vehicleId(),
                         currentState.routeProfile(),
                         currentState.speedMetersPerSecond(),
+                        currentState.speedMetersPerSecond(),
                         nextTargetStopIndex,
                         VehicleMotionStatus.CRUISING,
                         null,
@@ -531,6 +568,27 @@ public class VehicleSimulationTask {
                 departureState.vehicleId(),
                 departureState.targetStop().getStopSequence(),
                 departureState.targetStop().getStopName()
+        );
+    }
+
+    /**
+     * 根据距目标站的沿线距离计算进站速度。
+     */
+    private double calculateApproachSpeed(
+            double cruiseSpeedMetersPerSecond,
+            double distanceToTargetStopMeters
+    ) {
+        /*
+         * 线性距离比例： 当前速度 = 巡航速度 × 剩余距离 ÷ 减速区间长度
+         */
+        double proportionalSpeedMetersPerSecond =
+                cruiseSpeedMetersPerSecond * distanceToTargetStopMeters / properties.getApproachDistanceMeters();
+        /*
+         * 最低速度避免车辆速度无限接近 0，导致永远无法满足到站条件。
+         */
+        return Math.max(
+                properties.getMinimumApproachSpeedMetersPerSecond(),
+                proportionalSpeedMetersPerSecond
         );
     }
 

@@ -9,6 +9,14 @@ export type RealtimeVehicleConnectionStatus =
     | 'error'
 
 /**
+ * 后端模拟车辆运动状态。
+ */
+export type RealtimeVehicleMotionStatus =
+    | 'CRUISING'
+    | 'APPROACHING'
+    | 'DWELLING'
+
+/**
  * 车辆已经经过或即将到达的站点快照。
  *（字段与后端 VehicleStopSnapshot record 对应）
  */
@@ -42,6 +50,10 @@ export interface RealtimeVehiclePositionSnapshot {
     totalDistanceMeters: number
 
     routeProgressPercent: number
+
+    motionStatus: RealtimeVehicleMotionStatus
+
+    currentSpeedMetersPerSecond: number
 
     frontVehicleId: string | null
 

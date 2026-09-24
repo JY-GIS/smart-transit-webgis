@@ -30,13 +30,20 @@ public class VehicleQueryServiceImpl implements VehicleQueryService {
     @Override
     public List<VehiclePositionSnapshot> findCurrentPositions() {
         /*
-         * 先取得每辆车的基础位置快照
+         * latestSnapshot 保存稳定的几何位置结果；
+         * motionStatus 和 currentSpeed 属于实时运行状态。
+         *
+         * 在查询出口将两部分组合成最终公开快照，REST 和 WebSocket 因而使用同一份数据。
          */
         List<VehiclePositionSnapshot> baseSnapshots =
                 vehicleRuntimeStore
                         .findAll()
                         .stream()
-                        .map(VehicleRuntimeState::latestSnapshot)
+                        .map(state ->
+                                state
+                                    .latestSnapshot()
+                                    .withMotionState(state.motionStatus(), state.currentSpeedMetersPerSecond())
+                        )
                         .toList();
 
         /*

@@ -1,8 +1,10 @@
 import * as Cesium from 'cesium'
 import { TRANSIT_CONFIG } from '@/config/transit.config'
+import { REALTIME_VEHICLE_STATUS_STYLES } from '@/config/realtimeVehicleStatus.config'
 
 import type {
     RealtimeVehicleEntityProperties,
+    RealtimeVehicleMotionStatus,
     RealtimeVehiclePositionSnapshot,
 } from '@/types/realtimeVehicle'
 
@@ -11,6 +13,9 @@ interface RealtimeVehicleVisual {
     entity: Cesium.Entity
 
     positionProperty: Cesium.ConstantPositionProperty
+
+    // 当前车辆颜色
+    colorProperty: Cesium.ConstantProperty
 
     // 当前实际显示在地图上的位置
     displayedPosition: Cesium.Cartesian3
@@ -24,8 +29,16 @@ interface RealtimeVehicleVisual {
     // 本轮插值开始时的单调时间，单位为毫秒
     interpolationStartedAtMilliseconds: number
 }
-
-const REALTIME_VEHICLE_COLOR = Cesium.Color.ORANGE
+// 将统一的 CSS 状态颜色转换成 Cesium.Color
+const REALTIME_VEHICLE_CESIUM_COLORS: Record<RealtimeVehicleMotionStatus, Cesium.Color> = {
+    CRUISING: Cesium.Color.fromCssColorString(REALTIME_VEHICLE_STATUS_STYLES.CRUISING.color,),
+    APPROACHING: Cesium.Color.fromCssColorString(REALTIME_VEHICLE_STATUS_STYLES.APPROACHING.color,),
+    DWELLING: Cesium.Color.fromCssColorString(REALTIME_VEHICLE_STATUS_STYLES.DWELLING.color,),
+}
+// 取得某个车辆状态对应的 Cesium 颜色
+function getRealtimeVehicleColor(motionStatus: RealtimeVehicleMotionStatus,): Cesium.Color {
+    return REALTIME_VEHICLE_CESIUM_COLORS[motionStatus]
+}
 
 /**
  * Cesium 实时车辆图层。
@@ -181,6 +194,10 @@ export function useRealtimeVehicleLayer() {
         // 保存当前固定位置，并允许后续调用 setValue 更新；而不是每秒删除并重新创建
         const positionProperty = new Cesium.ConstantPositionProperty(position)
 
+        const colorProperty = new Cesium.ConstantProperty(
+            getRealtimeVehicleColor(snapshot.motionStatus),
+        )
+
         const entityProperties: RealtimeVehicleEntityProperties = {
             entityType: 'realtime-vehicle',
             vehicleId: snapshot.vehicleId,
@@ -194,7 +211,7 @@ export function useRealtimeVehicleLayer() {
             properties: entityProperties,
             point: {
                 pixelSize: 18,
-                color: REALTIME_VEHICLE_COLOR,
+                color: colorProperty,
                 outlineColor: Cesium.Color.WHITE,
                 outlineWidth: 3,
                 heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
@@ -205,6 +222,7 @@ export function useRealtimeVehicleLayer() {
         return {
             entity,
             positionProperty,
+            colorProperty,
 
             displayedPosition: Cesium.Cartesian3.clone(position),
 
@@ -242,6 +260,8 @@ export function useRealtimeVehicleLayer() {
             const existingVisual = vehicleVisuals.get(snapshot.vehicleId)
 
             if (existingVisual) {
+                existingVisual.colorProperty.setValue(getRealtimeVehicleColor(snapshot.motionStatus))
+
                 setInterpolationTarget(
                     existingVisual,
                     nextPosition,

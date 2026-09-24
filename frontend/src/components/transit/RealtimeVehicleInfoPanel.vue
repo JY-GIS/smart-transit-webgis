@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { onBeforeUnmount, ref, watch } from 'vue'
 
-import { TRANSIT_CONFIG } from '@/config/transit.config';
+import { TRANSIT_CONFIG } from '@/config/transit.config'
+import { REALTIME_VEHICLE_STATUS_STYLES } from '@/config/realtimeVehicleStatus.config'
 import type { BusRouteProperties } from '@/types/busRoute'
 import type { RealtimeVehiclePositionSnapshot } from '@/types/realtimeVehicle'
 
@@ -22,6 +23,7 @@ const emit = defineEmits<{
  */
 const displayedDistanceMeters = ref(0)
 const displayedRouteProgressPercent = ref(0)
+const displayedCurrentSpeedMetersPerSecond = ref(0)
 const displayedDistanceToNextStopMeters = ref<number | null>(null)
 const displayedDistanceToFrontVehicleMeters = ref<number | null>(null)
 
@@ -31,6 +33,10 @@ interface VehicleMetricAnimation {
     targetDistanceMeters: number
     totalDistanceMeters: number
     fallbackProgressPercent: number
+
+    startCurrentSpeedMetersPerSecond: number
+    targetCurrentSpeedMetersPerSecond: number
+
     interpolateNextStopDistance: boolean
     startDistanceToNextStopMeters: number | null
     targetDistanceToNextStopMeters: number | null
@@ -83,6 +89,9 @@ function applySnapshotImmediately(vehicle: RealtimeVehiclePositionSnapshot) {
     displayedRouteProgressPercent.value =
         vehicle.routeProgressPercent
 
+    displayedCurrentSpeedMetersPerSecond.value =
+        vehicle.currentSpeedMetersPerSecond
+
     displayedDistanceToNextStopMeters.value =
         vehicle.distanceToNextStopMeters
 
@@ -124,6 +133,12 @@ function animateVehicleMetrics(currentTimeMilliseconds: number) {
         currentAnimation.totalDistanceMeters > 0
             ? (normalizedDistanceMeters / currentAnimation.totalDistanceMeters) * 100
             : currentAnimation.fallbackProgressPercent
+
+    // 车辆速度显示效果直接根据平滑里程计算
+    displayedCurrentSpeedMetersPerSecond.value =
+        currentAnimation.startCurrentSpeedMetersPerSecond + (
+            currentAnimation.targetCurrentSpeedMetersPerSecond - currentAnimation.startCurrentSpeedMetersPerSecond
+        ) * progress
 
     if (
         currentAnimation.interpolateNextStopDistance &&
@@ -173,6 +188,7 @@ function animateVehicleMetrics(currentTimeMilliseconds: number) {
 
             displayedDistanceMeters.value = 0
             displayedRouteProgressPercent.value = 0
+            displayedCurrentSpeedMetersPerSecond.value = 0
             displayedDistanceToNextStopMeters.value = null
             displayedDistanceToFrontVehicleMeters.value = null
 
@@ -225,6 +241,8 @@ function animateVehicleMetrics(currentTimeMilliseconds: number) {
             targetDistanceMeters,
             totalDistanceMeters: vehicle.totalDistanceMeters,
             fallbackProgressPercent: vehicle.routeProgressPercent,
+            startCurrentSpeedMetersPerSecond: displayedCurrentSpeedMetersPerSecond.value,
+            targetCurrentSpeedMetersPerSecond: vehicle.currentSpeedMetersPerSecond,
             interpolateNextStopDistance,
             startDistanceToNextStopMeters: displayedDistanceToNextStopMeters.value,
             targetDistanceToNextStopMeters: vehicle.distanceToNextStopMeters,
@@ -271,6 +289,23 @@ onBeforeUnmount(() => {
 
                     <strong>
                         {{ route?.rname ?? vehicle.routeId }}
+                    </strong>
+                </div>
+
+                <div class="vehicle-panel__field">
+                    <span>运行状态</span>
+
+                    <strong class="vehicle-panel__status" :style="{ color: REALTIME_VEHICLE_STATUS_STYLES[vehicle.motionStatus].color }">
+                        {{ REALTIME_VEHICLE_STATUS_STYLES[vehicle.motionStatus].label }}
+                    </strong>
+                </div>
+
+                <div class="vehicle-panel__field">
+                    <span>当前速度</span>
+
+                    <strong>
+                        {{ displayedCurrentSpeedMetersPerSecond.toFixed(1) }}
+                        米/秒
                     </strong>
                 </div>
 
@@ -416,6 +451,10 @@ onBeforeUnmount(() => {
     color: #f5fbff;
     font-weight: 500;
     overflow-wrap: anywhere;
+}
+
+.vehicle-panel__status {
+    font-weight: 600;
 }
 
 .vehicle-panel-enter-active,

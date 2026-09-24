@@ -23,6 +23,12 @@ public record VehiclePositionSnapshot(
         // 当前线路进度百分比，范围为 0～100
         double routeProgressPercent,
 
+        // 当前车辆运动状态
+        VehicleMotionStatus motionStatus,
+
+        // 当前实际速度，单位为米/秒
+        double currentSpeedMetersPerSecond,
+
         // 同线路、同运行方向上距离当前车辆最近的前车编号
         String frontVehicleId,
 
@@ -38,6 +44,33 @@ public record VehiclePositionSnapshot(
         // 距离下一站的线路距离
         Double distanceToNextStopMeters
 ) {
+    /**
+     * 返回补充了车辆运行状态的新快照。
+     * VehiclePositionSnapshot 是不可变 record，因此通过 with 方法创建包含新状态的完整快照。
+     */
+    public VehiclePositionSnapshot withMotionState(
+            VehicleMotionStatus newMotionStatus,
+            double newCurrentSpeedMetersPerSecond
+    ) {
+        return new VehiclePositionSnapshot(
+                vehicleId,
+                routeId,
+                routeFid,
+                longitude,
+                latitude,
+                distanceMeters,
+                totalDistanceMeters,
+                routeProgressPercent,
+                newMotionStatus,
+                newCurrentSpeedMetersPerSecond,
+                frontVehicleId,
+                distanceToFrontVehicleMeters,
+                previousStop,
+                nextStop,
+                distanceToNextStopMeters
+        );
+    }
+
     /**
      * 返回补充了前车关系的新快照。
      * record 是不可变对象，不能直接修改已有字段。因此使用 with 方法创建一个新快照，同时保留车辆原有位置数据。
@@ -55,6 +88,8 @@ public record VehiclePositionSnapshot(
                 distanceMeters,
                 totalDistanceMeters,
                 routeProgressPercent,
+                motionStatus,
+                currentSpeedMetersPerSecond,
                 newFrontVehicleId,
                 newDistanceToFrontVehicleMeters,
                 previousStop,

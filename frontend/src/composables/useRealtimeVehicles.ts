@@ -4,12 +4,24 @@ import { ref } from 'vue'
 import { TRANSIT_CONFIG } from '@/config/transit.config'
 import type {
     RealtimeVehicleConnectionStatus,
+    RealtimeVehicleMotionStatus,
     RealtimeVehiclePositionSnapshot,
     RealtimeVehicleStopSnapshot,
 } from '@/types/realtimeVehicle'
 
 function isFiniteNumber(value: unknown): value is number {
     return typeof value === 'number' && Number.isFinite(value)
+}
+
+/**
+ * 验证后端返回的车辆运动状态。
+ */
+function isVehicleMotionStatus(value: unknown): value is RealtimeVehicleMotionStatus {
+    return (
+        value === 'CRUISING' ||
+        value === 'APPROACHING' ||
+        value === 'DWELLING'
+    )
 }
 
 /**
@@ -51,6 +63,10 @@ function isVehicleSnapshot(value: unknown): value is RealtimeVehiclePositionSnap
 
     const distanceToFrontVehicleIsValid = vehicle.distanceToFrontVehicleMeters === null || (isFiniteNumber(vehicle.distanceToFrontVehicleMeters) && vehicle.distanceToFrontVehicleMeters >= 0)
 
+    const motionStatusIsValid = isVehicleMotionStatus(vehicle.motionStatus)
+
+    const currentSpeedIsValid = isFiniteNumber(vehicle.currentSpeedMetersPerSecond) && vehicle.currentSpeedMetersPerSecond >= 0
+
     return (
         typeof vehicle.vehicleId === 'string' &&
         typeof vehicle.routeId === 'string' &&
@@ -60,6 +76,8 @@ function isVehicleSnapshot(value: unknown): value is RealtimeVehiclePositionSnap
         isFiniteNumber(vehicle.distanceMeters) &&
         isFiniteNumber(vehicle.totalDistanceMeters) &&
         isFiniteNumber(vehicle.routeProgressPercent) &&
+        motionStatusIsValid &&
+        currentSpeedIsValid &&
         frontVehicleIdIsValid &&
         distanceToFrontVehicleIsValid &&
         previousStopIsValid &&

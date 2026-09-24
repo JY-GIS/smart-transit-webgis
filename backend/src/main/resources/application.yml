@@ -35,6 +35,12 @@ transit:
     # 进站最低速度为 3 米/秒
     minimum-approach-speed-meters-per-second: 3
 
+    # 实际间隔低于参考正常间隔的 70% 时判定为串车
+    bunching-threshold-ratio: 0.7
+
+    # 实际间隔高于参考正常间隔的 130% 时判定为大间隔
+    large-gap-threshold-ratio: 1.3
+
     vehicles:
       - vehicle-id: simulated-bus-m103-001
         speed-meters-per-second: 12

@@ -208,6 +208,8 @@ public class VehicleSimulationServiceImpl implements VehicleSimulationService {
                 0,
                 null,
                 null,
+                null,
+                null,
                 toStopSnapshot(previousStop),
                 toStopSnapshot(nextStop),
                 distanceToNextStopMeters

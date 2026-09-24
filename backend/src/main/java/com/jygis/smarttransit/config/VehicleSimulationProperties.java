@@ -65,6 +65,19 @@ public class VehicleSimulationProperties {
     private double minimumApproachSpeedMetersPerSecond;
 
     /**
+     * 串车判定比例。
+     */
+    @DecimalMin(value = "0.0", inclusive = false)
+    @DecimalMax(value = "1.0", inclusive = false)
+    private double bunchingThresholdRatio;
+
+    /**
+     * 大间隔判定比例。
+     */
+    @DecimalMin(value = "1.0", inclusive = false)
+    private double largeGapThresholdRatio;
+
+    /**
      * 需要运行的车辆配置列表。
      */
     @NotEmpty // @NotEmpty 保证列表至少有一辆车

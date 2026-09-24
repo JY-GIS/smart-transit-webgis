@@ -35,6 +35,12 @@ public record VehiclePositionSnapshot(
         // 当前车辆到前车的线路沿线距离
         Double distanceToFrontVehicleMeters,
 
+        // 当前线路在计划车辆数量下的参考正常间隔
+        Double referenceHeadwayMeters,
+
+        // 根据实际间隔与参考间隔判断出的运营状态
+        VehicleOperationalStatus operationalStatus,
+
         // 最近已经经过的站点
         VehicleStopSnapshot previousStop,
 
@@ -65,19 +71,24 @@ public record VehiclePositionSnapshot(
                 newCurrentSpeedMetersPerSecond,
                 frontVehicleId,
                 distanceToFrontVehicleMeters,
+                referenceHeadwayMeters,
+                operationalStatus,
                 previousStop,
                 nextStop,
                 distanceToNextStopMeters
         );
     }
-
     /**
-     * 返回补充了前车关系的新快照。
-     * record 是不可变对象，不能直接修改已有字段。因此使用 with 方法创建一个新快照，同时保留车辆原有位置数据。
+     * 返回补充了前车关系和运营间隔分析结果的新快照。
+     * 使用 with 方法创建一个新快照：
+     * - 保留车辆位置、速度和站点信息；
+     * - 替换前车、间隔、参考间隔和运营状态。
      */
-    public VehiclePositionSnapshot withFrontVehicle(
+    public VehiclePositionSnapshot withHeadwayInformation(
             String newFrontVehicleId,
-            Double newDistanceToFrontVehicleMeters
+            Double newDistanceToFrontVehicleMeters,
+            Double newReferenceHeadwayMeters,
+            VehicleOperationalStatus newOperationalStatus
     ) {
         return new VehiclePositionSnapshot(
                 vehicleId,
@@ -92,6 +103,8 @@ public record VehiclePositionSnapshot(
                 currentSpeedMetersPerSecond,
                 newFrontVehicleId,
                 newDistanceToFrontVehicleMeters,
+                newReferenceHeadwayMeters,
+                newOperationalStatus,
                 previousStop,
                 nextStop,
                 distanceToNextStopMeters

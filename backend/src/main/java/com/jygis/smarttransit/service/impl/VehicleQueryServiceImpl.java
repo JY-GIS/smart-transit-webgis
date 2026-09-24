@@ -1,5 +1,7 @@
 package com.jygis.smarttransit.service.impl;
 
+import com.jygis.smarttransit.config.VehicleSimulationProperties;
+import com.jygis.smarttransit.pojo.VehicleOperationalStatus;
 import com.jygis.smarttransit.pojo.VehiclePositionSnapshot;
 import com.jygis.smarttransit.pojo.VehicleRuntimeState;
 import com.jygis.smarttransit.service.VehicleQueryService;
@@ -26,6 +28,7 @@ import java.util.stream.Collectors;
 public class VehicleQueryServiceImpl implements VehicleQueryService {
 
     private final VehicleRuntimeStore vehicleRuntimeStore;
+    private final VehicleSimulationProperties properties;
 
     @Override
     public List<VehiclePositionSnapshot> findCurrentPositions() {
@@ -70,7 +73,7 @@ public class VehicleQueryServiceImpl implements VehicleQueryService {
     }
 
     /**
-     * 为同一线路上的车辆计算前车及沿线距离。
+     * 为同一线路上的车辆计算前车、沿线距离和运营状态。
      */
     private List<VehiclePositionSnapshot> attachFrontVehicleInformation(
             List<VehiclePositionSnapshot> routeSnapshots
@@ -79,28 +82,30 @@ public class VehicleQueryServiceImpl implements VehicleQueryService {
             return List.of();
         }
 
+        // 参考正常间隔 = 闭环线路总长度 ÷ 计划车辆数
+        double referenceHeadwayMeters = calculateReferenceHeadwayMeters(routeSnapshots);
+
         /*
-         * 同一线路只有一辆车时，没有可以比较的前车。
+         * 只有一辆有效车辆时无法确定前车距离。
          */
         if (routeSnapshots.size() == 1) {
             VehiclePositionSnapshot onlyVehicle = routeSnapshots.get(0);
 
             return List.of(
-                    onlyVehicle.withFrontVehicle(null, null)
+                    onlyVehicle.withHeadwayInformation(
+                            null,
+                            null,
+                            referenceHeadwayMeters,
+                            VehicleOperationalStatus.NORMAL
+                    )
             );
         }
 
         List<VehiclePositionSnapshot> sortedVehicles = new ArrayList<>(routeSnapshots);
 
         /*
-         * 按车辆在线路上的累计里程从小到大排列。
-         *
-         * 排序后：
-         * - 当前元素的下一个元素就是普通情况下的前车；
-         * - 最后一个元素的前车是第一个元素，形成闭环。
-         *
-         * thenComparing 用于两辆车里程完全相同时稳定排序，
-         * 避免每次查询得到不同的前后关系。
+         * 按车辆在线路上的累计里程升序排列。排序后，下一个元素就是当前车辆的前车。
+         * thenComparing 是稳定的第二排序条件：如果两辆车恰好位于相同里程，使用 vehicleId 固定前后关系。
          */
         sortedVehicles.sort(
                 Comparator
@@ -111,9 +116,9 @@ public class VehicleQueryServiceImpl implements VehicleQueryService {
         List<VehiclePositionSnapshot> result = new ArrayList<>(sortedVehicles.size());
 
         for (int index = 0; index < sortedVehicles.size(); index++) {
-
             VehiclePositionSnapshot currentVehicle = sortedVehicles.get(index);
 
+            // 取模运算让最后一辆车的下一个索引回到 0，从而表达闭环线路上的首尾关系。
             int frontVehicleIndex = (index + 1) % sortedVehicles.size();
 
             VehiclePositionSnapshot frontVehicle = sortedVehicles.get(frontVehicleIndex);
@@ -125,14 +130,57 @@ public class VehicleQueryServiceImpl implements VehicleQueryService {
                 distanceToFrontVehicleMeters += currentVehicle.totalDistanceMeters();
             }
 
+            VehicleOperationalStatus operationalStatus =
+                    determineOperationalStatus(
+                            distanceToFrontVehicleMeters,
+                            referenceHeadwayMeters
+                    );
+
             result.add(
-                    currentVehicle.withFrontVehicle(
+                    currentVehicle.withHeadwayInformation(
                             frontVehicle.vehicleId(),
-                            distanceToFrontVehicleMeters
+                            distanceToFrontVehicleMeters,
+                            referenceHeadwayMeters,
+                            operationalStatus
                     )
             );
         }
 
         return result;
+    }
+
+    /**
+     * 计算当前线路的参考正常间隔。
+     */
+    private double calculateReferenceHeadwayMeters(
+            List<VehiclePositionSnapshot> routeSnapshots
+    ) {
+        double totalDistanceMeters = routeSnapshots.get(0).totalDistanceMeters();
+
+        int plannedVehicleCount = properties.getVehicles().size();
+
+        return totalDistanceMeters / plannedVehicleCount;
+    }
+
+    /**
+     * 根据实际间隔与参考正常间隔判断运营状态。
+     */
+    private VehicleOperationalStatus determineOperationalStatus(
+            double actualHeadwayMeters,
+            double referenceHeadwayMeters
+    ) {
+        double headwayRatio = actualHeadwayMeters / referenceHeadwayMeters;
+
+        if (headwayRatio < properties.getBunchingThresholdRatio()) {
+
+            return VehicleOperationalStatus.BUNCHING;
+        }
+
+        if (headwayRatio > properties.getLargeGapThresholdRatio()) {
+
+            return VehicleOperationalStatus.LARGE_GAP;
+        }
+
+        return VehicleOperationalStatus.NORMAL;
     }
 }

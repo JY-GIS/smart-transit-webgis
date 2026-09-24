@@ -78,6 +78,24 @@ public class VehicleSimulationProperties {
     private double largeGapThresholdRatio;
 
     /**
+     * 需要模拟固定延误的车辆编号。
+     */
+    @NotBlank
+    private String delayVehicleId;
+
+    /**
+     * 指定车辆在哪一个站序触发额外停靠。
+     */
+    @Positive
+    private int delayStopSequence;
+
+    /**
+     * 在普通停站时间之外增加的停靠秒数。
+     */
+    @Positive
+    private long extraDwellDurationSeconds;
+
+    /**
      * 需要运行的车辆配置列表。
      */
     @NotEmpty // @NotEmpty 保证列表至少有一辆车

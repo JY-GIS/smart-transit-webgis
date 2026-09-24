@@ -400,12 +400,32 @@ public class VehicleSimulationTask {
                 reachesTargetStop ? VehicleMotionStatus.DWELLING : movingMotionStatus;
 
         /*
-         * 使用明确的结束时刻，而不是累计“已经停了几个 tick”。
-         * 即使定时任务偶尔延迟，停站判断仍然基于真实时间。
+         * 固定延误同时满足三个条件才会触发：
+         * 1. 车辆本次确实到达了目标站；
+         * 2. 当前车辆是配置指定的延误车辆；
+         * 3. 当前目标站是配置指定的延误站点；
+         */
+        boolean fixedDelayApplies =
+                reachesTargetStop &&
+                currentState.vehicleId().equals(properties.getDelayVehicleId()) &&
+                currentState.targetStop().getStopSequence() == properties.getDelayStopSequence();
+
+        /*
+         * 普通车辆只使用基础停站时间。指定车辆到达指定站点时，再加上额外延误时间。
+         */
+        long nextDwellDurationSeconds = properties.getDwellDurationSeconds();
+
+        if (fixedDelayApplies) {
+            nextDwellDurationSeconds += properties.getExtraDwellDurationSeconds();
+        }
+
+        /*
+         * dwellUntil 保存明确的停站结束时刻。
+         * 后续 tick 只需要比较 now 与 dwellUntil，不需要自己累计已经停靠了多少秒。
          */
         Instant nextDwellUntil =
                 reachesTargetStop
-                        ? now.plusSeconds(properties.getDwellDurationSeconds())
+                        ? now.plusSeconds(nextDwellDurationSeconds)
                         : null;
         VehiclePositionSnapshot nextSnapshot =
                 vehicleSimulationService

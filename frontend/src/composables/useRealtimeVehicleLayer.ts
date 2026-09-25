@@ -28,6 +28,9 @@ interface RealtimeVehicleVisual {
 
     // 本轮插值开始时的单调时间，单位为毫秒
     interpolationStartedAtMilliseconds: number
+
+    // 上一次服务端快照中的单圈里程，用于识别车辆是否完成了一圈
+    lastRouteDistanceMeters: number
 }
 // 将统一的 CSS 状态颜色转换成 Cesium.Color
 const REALTIME_VEHICLE_CESIUM_COLORS: Record<RealtimeVehicleMotionStatus, Cesium.Color> = {
@@ -231,7 +234,29 @@ export function useRealtimeVehicleLayer() {
             interpolationTargetPosition: Cesium.Cartesian3.clone(position),
 
             interpolationStartedAtMilliseconds: performance.now(),
+
+            lastRouteDistanceMeters: snapshot.distanceMeters,
         }
+    }
+
+    /**
+     * 不进行平滑插值，直接把车辆放到服务端返回的位置。
+     * 用于车辆完成一圈后从线路终点重置到线路起点。
+     */
+    function setPositionImmediately(
+        visual: RealtimeVehicleVisual,
+        nextPosition: Cesium.Cartesian3,
+        currentTimeMilliseconds: number,
+    ) {
+        Cesium.Cartesian3.clone(nextPosition, visual.displayedPosition)
+
+        Cesium.Cartesian3.clone(nextPosition, visual.interpolationStartPosition)
+
+        Cesium.Cartesian3.clone(nextPosition, visual.interpolationTargetPosition)
+
+        visual.interpolationStartedAtMilliseconds = currentTimeMilliseconds
+
+        visual.positionProperty.setValue(visual.displayedPosition)
     }
 
     // 使用后端最新快照同步整个车辆图层
@@ -262,11 +287,26 @@ export function useRealtimeVehicleLayer() {
             if (existingVisual) {
                 existingVisual.colorProperty.setValue(getRealtimeVehicleColor(snapshot.motionStatus))
 
-                setInterpolationTarget(
-                    existingVisual,
-                    nextPosition,
-                    currentTimeMilliseconds,
-                )
+                const hasWrappedToRouteStart =
+                    snapshot.totalDistanceMeters > 0 &&
+                    existingVisual.lastRouteDistanceMeters - snapshot.distanceMeters
+                    > snapshot.totalDistanceMeters / 2
+
+                if (hasWrappedToRouteStart) {
+                    setPositionImmediately(
+                        existingVisual,
+                        nextPosition,
+                        currentTimeMilliseconds,
+                    )
+                } else {
+                    setInterpolationTarget(
+                        existingVisual,
+                        nextPosition,
+                        currentTimeMilliseconds,
+                    )
+                }
+
+                existingVisual.lastRouteDistanceMeters = snapshot.distanceMeters
 
                 continue
             }

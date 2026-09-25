@@ -29,14 +29,17 @@ transit:
     # 距目标站 60 米时开始减速
     approach-distance-meters: 60
 
+    # 站点距离线路不超过 50 米时，才允许成为投影候选
+    maximum-snap-offset-meters: 50
+
     # 进站最低速度为 3 米/秒
     minimum-approach-speed-meters-per-second: 3
 
-    # 实际间隔低于参考正常间隔的 80% 时判定为串车
-    bunching-threshold-ratio: 0.8
+    # 实际间隔低于参考正常间隔的 70% 时判定为串车
+    bunching-threshold-ratio: 0.7
 
-    # 实际间隔高于参考正常间隔的 120% 时判定为大间隔
-    large-gap-threshold-ratio: 1.2
+    # 实际间隔高于参考正常间隔的 130% 时判定为大间隔
+    large-gap-threshold-ratio: 1.3
 
     # 模拟发生固定延误的车辆
     delay-vehicle-id: simulated-bus-m103-001
@@ -47,7 +50,7 @@ transit:
     # 在普通停靠 5 秒之外额外停靠 300 秒
     extra-dwell-duration-seconds: 300
 
-    # 多线路模拟计划。
+    # 区域级模拟：20 条线路，每条线路自动生成 3 辆车
     routes:
       # M103
       - route-id: route_000185
@@ -58,5 +61,305 @@ transit:
       # M120
       - route-id: route_000193
         vehicle-id-prefix: simulated-bus-m120
+        vehicle-count: 3
+        speed-meters-per-second: 12
+
+      # 215 路环线
+      - route-id: route_000025
+        vehicle-id-prefix: simulated-bus-215
+        vehicle-count: 3
+        speed-meters-per-second: 12
+
+      # 216 路：华富路始发站 → 福田农批市场
+      - route-id: route_000027
+        vehicle-id-prefix: simulated-bus-216a
+        vehicle-count: 3
+        speed-meters-per-second: 12
+
+      # 216 路：福田农批市场 → 华富路始发站
+      - route-id: route_000028
+        vehicle-id-prefix: simulated-bus-216b
+        vehicle-count: 3
+        speed-meters-per-second: 12
+
+      # 44 路：上梅林 → 石厦南
+      - route-id: route_000090
+        vehicle-id-prefix: simulated-bus-44a
+        vehicle-count: 3
+        speed-meters-per-second: 12
+
+      # 44 路：石厦南 → 上梅林
+      - route-id: route_000091
+        vehicle-id-prefix: simulated-bus-44b
+        vehicle-count: 3
+        speed-meters-per-second: 12
+
+      # 71 路：公交大厦 → 东海城市广场
+      - route-id: route_000116
+        vehicle-id-prefix: simulated-bus-71a
+        vehicle-count: 3
+        speed-meters-per-second: 12
+
+      # 71 路：东海城市广场 → 公交大厦
+      - route-id: route_000117
+        vehicle-id-prefix: simulated-bus-71b
+        vehicle-count: 3
+        speed-meters-per-second: 12
+
+      # B601
+      - route-id: route_000131
+        vehicle-id-prefix: simulated-bus-b601
+        vehicle-count: 3
+        speed-meters-per-second: 12
+
+      # B611：莲塘尾小区 → 东海城市广场公交首末站
+      - route-id: route_000132
+        vehicle-id-prefix: simulated-bus-b611a
+        vehicle-count: 3
+        speed-meters-per-second: 12
+
+      # B611：东海城市广场公交首末站 → 莲塘尾小区
+      - route-id: route_000133
+        vehicle-id-prefix: simulated-bus-b611b
+        vehicle-count: 3
+        speed-meters-per-second: 12
+
+      # B612 环线
+      - route-id: route_000134
+        vehicle-id-prefix: simulated-bus-b612
+        vehicle-count: 3
+        speed-meters-per-second: 12
+
+      # B618 环线
+      - route-id: route_000135
+        vehicle-id-prefix: simulated-bus-b618
+        vehicle-count: 3
+        speed-meters-per-second: 12
+
+      # B650 环线
+      - route-id: route_000136
+        vehicle-id-prefix: simulated-bus-b650
+        vehicle-count: 3
+        speed-meters-per-second: 12
+
+      # B651：沙尾 → 长富金茂大厦
+      - route-id: route_000137
+        vehicle-id-prefix: simulated-bus-b651a
+        vehicle-count: 3
+        speed-meters-per-second: 12
+
+      # B651：长富金茂大厦 → 沙尾
+      - route-id: route_000138
+        vehicle-id-prefix: simulated-bus-b651b
+        vehicle-count: 3
+        speed-meters-per-second: 12
+
+      # B666：梅林文体中心 → 天健天骄南苑公交首末站
+      - route-id: route_000139
+        vehicle-id-prefix: simulated-bus-b666a
+        vehicle-count: 3
+        speed-meters-per-second: 12
+
+      # B666：天健天骄南苑公交首末站 → 梅林文体中心
+      - route-id: route_000140
+        vehicle-id-prefix: simulated-bus-b666b
+        vehicle-count: 3
+        speed-meters-per-second: 12
+
+      # B709 环线
+      - route-id: route_000141
+        vehicle-id-prefix: simulated-bus-b709
+        vehicle-count: 3
+        speed-meters-per-second: 12
+
+      # B905 环线
+      - route-id: route_000144
+        vehicle-id-prefix: simulated-bus-b905
+        vehicle-count: 3
+        speed-meters-per-second: 12
+
+      # B907 环线
+      - route-id: route_000145
+        vehicle-id-prefix: simulated-bus-b907
+        vehicle-count: 3
+        speed-meters-per-second: 12
+
+      # B930 环线
+      - route-id: route_000146
+        vehicle-id-prefix: simulated-bus-b930
+        vehicle-count: 3
+        speed-meters-per-second: 12
+
+      # B955 环线
+      - route-id: route_000147
+        vehicle-id-prefix: simulated-bus-b955
+        vehicle-count: 3
+        speed-meters-per-second: 12
+
+      # B962 环线
+      - route-id: route_000148
+        vehicle-id-prefix: simulated-bus-b962
+        vehicle-count: 3
+        speed-meters-per-second: 12
+
+      # C22 环线
+      - route-id: route_000149
+        vehicle-id-prefix: simulated-bus-c22
+        vehicle-count: 3
+        speed-meters-per-second: 12
+
+      # C6 环线
+      - route-id: route_000150
+        vehicle-id-prefix: simulated-bus-c6
+        vehicle-count: 3
+        speed-meters-per-second: 12
+
+      # C7：新阁小区 → 青年学院
+      - route-id: route_000152
+        vehicle-id-prefix: simulated-bus-c7
+        vehicle-count: 3
+        speed-meters-per-second: 12
+
+      # F571：深科技城 → 北大医院
+      - route-id: route_000178
+        vehicle-id-prefix: simulated-bus-f571a
+        vehicle-count: 3
+        speed-meters-per-second: 12
+
+      # F571：北大医院 → 深科技城
+      - route-id: route_000179
+        vehicle-id-prefix: simulated-bus-f571b
+        vehicle-count: 3
+        speed-meters-per-second: 12
+
+      # F572：市二医院 → 深科技城
+      - route-id: route_000180
+        vehicle-id-prefix: simulated-bus-f572a
+        vehicle-count: 3
+        speed-meters-per-second: 12
+
+      # F572：深科技城 → 市二医院
+      - route-id: route_000181
+        vehicle-id-prefix: simulated-bus-f572b
+        vehicle-count: 3
+        speed-meters-per-second: 12
+
+      # M120 区间2：下沙总站 → 福保桂花苑南
+      - route-id: route_000194
+        vehicle-id-prefix: simulated-bus-m120-section2
+        vehicle-count: 3
+        speed-meters-per-second: 12
+
+      # M120 区间3：福保桂花苑南 → 下沙总站
+      - route-id: route_000195
+        vehicle-id-prefix: simulated-bus-m120-section3
+        vehicle-count: 3
+        speed-meters-per-second: 12
+
+      # M126 环线
+      - route-id: route_000196
+        vehicle-id-prefix: simulated-bus-m126
+        vehicle-count: 3
+        speed-meters-per-second: 12
+
+      # M148 环线
+      - route-id: route_000205
+        vehicle-id-prefix: simulated-bus-m148
+        vehicle-count: 3
+        speed-meters-per-second: 12
+
+      # M168：福田口岸公交总站 → 下沙总站
+      - route-id: route_000208
+        vehicle-id-prefix: simulated-bus-m168a
+        vehicle-count: 3
+        speed-meters-per-second: 12
+
+      # M168：下沙小学 → 福田口岸公交总站
+      - route-id: route_000209
+        vehicle-id-prefix: simulated-bus-m168b
+        vehicle-count: 3
+        speed-meters-per-second: 12
+
+      # M169：皇岗口岸 → 紫薇阁总站
+      - route-id: route_000210
+        vehicle-id-prefix: simulated-bus-m169a
+        vehicle-count: 3
+        speed-meters-per-second: 12
+
+      # M169：紫薇阁总站 → 皇岗口岸
+      - route-id: route_000211
+        vehicle-id-prefix: simulated-bus-m169b
+        vehicle-count: 3
+        speed-meters-per-second: 12
+
+      # M390：石厦南总站 → 颂德花园公交总站
+      - route-id: route_000260
+        vehicle-id-prefix: simulated-bus-m390a
+        vehicle-count: 3
+        speed-meters-per-second: 12
+
+      # M390：颂德花园公交总站 → 石厦南总站
+      - route-id: route_000261
+        vehicle-id-prefix: simulated-bus-m390b
+        vehicle-count: 3
+        speed-meters-per-second: 12
+
+      # M499：梅林一村总站 → 福田口岸公交总站
+      - route-id: route_000298
+        vehicle-id-prefix: simulated-bus-m499a
+        vehicle-count: 3
+        speed-meters-per-second: 12
+
+      # M499：福田口岸公交总站 → 梅林一村总站
+      - route-id: route_000299
+        vehicle-id-prefix: simulated-bus-m499b
+        vehicle-count: 3
+        speed-meters-per-second: 12
+
+      # M576 环线
+      - route-id: route_000316
+        vehicle-id-prefix: simulated-bus-m576
+        vehicle-count: 3
+        speed-meters-per-second: 12
+
+      # M581 环线
+      - route-id: route_000317
+        vehicle-id-prefix: simulated-bus-m581
+        vehicle-count: 3
+        speed-meters-per-second: 12
+
+      # N68 环线
+      - route-id: route_000329
+        vehicle-id-prefix: simulated-bus-n68
+        vehicle-count: 3
+        speed-meters-per-second: 12
+
+      # 福田K5 环线
+      - route-id: route_000498
+        vehicle-id-prefix: simulated-bus-futian-k5
+        vehicle-count: 3
+        speed-meters-per-second: 12
+
+      # 福田欢乐购A线：福田口岸公交总站 → 市眼科医院
+      - route-id: route_000499
+        vehicle-id-prefix: simulated-bus-shopping-a1
+        vehicle-count: 3
+        speed-meters-per-second: 12
+
+      # 福田欢乐购A线：市眼科医院 → 福田口岸公交总站
+      - route-id: route_000500
+        vehicle-id-prefix: simulated-bus-shopping-a2
+        vehicle-count: 3
+        speed-meters-per-second: 12
+
+      # 福田欢乐购B线
+      - route-id: route_000501
+        vehicle-id-prefix: simulated-bus-shopping-b
+        vehicle-count: 3
+        speed-meters-per-second: 12
+
+      # 莲花山公园巴士1 环线
+      - route-id: route_000602
+        vehicle-id-prefix: simulated-bus-lianhuashan-1
         vehicle-count: 3
         speed-meters-per-second: 12

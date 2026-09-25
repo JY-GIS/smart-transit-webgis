@@ -23,14 +23,18 @@ public interface VehicleSimulationMapper {
      * 查询指定线路用于模拟的基础信息
      */
     RouteSimulationInfo findRouteSimulationInfo(
-            @Param("routeId") String routeId
+            @Param("routeId") String routeId,
+            @Param("maximumSnapOffsetMeters") Double maximumSnapOffsetMeters
     );
 
     /**
      * 查询指定线路的有序站点里程
      */
     List<RouteStopMeasure> findRouteStopMeasures(
-            @Param("routeId") String routeId
+            @Param("routeId") String routeId,
+            @Param("sourceStartProgressRatio")  Double sourceStartProgressRatio,
+            @Param("sourceEndProgressRatio")  Double sourceEndProgressRatio,
+            @Param("maximumSnapOffsetMeters")  Double maximumSnapOffsetMeters
     );
 
     /**
@@ -38,6 +42,8 @@ public interface VehicleSimulationMapper {
      */
     RouteInterpolatedPosition findPositionAtProgress(
             @Param("routeId") String routeId,
+            @Param("sourceStartProgressRatio") Double sourceStartProgressRatio,
+            @Param("sourceEndProgressRatio") Double sourceEndProgressRatio,
             @Param("progressRatio") Double progressRatio
     );
 }

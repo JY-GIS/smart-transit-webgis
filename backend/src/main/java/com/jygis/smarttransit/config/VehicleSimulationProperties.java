@@ -52,6 +52,10 @@ public class VehicleSimulationProperties {
     @Positive
     private double approachDistanceMeters;
 
+    // 站点参与线路投影时允许的最大偏移距离，单位为米
+    @Positive
+    private double maximumSnapOffsetMeters;
+
     /**
      * 进站过程允许的最低速度，单位为米/秒。
      */

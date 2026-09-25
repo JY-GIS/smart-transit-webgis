@@ -14,6 +14,15 @@ public class RouteSimulationInfo {
 
     private String routeName;
 
-    // 合并线路并转换到 EPSG:32650 后计算出的总长度
+    // 当前线路实际采用的模拟几何策略
+    private RouteSimulationLineStrategy lineStrategy;
+
+    // 有效模拟子线在原始合并线路上的起始进度。
+    private Double sourceStartProgressRatio;
+
+    // 有效模拟子线在原始合并线路上的结束进度
+    private Double sourceEndProgressRatio;
+
+    // 当前有效模拟线路的总长度，单位为米
     private Double totalLengthMeters;
 }

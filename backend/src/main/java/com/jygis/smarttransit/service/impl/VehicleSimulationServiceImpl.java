@@ -1,6 +1,8 @@
 package com.jygis.smarttransit.service.impl;
 
 import com.jygis.smarttransit.mapper.VehicleSimulationMapper;
+import com.jygis.smarttransit.config.VehicleSimulationProperties;
+import com.jygis.smarttransit.pojo.RouteSimulationLineStrategy;
 import com.jygis.smarttransit.pojo.RouteInterpolatedPosition;
 import com.jygis.smarttransit.pojo.RouteSimulationInfo;
 import com.jygis.smarttransit.pojo.RouteSimulationProfile;
@@ -8,6 +10,7 @@ import com.jygis.smarttransit.pojo.RouteStopMeasure;
 import com.jygis.smarttransit.pojo.VehiclePositionSnapshot;
 import com.jygis.smarttransit.pojo.VehicleStopSnapshot;
 import com.jygis.smarttransit.service.VehicleSimulationService;
+import com.jygis.smarttransit.service.VehicleSimulationMetrics;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -32,6 +35,8 @@ public class VehicleSimulationServiceImpl implements VehicleSimulationService {
     private static final double DISTANCE_EPSILON_METERS = 1e-6;
 
     private final VehicleSimulationMapper vehicleSimulationMapper;
+    private final VehicleSimulationProperties properties;
+    private final VehicleSimulationMetrics simulationMetrics;
 
     /**
      * 加载并校验一条线路的模拟档案。
@@ -49,19 +54,21 @@ public class VehicleSimulationServiceImpl implements VehicleSimulationService {
 
         RouteSimulationInfo routeInfo =
                 vehicleSimulationMapper.findRouteSimulationInfo(
-                        normalizedRouteId
+                        normalizedRouteId,
+                        properties.getMaximumSnapOffsetMeters()
                 );
 
         /*
-         * 单条 MyBatis 查询没有结果时返回 null。
-         *
-         * 可能原因：
+         * 查询没有结果表示当前线路不能建立安全的模拟上下文。
+         * - 可能原因 - ：
          * 1. routeId 不存在；
          * 2. ST_LineMerge 后不是 LineString；
-         * 3. 当前线路 geometry 不适合线性参考。
+         * 3. 线路不足两个站点；
+         * 4. 首站或末站不存在唯一、安全的投影区间；
+         * 5. 首站投影进度不小于末站投影进度。
          */
         if (routeInfo == null) {
-            throw new IllegalArgumentException("线路不存在或线路 geometry 无法用于模拟：" + normalizedRouteId);
+            throw new IllegalArgumentException("线路无法建立安全模拟上下文：" + normalizedRouteId);
         }
 
         validateRouteInfo(
@@ -71,7 +78,10 @@ public class VehicleSimulationServiceImpl implements VehicleSimulationService {
 
         List<RouteStopMeasure> stops =
                 vehicleSimulationMapper.findRouteStopMeasures(
-                        normalizedRouteId
+                        normalizedRouteId,
+                        routeInfo.getSourceStartProgressRatio(),
+                        routeInfo.getSourceEndProgressRatio(),
+                        properties.getMaximumSnapOffsetMeters()
                 );
 
         /*
@@ -141,12 +151,20 @@ public class VehicleSimulationServiceImpl implements VehicleSimulationService {
                 progressRatio * 100.0;
 
         /*
+         * 每次 calculateSnapshot 只执行一次 PostGIS 位置插值。
+         * 在数据库调用前计数，失败的查询也会被记录。
+         */
+        simulationMetrics.recordPositionQuery();
+
+        /*
          * 将业务层计算出的进度交给 PostGIS，
          * 由 ST_LineInterpolatePoint 返回实际经纬度。
          */
         RouteInterpolatedPosition position =
                 vehicleSimulationMapper.findPositionAtProgress(
                         routeInfo.getRouteId(),
+                        routeInfo.getSourceStartProgressRatio(),
+                        routeInfo.getSourceEndProgressRatio(),
                         progressRatio
                 );
 
@@ -236,6 +254,42 @@ public class VehicleSimulationServiceImpl implements VehicleSimulationService {
             throw new IllegalStateException(
                     "线路缺少 routeFid："
                             + requestedRouteId
+            );
+        }
+
+        RouteSimulationLineStrategy lineStrategy = routeInfo.getLineStrategy();
+
+        if (lineStrategy == null) {
+            throw new IllegalStateException(
+                    "线路缺少模拟几何策略：" + requestedRouteId
+            );
+        }
+
+        Double sourceStartProgressRatio = routeInfo.getSourceStartProgressRatio();
+
+        Double sourceEndProgressRatio = routeInfo.getSourceEndProgressRatio();
+
+        if (sourceStartProgressRatio == null
+                || sourceEndProgressRatio == null
+                || !Double.isFinite(sourceStartProgressRatio)
+                || !Double.isFinite(sourceEndProgressRatio)
+                || sourceStartProgressRatio < 0
+                || sourceEndProgressRatio > 1
+                || sourceStartProgressRatio >= sourceEndProgressRatio
+        ) {
+            throw new IllegalStateException(
+                    "线路有效区间进度无效：" + requestedRouteId
+            );
+        }
+
+        if (lineStrategy == RouteSimulationLineStrategy.ORIGINAL_LINE &&
+                (
+                    Math.abs(sourceStartProgressRatio) > DISTANCE_EPSILON_METERS ||
+                    Math.abs(sourceEndProgressRatio - 1.0) > DISTANCE_EPSILON_METERS
+                )
+        ) {
+            throw new IllegalStateException(
+                    "完整线路策略的原始进度不是 0～1：" + requestedRouteId
             );
         }
 
@@ -388,6 +442,15 @@ public class VehicleSimulationServiceImpl implements VehicleSimulationService {
                 throw new IllegalStateException(
                         "站点投影偏移无效："
                                 + stop.getStopId()
+                );
+            }
+
+            // SQL 候选筛选和 Java 最终校验共同使用同一个配置值
+            if (snapOffset > properties.getMaximumSnapOffsetMeters() + DISTANCE_EPSILON_METERS) {
+
+                throw new IllegalStateException(
+                        "站点距离有效模拟线路过远："
+                                + stop.getStopId() + "，snapOffset=" + snapOffset
                 );
             }
         }

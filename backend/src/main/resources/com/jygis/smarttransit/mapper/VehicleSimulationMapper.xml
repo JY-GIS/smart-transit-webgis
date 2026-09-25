@@ -6,40 +6,380 @@
 <mapper namespace="com.jygis.smarttransit.mapper.VehicleSimulationMapper">
 
     <!--
-        查询车辆模拟需要的线路基础信息
+        建立一条线路实际用于车辆模拟的空间上下文。
+
+        这里只读取原始表，不修改：
+        - routes
+        - stops
+        - route_stops
+
+        安全规则：
+        1. 原始 geometry 必须能合并成单一 LineString；
+        2. 线路必须至少有两个站点；
+        3. 首末站与原始几何端点匹配时，使用 ORIGINAL_LINE；
+        4. 否则首末站都必须只有一个候选投影区间；
+        5. 首站投影进度必须小于末站投影进度；
+        6. 满足条件后才使用 SUBSTRING_LINE。
     -->
-    <select id="findRouteSimulationInfo"
-            resultType="com.jygis.smarttransit.pojo.RouteSimulationInfo">
-        WITH route_context AS (
+    <sql id="effectiveRouteContextCtes">
+
+        simulation_original_route AS (
             SELECT
                 r.route_id,
-                r.fid,
-                r.rname,
+                r.fid AS route_fid,
+                r.rname AS route_name,
 
                 ST_Transform(
-                    <!--
-                        ST_LineMerge：把 MultiLineString 合并成 LineString
-                    -->
                     ST_LineMerge(r.geom),
                     32650
-                ) AS metric_line
+                ) AS original_metric_line
 
             FROM public.routes r
 
             WHERE r.route_id = #{routeId}
-                AND ST_GeometryType(
-                        ST_LineMerge(r.geom)
-                    ) = 'ST_LineString'
+              AND ST_GeometryType(
+                    ST_LineMerge(r.geom)
+                  ) = 'ST_LineString'
+        ),
+
+        simulation_source_stops AS (
+            SELECT
+                rs.route_id,
+                rs.stop_id,
+                s.stop_name,
+                rs.stop_sequence,
+
+                ST_Transform(
+                    s.geom,
+                    32650
+                ) AS metric_stop,
+
+                ROW_NUMBER() OVER (
+                    PARTITION BY rs.route_id
+                    ORDER BY rs.stop_sequence
+                ) AS stop_order,
+
+                COUNT(*) OVER (
+                    PARTITION BY rs.route_id
+                ) AS stop_count
+
+            FROM public.route_stops rs
+
+            JOIN public.stops s
+                ON s.stop_id = rs.stop_id
+
+            JOIN simulation_original_route route
+                ON route.route_id = rs.route_id
+        ),
+
+        simulation_endpoint_context AS (
+            SELECT
+                route.*,
+
+                first_stop.metric_stop
+                    AS first_metric_stop,
+
+                last_stop.metric_stop
+                    AS last_metric_stop,
+
+                /*
+                 * 首末站都靠近原始几何端点时，
+                 * 保留完整线路并维持 M103、M120 的原有行为。
+                 */
+                (
+                    ST_DWithin(
+                        first_stop.metric_stop,
+                        ST_StartPoint(
+                            route.original_metric_line
+                        ),
+                        #{maximumSnapOffsetMeters}
+                    )
+                    AND
+                    ST_DWithin(
+                        last_stop.metric_stop,
+                        ST_EndPoint(
+                            route.original_metric_line
+                        ),
+                        #{maximumSnapOffsetMeters}
+                    )
+                ) AS original_endpoints_valid
+
+            FROM simulation_original_route route
+
+            JOIN simulation_source_stops first_stop
+                ON first_stop.route_id = route.route_id
+               AND first_stop.stop_order = 1
+
+            JOIN simulation_source_stops last_stop
+                ON last_stop.route_id = route.route_id
+               AND last_stop.stop_order
+                    = last_stop.stop_count
+
+            /*
+             * 一条只有零个或一个站点的线路，
+             * 无法可靠确定有效模拟区间。
+             */
+            WHERE first_stop.stop_count >= 2
+        ),
+
+        simulation_original_segments AS (
+            SELECT
+                context.route_id,
+                dump.path[1] AS segment_index,
+                dump.geom AS segment_geom,
+
+                ST_Length(
+                    dump.geom
+                ) AS segment_length_meters,
+
+                COALESCE(
+                    SUM(
+                        ST_Length(dump.geom)
+                    ) OVER (
+                        PARTITION BY context.route_id
+                        ORDER BY dump.path[1]
+                        ROWS BETWEEN UNBOUNDED PRECEDING
+                            AND 1 PRECEDING
+                    ),
+                    0.0
+                ) AS segment_start_distance_meters,
+
+                ST_Length(
+                    context.original_metric_line
+                ) AS original_length_meters
+
+            FROM simulation_endpoint_context context
+
+            CROSS JOIN LATERAL
+                ST_DumpSegments(
+                    context.original_metric_line
+                ) AS dump
+        ),
+
+        /*
+         * 只有原始端点不匹配时，才需要寻找首末站投影。
+         * ORIGINAL_LINE 不会执行后面的截取选择。
+         */
+        simulation_endpoint_rows AS (
+            SELECT
+                route_id,
+                'FIRST' AS endpoint_kind,
+                first_metric_stop AS metric_stop
+
+            FROM simulation_endpoint_context
+
+            WHERE NOT original_endpoints_valid
+
+            UNION ALL
+
+            SELECT
+                route_id,
+                'LAST' AS endpoint_kind,
+                last_metric_stop AS metric_stop
+
+            FROM simulation_endpoint_context
+
+            WHERE NOT original_endpoints_valid
+        ),
+
+        simulation_endpoint_candidates AS (
+            SELECT
+                endpoint.route_id,
+                endpoint.endpoint_kind,
+
+                (
+                    segment.segment_start_distance_meters
+                    + segment.segment_length_meters
+                        * ST_LineLocatePoint(
+                            segment.segment_geom,
+                            endpoint.metric_stop
+                        )
+                ) / segment.original_length_meters
+                    AS progress_ratio,
+
+                ST_Distance(
+                    segment.segment_geom,
+                    endpoint.metric_stop
+                ) AS snap_offset_meters,
+
+                /*
+                 * 连续的候选线段拥有相同 candidate_group。
+                 *
+                 * 如果一个站点靠近两个不连续区间，
+                 * 就会产生两个 candidate_group，
+                 * 此时不能自动判断应该选择哪一段。
+                 */
+                segment.segment_index
+                    - ROW_NUMBER() OVER (
+                        PARTITION BY
+                            endpoint.route_id,
+                            endpoint.endpoint_kind
+                        ORDER BY segment.segment_index
+                    ) AS candidate_group
+
+            FROM simulation_endpoint_rows endpoint
+
+            JOIN simulation_original_segments segment
+                ON segment.route_id = endpoint.route_id
+
+            WHERE ST_DWithin(
+                segment.segment_geom,
+                endpoint.metric_stop,
+                #{maximumSnapOffsetMeters}
+            )
+        ),
+
+        simulation_endpoint_choices AS (
+            SELECT
+                route_id,
+                endpoint_kind,
+
+                COUNT(
+                    DISTINCT candidate_group
+                ) AS candidate_group_count,
+
+                /*
+                 * 只有一个候选区间时，
+                 * 选择该区间中偏移最小的精确投影点。
+                 */
+                (
+                    ARRAY_AGG(
+                        progress_ratio
+                        ORDER BY
+                            snap_offset_meters,
+                            progress_ratio
+                    )
+                )[1] AS selected_progress_ratio
+
+            FROM simulation_endpoint_candidates
+
+            GROUP BY
+                route_id,
+                endpoint_kind
+        ),
+
+        simulation_route_choice AS (
+            SELECT
+                route_id,
+
+                MAX(candidate_group_count)
+                    FILTER (
+                        WHERE endpoint_kind = 'FIRST'
+                    ) AS first_candidate_group_count,
+
+                MAX(candidate_group_count)
+                    FILTER (
+                        WHERE endpoint_kind = 'LAST'
+                    ) AS last_candidate_group_count,
+
+                MAX(selected_progress_ratio)
+                    FILTER (
+                        WHERE endpoint_kind = 'FIRST'
+                    ) AS first_progress_ratio,
+
+                MAX(selected_progress_ratio)
+                    FILTER (
+                        WHERE endpoint_kind = 'LAST'
+                    ) AS last_progress_ratio
+
+            FROM simulation_endpoint_choices
+
+            GROUP BY route_id
+        ),
+
+        simulation_selected_route AS (
+            SELECT
+                context.route_id,
+                context.route_fid,
+                context.route_name,
+                context.original_metric_line,
+
+                CASE
+                    WHEN context.original_endpoints_valid
+                        THEN 'ORIGINAL_LINE'
+                    ELSE 'SUBSTRING_LINE'
+                END AS line_strategy,
+
+                CASE
+                    WHEN context.original_endpoints_valid
+                        THEN 0.0::double precision
+                    ELSE choice.first_progress_ratio
+                END AS source_start_progress_ratio,
+
+                CASE
+                    WHEN context.original_endpoints_valid
+                        THEN 1.0::double precision
+                    ELSE choice.last_progress_ratio
+                END AS source_end_progress_ratio
+
+            FROM simulation_endpoint_context context
+
+            LEFT JOIN simulation_route_choice choice
+                ON choice.route_id = context.route_id
+
+            WHERE context.original_endpoints_valid
+               OR (
+                    choice.first_candidate_group_count = 1
+                    AND choice.last_candidate_group_count = 1
+                    AND choice.first_progress_ratio
+                        &lt; choice.last_progress_ratio
+               )
+        ),
+
+        route_context AS (
+            SELECT
+                selected.route_id,
+                selected.route_fid,
+                selected.route_name,
+                selected.line_strategy,
+                selected.source_start_progress_ratio,
+                selected.source_end_progress_ratio,
+
+                /*
+                 * ORIGINAL_LINE 保留原始合并线路；
+                 * SUBSTRING_LINE 才执行空间截取。
+                 */
+                CASE
+                    WHEN selected.line_strategy
+                            = 'ORIGINAL_LINE'
+                        THEN selected.original_metric_line
+
+                    ELSE ST_LineSubstring(
+                        selected.original_metric_line,
+                        selected.source_start_progress_ratio,
+                        selected.source_end_progress_ratio
+                    )
+                END AS metric_line
+
+            FROM simulation_selected_route selected
         )
+
+    </sql>
+
+    <!--
+        查询指定线路最终采用的模拟上下文。
+
+        total_length_meters 来自 metric_line：
+        - ORIGINAL_LINE：完整线路长度；
+        - SUBSTRING_LINE：首站到末站之间的有效子线长度。
+    -->
+    <select id="findRouteSimulationInfo"
+            resultType="com.jygis.smarttransit.pojo.RouteSimulationInfo">
+
+        WITH
+        <include refid="effectiveRouteContextCtes"/>
 
         SELECT
             route_id,
-            fid AS route_fid,
-            rname AS route_name,
-            <!--
-              ST_Length：计算线长度
-            -->
-            ST_Length(metric_line) AS total_length_meters
+            route_fid,
+            route_name,
+            line_strategy,
+            source_start_progress_ratio,
+            source_end_progress_ratio,
+
+            ST_Length(
+                metric_line
+            ) AS total_length_meters
 
         FROM route_context
     </select>
@@ -49,21 +389,55 @@
     -->
     <select id="findRouteStopMeasures"
             resultType="com.jygis.smarttransit.pojo.RouteStopMeasure">
-        WITH RECURSIVE route_context AS (
+        WITH RECURSIVE simulation_original_route AS (
             SELECT
                 r.route_id,
 
                 ST_Transform(
                     ST_LineMerge(r.geom),
                     32650
-                ) AS metric_line
+                ) AS original_metric_line
 
             FROM public.routes r
 
             WHERE r.route_id = #{routeId}
-                AND ST_GeometryType(
-                        ST_LineMerge(r.geom)
-                    ) = 'ST_LineString'
+              AND ST_GeometryType(
+                    ST_LineMerge(r.geom)
+                  ) = 'ST_LineString'
+        ),
+
+        route_context AS (
+            SELECT
+                route_id,
+
+                CASE
+                    WHEN CAST(
+                            #{sourceStartProgressRatio}
+                            AS double precision
+                        ) = 0.0
+                    AND CAST(
+                            #{sourceEndProgressRatio}
+                            AS double precision
+                        ) = 1.0
+
+                        THEN original_metric_line
+
+                    ELSE ST_LineSubstring(
+                        original_metric_line,
+
+                        CAST(
+                            #{sourceStartProgressRatio}
+                            AS double precision
+                        ),
+
+                        CAST(
+                            #{sourceEndProgressRatio}
+                            AS double precision
+                        )
+                    )
+                END AS metric_line
+
+            FROM simulation_original_route
         ),
 
         route_segments AS (
@@ -137,7 +511,7 @@
             UNION ALL
 
             <!--
-                中间站只考虑上一站 progress_ratio 之后、且距离站点不超过 50 米的线路线段。
+                中间站只考虑上一站 progress_ratio 之后、且偏移不超过配置阈值的线路线段。
                 最后一站使用动态 stop_count 判断并固定为 1，不硬编码 M103 的站点数量。
             -->
             SELECT
@@ -168,7 +542,7 @@
             LEFT JOIN LATERAL (
                 /*
                     1. 每条线段产生一个精确的全局 progress 候选；
-                    2. 只保留上一站之后且站点偏移不超过 50 米的候选；
+                    2. 只保留上一站之后且站点偏移不超过配置阈值的候选；
                     3. 将连续 segment_index 组成候选区间；
                     4. 选择最早区间中 snap_offset 最小的位置。
 
@@ -201,7 +575,7 @@
                     WHERE ST_DWithin(
                             segment.segment_geom,
                             os.metric_stop,
-                            50.0
+                            #{maximumSnapOffsetMeters}
                         )
                       AND (
                             segment.segment_start_distance_meters
@@ -259,7 +633,14 @@
     </select>
 
     <!--
-        根据 0～1 的线路进度计算车辆经纬度
+        根据有效模拟线路的 0～1 进度计算车辆经纬度。
+
+        为避免每辆车每秒都重新执行 ST_LineSubstring，
+        这里把模拟进度换算回原始线路进度：
+
+        sourceProgress =
+            sourceStart
+            + progress × (sourceEnd - sourceStart)
     -->
     <select id="findPositionAtProgress"
             resultType="com.jygis.smarttransit.pojo.RouteInterpolatedPosition">
@@ -270,30 +651,56 @@
                 ST_Transform(
                     ST_LineMerge(r.geom),
                     32650
-                ) AS metric_line
+                ) AS original_metric_line
 
             FROM public.routes r
 
             WHERE r.route_id = #{routeId}
-                AND ST_GeometryType(
-                        ST_LineMerge(r.geom)
-                    ) = 'ST_LineString'
+              AND ST_GeometryType(
+                    ST_LineMerge(r.geom)
+                  ) = 'ST_LineString'
+        ),
+
+        source_progress AS (
+            SELECT
+                original_metric_line,
+
+                CAST(
+                    #{sourceStartProgressRatio}
+                    AS double precision
+                )
+                +
+                CAST(
+                    #{progressRatio}
+                    AS double precision
+                )
+                *
+                (
+                    CAST(
+                        #{sourceEndProgressRatio}
+                        AS double precision
+                    )
+                    -
+                    CAST(
+                        #{sourceStartProgressRatio}
+                        AS double precision
+                    )
+                ) AS source_progress_ratio
+
+            FROM route_context
         ),
 
         interpolated_position AS (
             SELECT
                 ST_Transform(
                     ST_LineInterpolatePoint(
-                        metric_line,
-                        CAST(
-                            #{progressRatio}
-                            AS double precision
-                        )
+                        original_metric_line,
+                        source_progress_ratio
                     ),
                     4326
                 ) AS position
 
-            FROM route_context
+            FROM source_progress
         )
 
         SELECT
@@ -301,6 +708,7 @@
             ST_Y(position) AS latitude
 
         FROM interpolated_position
+
     </select>
 
 </mapper>

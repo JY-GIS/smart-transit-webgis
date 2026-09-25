@@ -10,6 +10,7 @@ import com.jygis.smarttransit.pojo.RouteStopMeasure;
 import com.jygis.smarttransit.pojo.VehicleMotionStatus;
 import com.jygis.smarttransit.service.VehicleRuntimeStore;
 import com.jygis.smarttransit.service.VehicleSimulationService;
+import com.jygis.smarttransit.service.VehicleSimulationMetrics;
 import com.jygis.smarttransit.realtime.VehiclePositionPublisher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -59,12 +60,20 @@ public class VehicleSimulationTask {
 
     private final VehiclePositionPublisher vehiclePositionPublisher;
 
+    private final VehicleSimulationMetrics simulationMetrics;
+
     /**
      * 已经加载的多条线路档案。
      * key：routeId，例如 route_000185。
      * value：当前线路的 RouteSimulationProfile，包含线路长度和有序站点里程。
      */
     private final Map<String, RouteSimulationProfile> routeProfiles = new HashMap<>();
+
+    /**
+     * 已完成的 tick 数量，只用于控制指标日志频率。
+     * fixedDelay 默认串行执行，因此这里不需要 AtomicLong。
+     */
+    private long completedTickCount;
 
     /**
      * 周期推进全部配置线路中的模拟车辆。
@@ -85,6 +94,11 @@ public class VehicleSimulationTask {
         if (!properties.isEnabled()) {
             return;
         }
+
+        // System.nanoTime 专门用于计算经过时间，不受系统时钟校准影响
+        long tickStartedAtNanos = System.nanoTime();
+
+        simulationMetrics.beginTick();
 
         // 全部线路、全部车辆共用同一个 now
         Instant now = Instant.now();
@@ -140,6 +154,44 @@ public class VehicleSimulationTask {
             // WebSocket 发布失败不回滚已经推进完成的车辆状态
             log.error("车辆实时位置发布失败", exception);
         }
+
+        completedTickCount++;
+
+        // 每10轮输出一次，避免每秒产生一条性能日志
+        if (completedTickCount % 10 == 0) {
+            logTickMetrics(tickStartedAtNanos);
+        }
+    }
+
+    /**
+     * 输出当前区域级模拟的轻量性能指标。
+     * 当前先记录：
+     * - 成功加载的线路数量；
+     * - 当前车辆快照数量；
+     * - 本轮 PostGIS 位置查询次数；
+     * - 单次 tick 总耗时；
+     * - JVM 已使用堆内存；
+     */
+    private void logTickMetrics(long tickStartedAtNanos) {
+        long tickDurationNanos = System.nanoTime() - tickStartedAtNanos;
+
+        double tickDurationMilliseconds = tickDurationNanos / 1_000_000.0;
+
+        Runtime runtime = Runtime.getRuntime();
+
+        long usedHeapBytes = runtime.totalMemory() - runtime.freeMemory();
+
+        double usedHeapMegabytes = usedHeapBytes / 1024.0 / 1024.0;
+
+        log.info(
+                "模拟 tick 指标，" + "routeCount={}，" + "snapshotCount={}，"+
+                "positionQueryCount={}，" + "duration={}ms，" + "usedHeap={}MB",
+                routeProfiles.size(),
+                vehicleRuntimeStore.findAll().size(),
+                simulationMetrics.positionQueryCount(),
+                tickDurationMilliseconds,
+                usedHeapMegabytes
+        );
     }
 
     /**

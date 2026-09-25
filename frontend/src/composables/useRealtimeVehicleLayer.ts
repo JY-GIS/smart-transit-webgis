@@ -290,6 +290,11 @@ export function useRealtimeVehicleLayer() {
         ensureAnimationRunning(viewer)
     }
 
+    // 根据车辆编号取得其 Cesium Entity
+    function getVehicleEntity(vehicleId: string): Cesium.Entity | undefined {
+        return vehicleVisuals.get(vehicleId)?.entity
+    }
+
     // 清理实时车辆图层
     function cleanup(viewer?: Cesium.Viewer) {
         // 页面卸载时取消仍在等待执行的动画帧
@@ -311,6 +316,7 @@ export function useRealtimeVehicleLayer() {
     }
 
     return {
+        getVehicleEntity,
         updateVehicles,
         cleanup,
     }

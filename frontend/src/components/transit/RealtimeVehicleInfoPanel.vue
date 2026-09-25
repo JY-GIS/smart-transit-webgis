@@ -3,6 +3,7 @@ import { onBeforeUnmount, ref, watch } from 'vue'
 
 import { TRANSIT_CONFIG } from '@/config/transit.config'
 import { REALTIME_VEHICLE_STATUS_STYLES } from '@/config/realtimeVehicleStatus.config'
+import { REALTIME_VEHICLE_OPERATIONAL_STATUS_STYLES } from '@/config/realtimeVehicleOperationalStatus.config'
 import type { BusRouteProperties } from '@/types/busRoute'
 import type { RealtimeVehiclePositionSnapshot } from '@/types/realtimeVehicle'
 
@@ -301,6 +302,14 @@ onBeforeUnmount(() => {
                 </div>
 
                 <div class="vehicle-panel__field">
+                    <span>运营状态</span>
+
+                    <strong class="vehicle-panel__status" :style="{ color: REALTIME_VEHICLE_OPERATIONAL_STATUS_STYLES[vehicle.operationalStatus].color }">
+                        {{ REALTIME_VEHICLE_OPERATIONAL_STATUS_STYLES[vehicle.operationalStatus].label }}
+                    </strong>
+                </div>
+
+                <div class="vehicle-panel__field">
                     <span>当前速度</span>
 
                     <strong>
@@ -322,6 +331,14 @@ onBeforeUnmount(() => {
 
                     <strong>
                         {{ formatDistance(displayedDistanceToFrontVehicleMeters) }}
+                    </strong>
+                </div>
+
+                <div class="vehicle-panel__field">
+                    <span>参考间隔</span>
+
+                    <strong>
+                        {{ formatDistance(vehicle.referenceHeadwayMeters) }}
                     </strong>
                 </div>
 

@@ -17,6 +17,14 @@ export type RealtimeVehicleMotionStatus =
     | 'DWELLING'
 
 /**
+ * 后端计算出的公交运营间隔状态。
+ */
+export type RealtimeVehicleOperationalStatus =
+    | 'NORMAL'
+    | 'BUNCHING'
+    | 'LARGE_GAP'
+
+/**
  * 车辆已经经过或即将到达的站点快照。
  *（字段与后端 VehicleStopSnapshot record 对应）
  */
@@ -58,6 +66,10 @@ export interface RealtimeVehiclePositionSnapshot {
     frontVehicleId: string | null
 
     distanceToFrontVehicleMeters: number | null
+
+    referenceHeadwayMeters: number
+
+    operationalStatus: RealtimeVehicleOperationalStatus
 
     previousStop: RealtimeVehicleStopSnapshot | null
 

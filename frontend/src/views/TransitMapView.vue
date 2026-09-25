@@ -7,6 +7,7 @@ import 'cesium/Build/Cesium/Widgets/widgets.css'
 import BusRouteInfoPanel from '@/components/transit/BusRouteInfoPanel.vue'
 import NearbyBusStopPanel from '@/components/transit/NearbyBusStopPanel.vue'
 import RealtimeVehicleInfoPanel from '@/components/transit/RealtimeVehicleInfoPanel.vue'
+import RealtimeOperationalAlertPanel from '@/components/transit/RealtimeOperationalAlertPanel.vue'
 import { useBusRouteLayer } from '@/composables/useBusRouteLayer'
 import { useBusRouteSelection } from '@/composables/useBusRouteSelection'
 import { useBusStopLayer } from '@/composables/useBusStopLayer'
@@ -38,6 +39,7 @@ const {
 const {
     selectedRoute,
     selectedVehicleId,
+    selectRealtimeVehicle,
     bindRouteSelection,
     closeRoutePanel,
     cleanup: cleanupRouteSelection,
@@ -81,6 +83,7 @@ const selectedRealtimeVehicle = computed(() => {
 })
 
 const {
+    getVehicleEntity: getRealtimeVehicleEntity,
     updateVehicles: updateRealtimeVehicleLayer,
     cleanup: cleanupRealtimeVehicleLayer,
 } = useRealtimeVehicleLayer()
@@ -107,6 +110,44 @@ const {
 
 function handleCloseRoutePanel() {
     closeRoutePanel(viewer)
+}
+
+// 处理异常播报面板发出的车辆选择请求
+function handleSelectOperationalVehicle(vehicleId: string) {
+    const currentViewer = viewer
+
+    if (!currentViewer || currentViewer.isDestroyed()) {
+        return
+    }
+
+    const vehicle = realtimeVehicles.value.find( (item) => item.vehicleId === vehicleId )
+
+    if (!vehicle)  return
+
+    selectRealtimeVehicle(
+        vehicle.vehicleId,
+        vehicle.routeFid,
+        routeEntitiesByFid,
+        currentViewer.clock.currentTime,
+    )
+
+    const vehicleEntity = getRealtimeVehicleEntity(vehicleId)
+
+    if (!vehicleEntity) return
+
+    currentViewer.selectedEntity = vehicleEntity
+
+    void currentViewer.flyTo(
+        vehicleEntity,
+        {
+            duration: 1.2,
+            offset: new Cesium.HeadingPitchRange(
+                Cesium.Math.toRadians(0),
+                Cesium.Math.toRadians(-65),
+                1000,
+            ),
+        },
+    )
 }
 
 function handleClearNearbyQuery() {
@@ -323,6 +364,10 @@ onBeforeUnmount(() => {
             :vehicle="selectedRealtimeVehicle"
             :route="selectedRoute"
             @close="handleCloseRoutePanel"
+        />
+        <RealtimeOperationalAlertPanel
+            :vehicles="realtimeVehicles"
+            @select-vehicle="handleSelectOperationalVehicle"
         />
         <NearbyBusStopPanel
             :stops="nearbyStops"

@@ -186,6 +186,24 @@ export function useBusRouteSelection() {
         console.log('公交线路选择：', properties)
     }
 
+    /**
+     * 根据车辆业务信息选择实时车辆。
+     */
+    function selectRealtimeVehicle(
+        vehicleId: string,
+        routeFid: number,
+        routeEntitiesByFid: Map<number, Cesium.Entity[]>,
+        time: Cesium.JulianDate,
+    ) {
+        selectedVehicleId.value = vehicleId
+
+        selectRouteByFid(
+            routeFid,
+            routeEntitiesByFid,
+            time,
+        )
+    }
+
     function bindRouteSelection(
         viewer: Cesium.Viewer,
         dataSource: Cesium.GeoJsonDataSource,
@@ -251,9 +269,8 @@ export function useBusRouteSelection() {
 
                 viewer.selectedEntity = busEntity
 
-                selectedVehicleId.value = busProperties.vehicleId
-
-                selectRouteByFid(
+                selectRealtimeVehicle(
+                    busProperties.vehicleId,
                     busProperties.routeFid,
                     routeEntitiesByFid,
                     currentTime,
@@ -359,6 +376,7 @@ export function useBusRouteSelection() {
     return {
         selectedRoute,
         selectedVehicleId,
+        selectRealtimeVehicle,
         bindRouteSelection,
         closeRoutePanel,
         cleanup,

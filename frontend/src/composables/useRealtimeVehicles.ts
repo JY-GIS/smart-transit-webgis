@@ -5,6 +5,7 @@ import { TRANSIT_CONFIG } from '@/config/transit.config'
 import type {
     RealtimeVehicleConnectionStatus,
     RealtimeVehicleMotionStatus,
+    RealtimeVehicleOperationalStatus,
     RealtimeVehiclePositionSnapshot,
     RealtimeVehicleStopSnapshot,
 } from '@/types/realtimeVehicle'
@@ -21,6 +22,17 @@ function isVehicleMotionStatus(value: unknown): value is RealtimeVehicleMotionSt
         value === 'CRUISING' ||
         value === 'APPROACHING' ||
         value === 'DWELLING'
+    )
+}
+
+/**
+ * 验证后端返回的车辆运营状态。
+ */
+function isVehicleOperationalStatus(value: unknown,): value is RealtimeVehicleOperationalStatus {
+    return (
+        value === 'NORMAL' ||
+        value === 'BUNCHING' ||
+        value === 'LARGE_GAP'
     )
 }
 
@@ -63,6 +75,10 @@ function isVehicleSnapshot(value: unknown): value is RealtimeVehiclePositionSnap
 
     const distanceToFrontVehicleIsValid = vehicle.distanceToFrontVehicleMeters === null || (isFiniteNumber(vehicle.distanceToFrontVehicleMeters) && vehicle.distanceToFrontVehicleMeters >= 0)
 
+    const referenceHeadwayIsValid = isFiniteNumber(vehicle.referenceHeadwayMeters) && vehicle.referenceHeadwayMeters > 0
+
+    const operationalStatusIsValid = isVehicleOperationalStatus(vehicle.operationalStatus)
+
     const motionStatusIsValid = isVehicleMotionStatus(vehicle.motionStatus)
 
     const currentSpeedIsValid = isFiniteNumber(vehicle.currentSpeedMetersPerSecond) && vehicle.currentSpeedMetersPerSecond >= 0
@@ -80,6 +96,8 @@ function isVehicleSnapshot(value: unknown): value is RealtimeVehiclePositionSnap
         currentSpeedIsValid &&
         frontVehicleIdIsValid &&
         distanceToFrontVehicleIsValid &&
+        referenceHeadwayIsValid &&
+        operationalStatusIsValid &&
         previousStopIsValid &&
         nextStopIsValid &&
         distanceToNextStopIsValid

@@ -1,6 +1,7 @@
 package com.jygis.smarttransit.service.impl;
 
 import com.jygis.smarttransit.config.VehicleSimulationProperties;
+import com.jygis.smarttransit.config.VehicleSimulationProperties.RoutePlan;
 import com.jygis.smarttransit.pojo.VehicleOperationalStatus;
 import com.jygis.smarttransit.pojo.VehiclePositionSnapshot;
 import com.jygis.smarttransit.pojo.VehicleRuntimeState;
@@ -49,13 +50,10 @@ public class VehicleQueryServiceImpl implements VehicleQueryService {
                         )
                         .toList();
 
-        /*
-         * Collectors.groupingBy：按 routeFid 把车辆分组。
-         */
-        Map<Integer, List<VehiclePositionSnapshot>> snapshotsByRoute =
-                baseSnapshots.stream().collect(
-                        Collectors.groupingBy(VehiclePositionSnapshot::routeFid)
-                );
+        // 按 routeId 对车辆快照分组。
+        Map<String, List<VehiclePositionSnapshot>>
+                snapshotsByRoute = baseSnapshots.stream()
+                        .collect(Collectors.groupingBy(VehiclePositionSnapshot::routeId));
 
         List<VehiclePositionSnapshot> result = new ArrayList<>(baseSnapshots.size());
 
@@ -152,14 +150,32 @@ public class VehicleQueryServiceImpl implements VehicleQueryService {
     /**
      * 计算当前线路的参考正常间隔。
      */
-    private double calculateReferenceHeadwayMeters(
-            List<VehiclePositionSnapshot> routeSnapshots
-    ) {
-        double totalDistanceMeters = routeSnapshots.get(0).totalDistanceMeters();
+    private double calculateReferenceHeadwayMeters(List<VehiclePositionSnapshot> routeSnapshots) {
+        VehiclePositionSnapshot firstSnapshot = routeSnapshots.get(0);
 
-        int plannedVehicleCount = properties.getVehicles().size();
+        String routeId = firstSnapshot.routeId();
+
+        RoutePlan routePlan = requireRoutePlan(routeId);
+
+        double totalDistanceMeters = firstSnapshot.totalDistanceMeters();
+
+        int plannedVehicleCount = routePlan.getVehicleCount();
 
         return totalDistanceMeters / plannedVehicleCount;
+    }
+
+    /**
+     * 根据 routeId 查找必须存在的线路计划。
+     */
+    private RoutePlan requireRoutePlan(String routeId) {
+        for (RoutePlan routePlan : properties.getRoutes()) {
+
+            if (routeId.equals(routePlan.getRouteId())) {
+                return routePlan;
+            }
+        }
+
+        throw new IllegalStateException("找不到车辆所属线路的模拟计划：" + routeId);
     }
 
     /**

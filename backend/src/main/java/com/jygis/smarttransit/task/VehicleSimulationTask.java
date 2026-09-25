@@ -2,6 +2,7 @@ package com.jygis.smarttransit.task;
 
 import com.jygis.smarttransit.config.VehicleSimulationProperties;
 import com.jygis.smarttransit.config.VehicleSimulationProperties.VehicleSeed;
+import com.jygis.smarttransit.config.VehicleSimulationProperties.RoutePlan;
 import com.jygis.smarttransit.pojo.RouteSimulationProfile;
 import com.jygis.smarttransit.pojo.VehiclePositionSnapshot;
 import com.jygis.smarttransit.pojo.VehicleRuntimeState;
@@ -20,6 +21,9 @@ import java.time.Instant;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * 后端多车辆模拟定时任务。
@@ -32,10 +36,11 @@ import java.util.List;
  * - 用新状态整体替换旧状态。
  *
  * 当前阶段：
- * - 一条线路；
- * - 三辆车辆；
- * - 每辆车具有独立速度和累计里程；
- * - 所有车辆共享同一个 RouteSimulationProfile。
+ * - 支持配置多条模拟线路；
+ * - 每条线路拥有独立的 RouteSimulationProfile；
+ * - 每条线路根据 RoutePlan 自动生成车辆；
+ * - 所有线路共用同一个 tick 时间基准；
+ * - 单条线路加载失败时不阻止其他线路继续运行。
  */
 @Slf4j
 @Component
@@ -55,16 +60,20 @@ public class VehicleSimulationTask {
     private final VehiclePositionPublisher vehiclePositionPublisher;
 
     /**
-     * 当前任务已经加载的线路模拟档案。
+     * 已经加载的多条线路档案。
+     * key：routeId，例如 route_000185。
+     * value：当前线路的 RouteSimulationProfile，包含线路长度和有序站点里程。
      */
-    private RouteSimulationProfile routeProfile;
+    private final Map<String, RouteSimulationProfile> routeProfiles = new HashMap<>();
 
     /**
-     * 周期推进模拟车辆。
-     *
-     * - fixedDelayString 表示：上一次任务执行完成后，再等待指定毫秒数，然后开始下一次执行。
-     * - 这里使用 fixedDelay 而不是 fixedRate，可以避免上一次数据库查询尚未结束时，下一次任务又开始执行。
-     * - initialDelayString 表示：应用启动后先等待一个 tick 周期，再执行第一次初始化。
+     * 周期推进全部配置线路中的模拟车辆。
+     * - 执行顺序 - ：
+     * 1. 校验多线路配置；
+     * 2. 生成本轮统一时间；
+     * 3. 逐条加载线路档案；
+     * 4. 逐辆初始化或推进车辆；
+     * 5. 全部线路处理完成后统一发布快照。
      */
     @Scheduled(
             // 首次执行的延迟时间
@@ -77,112 +86,168 @@ public class VehicleSimulationTask {
             return;
         }
 
-        /*
-         * 全部车辆使用同一个 now。
-         *
-         * 如果在循环内分别调用 Instant.now()，三辆车会得到略有差异的时间基准。
-         * 统一时刻可以确保相同速度的车辆只保留业务上的位置差异。
-         */
+        // 全部线路、全部车辆共用同一个 now
         Instant now = Instant.now();
 
-        RouteSimulationProfile currentRouteProfile;
-
         try {
-            validateVehicleIds();
+            validateRoutePlans();
             validateApproachConfiguration();
-
-            currentRouteProfile = getOrLoadRouteProfile();
         } catch (RuntimeException exception) {
-            /*
-             * 线路 Profile 是全部车辆的共同依赖。
-             * 加载失败时，本次所有车辆都不能继续计算。
-             */
-            log.error(
-                    "模拟线路档案加载失败，routeId={}",
-                    properties.getRouteId(),
-                    exception
-            );
-
+            log.error("模拟线路配置校验失败", exception);
             return;
         }
 
-        for (VehicleSeed vehicleSeed : properties.getVehicles()) {
+        // 外层循环处理线路。当前循环中的 routeProfile 只属于当前 routePlan。
+        for (RoutePlan routePlan : properties.getRoutes()) {
+
+            RouteSimulationProfile currentRouteProfile;
 
             try {
-                tickVehicle(
-                        vehicleSeed,
-                        currentRouteProfile,
-                        now
-                );
+                currentRouteProfile = getOrLoadRouteProfile(routePlan.getRouteId());
             } catch (RuntimeException exception) {
-                /*
-                 * 单辆车失败时只记录该车辆错误，循环继续推进其他车辆。
-                 */
-                log.error("模拟车辆 tick 执行失败，vehicleId={}", vehicleSeed.getVehicleId(), exception);
+                log.error(
+                        "模拟线路档案加载失败，routeId={}",
+                        routePlan.getRouteId(),
+                        exception
+                );
+                continue;
+            }
+
+            List<VehicleSeed> vehicleSeeds = createVehicleSeeds(routePlan);
+            // 内层循环只处理当前线路生成的车辆。
+            for (VehicleSeed vehicleSeed : vehicleSeeds) {
+                try {
+                    tickVehicle(
+                            vehicleSeed,
+                            currentRouteProfile,
+                            now
+                    );
+                } catch (RuntimeException exception) {
+                    log.error(
+                            "模拟车辆 tick 执行失败，" + "routeId={}，vehicleId={}",
+                            routePlan.getRouteId(),
+                            vehicleSeed.getVehicleId(),
+                            exception
+                    );
+                }
             }
         }
 
-        /*
-         * 必须等本轮所有车辆完成初始化或推进后再统一发布。
-         */
+        // 所有线路处理完成后再统一发布
         try {
             vehiclePositionPublisher.publishCurrentPositions();
         } catch (RuntimeException exception) {
-            /*
-             * WebSocket 发布失败不回滚已经计算完成的车辆状态
-             */
+            // WebSocket 发布失败不回滚已经推进完成的车辆状态
             log.error("车辆实时位置发布失败", exception);
         }
     }
 
     /**
-     * 校验配置中的 vehicleId 不重复。
+     * 校验多线路配置生成的业务编号不会重复。
      */
-    private void validateVehicleIds() {
+    private void validateRoutePlans() {
+        Set<String> routeIds = new HashSet<>();
         Set<String> vehicleIds = new HashSet<>();
 
-        for (VehicleSeed vehicleSeed : properties.getVehicles()) {
+        for (RoutePlan routePlan : properties.getRoutes()) {
 
-            String vehicleId = vehicleSeed.getVehicleId();
-
-            if (!vehicleIds.add(vehicleId)) {
-                throw new IllegalStateException("模拟车辆 ID 重复：" + vehicleId);
+            if (!routeIds.add(routePlan.getRouteId())) {
+                throw new IllegalStateException("模拟线路 ID 重复：" + routePlan.getRouteId());
             }
+
+            List<VehicleSeed> vehicleSeeds = createVehicleSeeds(routePlan);
+
+            for (VehicleSeed vehicleSeed : vehicleSeeds) {
+
+                if (!vehicleIds.add(vehicleSeed.getVehicleId())) {
+                    throw new IllegalStateException("模拟车辆 ID 重复：" + vehicleSeed.getVehicleId());
+                }
+            }
+        }
+
+        // 固定延误车辆必须能由当前线路配置生成
+        if (!vehicleIds.contains(properties.getDelayVehicleId())) {
+            throw new IllegalStateException("固定延误车辆不在模拟计划中：" + properties.getDelayVehicleId());
         }
     }
 
     /**
-     * 校验进站速度配置与车辆巡航速度之间的关系。
+     * 校验最低进站速度不能超过任何线路的巡航速度。
      */
     private void validateApproachConfiguration() {
-        for (VehicleSeed vehicleSeed : properties.getVehicles()) {
+        for (RoutePlan routePlan : properties.getRoutes()) {
 
             if (properties.getMinimumApproachSpeedMetersPerSecond()
-                    > vehicleSeed.getSpeedMetersPerSecond()) {
-
+                    > routePlan.getSpeedMetersPerSecond()
+            ) {
                 throw new IllegalStateException(
-                        "最低进站速度不能大于车辆巡航速度：" + vehicleSeed.getVehicleId()
+                        "最低进站速度不能大于线路车辆巡航速度：" + routePlan.getRouteId()
                 );
             }
         }
     }
 
     /**
-     * 第一次使用时加载线路档案，后续直接复用。
+     * 加载并缓存指定线路的模拟档案。
+     * 第一次收到 routeId：→ 查询数据库 → 创建 RouteSimulationProfile → 保存到 routeProfiles;
+     * 后续再次收到相同 routeId：→ 直接返回缓存 → 不重复查询线路长度和全部站点。
      */
-    private RouteSimulationProfile getOrLoadRouteProfile() {
-        if (routeProfile == null) {
-            routeProfile = vehicleSimulationService.loadRouteProfile(properties.getRouteId());
+    private RouteSimulationProfile getOrLoadRouteProfile(String routeId) {
+        RouteSimulationProfile cachedProfile = routeProfiles.get(routeId);
 
-            log.info(
-                    "模拟线路档案加载完成，routeId={}，" + "routeLength={}m，stopCount={}",
-                    properties.getRouteId(),
-                    routeProfile.routeInfo().getTotalLengthMeters(),
-                    routeProfile.stops().size()
-            );
+        // 先查缓存，命中后立即返回，可以减少后续代码的嵌套层级。
+        if (cachedProfile != null) {
+            return cachedProfile;
         }
 
-        return routeProfile;
+        RouteSimulationProfile loadedProfile = vehicleSimulationService.loadRouteProfile(routeId);
+
+        // 只有完整加载成功后才写入缓存。
+        routeProfiles.put(routeId, loadedProfile);
+
+        log.info(
+                "模拟线路档案加载完成，routeId={}，" + "routeLength={}m，stopCount={}",
+                routeId,
+                loadedProfile.routeInfo().getTotalLengthMeters(),
+                loadedProfile.stops().size()
+        );
+
+        return loadedProfile;
+    }
+
+    /**
+     * 根据一条线路计划生成对应车辆的初始化参数。
+     */
+    private List<VehicleSeed> createVehicleSeeds(RoutePlan routePlan) {
+        // 指定 ArrayList 的初始容量，可以避免添加车辆时反复扩容。
+        List<VehicleSeed> vehicleSeeds = new ArrayList<>(routePlan.getVehicleCount());
+
+        for (int vehicleIndex = 0; vehicleIndex < routePlan.getVehicleCount(); vehicleIndex++) {
+            VehicleSeed vehicleSeed = new VehicleSeed();
+
+            // %s：车辆编号前缀。 %03d：至少使用三位数字，不足时在前面补 0。
+            String vehicleId =
+                    "%s-%03d".formatted(
+                            routePlan.getVehicleIdPrefix(),
+                            vehicleIndex + 1
+                    );
+
+            double initialProgressRatio = (double) vehicleIndex / routePlan.getVehicleCount();
+
+            vehicleSeed.setVehicleId(vehicleId);
+
+            vehicleSeed.setSpeedMetersPerSecond(routePlan.getSpeedMetersPerSecond());
+
+            vehicleSeed.setInitialProgressRatio(initialProgressRatio);
+
+            vehicleSeeds.add(vehicleSeed);
+        }
+
+        /*
+         * List.copyOf 返回不可增删的列表。
+         *（ 车辆种子生成完成后不应再改变车辆数量，因此返回只读列表可以减少误修改 ）
+         */
+        return List.copyOf(vehicleSeeds);
     }
 
     /**

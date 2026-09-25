@@ -20,9 +20,6 @@ transit:
   simulation:
     enabled: true
 
-    # 当前阶段三辆车共用 M103
-    route-id: route_000185
-
     # 每次任务完成后等待 1000 毫秒再执行下一次
     tick-interval-milliseconds: 1000
 
@@ -50,15 +47,16 @@ transit:
     # 在普通停靠 5 秒之外额外停靠 300 秒
     extra-dwell-duration-seconds: 300
 
-    vehicles:
-      - vehicle-id: simulated-bus-m103-001
+    # 多线路模拟计划。
+    routes:
+      # M103
+      - route-id: route_000185
+        vehicle-id-prefix: simulated-bus-m103
+        vehicle-count: 3
         speed-meters-per-second: 12
-        initial-progress-ratio: 0.0
 
-      - vehicle-id: simulated-bus-m103-002
+      # M120
+      - route-id: route_000193
+        vehicle-id-prefix: simulated-bus-m120
+        vehicle-count: 3
         speed-meters-per-second: 12
-        initial-progress-ratio: 0.333333
-
-      - vehicle-id: simulated-bus-m103-003
-        speed-meters-per-second: 12
-        initial-progress-ratio: 0.666667

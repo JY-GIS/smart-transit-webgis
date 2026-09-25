@@ -35,12 +35,6 @@ public class VehicleSimulationProperties {
     private boolean enabled;
 
     /**
-     * 模拟线路编号，例如 route_000185。
-     */
-    @NotBlank
-    private String routeId;
-
-    /**
      * 定时任务两次执行之间的延迟，单位为毫秒。
      */
     @Positive
@@ -95,15 +89,13 @@ public class VehicleSimulationProperties {
     @Positive
     private long extraDwellDurationSeconds;
 
-    /**
-     * 需要运行的车辆配置列表。
-     */
-    @NotEmpty // @NotEmpty 保证列表至少有一辆车
-    @Valid    // @Valid 保证 Spring 不仅校验 vehicles 列表本身，还会继续校验每一个 VehicleSeed 中的字段
-    private List<VehicleSeed> vehicles;
+    // 需要同时运行的线路模拟计划
+    @NotEmpty
+    @Valid
+    private List<RoutePlan> routes;
 
     /**
-     * 一辆模拟车辆的初始化配置。
+     * 由 VehicleSimulationTask 根据 RoutePlan 自动生成的一辆车辆初始化参数。
      */
     @Data
     public static class VehicleSeed {
@@ -127,5 +119,28 @@ public class VehicleSimulationProperties {
         @DecimalMin(value = "0.0", inclusive = true)
         @DecimalMax(value = "1.0", inclusive = false)
         private double initialProgressRatio;
+    }
+
+    /**
+     * 一条线路的模拟计划。
+     */
+    @Data
+    public static class RoutePlan {
+
+        // 数据库中的线路业务编号
+        @NotBlank
+        private String routeId;
+
+        // 自动生成车辆编号时使用的前缀
+        @NotBlank
+        private String vehicleIdPrefix;
+
+        // 当前线路计划运行的车辆数量
+        @Positive
+        private int vehicleCount;
+
+        // 当前线路模拟车辆的巡航速度
+        @Positive
+        private double speedMetersPerSecond;
     }
 }

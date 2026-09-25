@@ -30,6 +30,8 @@ const MAX_EVENT_COUNT = 50
 // 已经产生的运营事件，最新事件放在数组最前面
 const operationalEvents = ref<RealtimeOperationalEvent[]>([])
 
+// 右下角面板是否收起
+const isCollapsed = ref(false)
 
 // 保存每辆车上一次收到的运营状态
 const previousStatusByVehicleId = new Map<string, RealtimeVehicleOperationalStatus>()
@@ -185,61 +187,71 @@ watch(
 
 </script>
 <template>
-    <aside class="operational-alert-panel" aria-label="实时运营异常播报" aria-live="polite">
-        <header class="operational-alert-panel__header">
-            <div class="operational-alert-panel__title">
-                <span class="operational-alert-panel__indicator" :class="{ 'is-active': activeAbnormalVehicleCount > 0 }" aria-hidden="true"></span>
-                <span>运营异常播报</span>
-            </div>
+    <aside class="operational-alert-panel" :class="{ 'is-collapsed': isCollapsed }" aria-label="实时运营异常播报" aria-live="polite">
+        <button type="button" class="operational-alert-panel__toggle"
+            :aria-label="isCollapsed ? '展开运营异常播报面板' : '收起运营异常播报面板'"
+            :title="isCollapsed ? '展开面板' : '收起面板'"
+            @click="isCollapsed = !isCollapsed"
+        >
+            {{ isCollapsed ? '《' : '》' }}
+        </button>
 
-            <span class="operational-alert-panel__count" :class="{ 'is-active': activeAbnormalVehicleCount > 0 }">
-                当前 {{ activeAbnormalVehicleCount }}
-            </span>
-        </header>
-
-        <div v-if="operationalEvents.length === 0" class="operational-alert-panel__empty">
-            <strong>当前暂无运营异常</strong>
-            <span>
-                车辆运行间隔正常
-            </span>
-        </div>
-
-        <ol v-else class="operational-alert-panel__list">
-            <li v-for="event in operationalEvents" :key="event.id" class="operational-alert-panel__event">
-                <time class="operational-alert-panel__time" :datetime="event.detectedAt.toISOString()">
-                    {{ formatDetectedTime(event.detectedAt) }}
-                </time>
-
-                <div class="operational-alert-panel__summary">
-                    <strong class="operational-alert-panel__message">
-                        {{ formatEventMessage(event) }}
-                    </strong>
-
-                    <span class="operational-alert-panel__detail">
-                        距前车
-                        {{ formatDistance(event.distanceToFrontVehicleMeters) }}
-                        · 参考
-                        {{ formatDistance(event.referenceHeadwayMeters) }}
-                    </span>
+        <div class="operational-alert-panel__content">  
+            <header class="operational-alert-panel__header">
+                <div class="operational-alert-panel__title">
+                    <span class="operational-alert-panel__indicator" :class="{ 'is-active': activeAbnormalVehicleCount > 0 }" aria-hidden="true"></span>
+                    <span>运营异常播报</span>
                 </div>
 
-                <span class="operational-alert-panel__tag" :class="{
-                        'is-bunching': event.operationalStatus === 'BUNCHING',
-                        'is-large-gap': event.operationalStatus === 'LARGE_GAP',
-                        'is-recovered': event.operationalStatus === 'NORMAL',
-                    }"
-                >
-                    {{ formatEventLabel(event.operationalStatus) }}
+                <span class="operational-alert-panel__count" :class="{ 'is-active': activeAbnormalVehicleCount > 0 }">
+                    当前 {{ activeAbnormalVehicleCount }}
                 </span>
+            </header>
 
-                <button type="button" class="operational-alert-panel__view-button"
-                    :aria-label="`查看 ${formatVehicleName(event.vehicleId)}`"
-                    @click.stop=" handleSelectVehicle(event.vehicleId)"
-                >
-                    查看
-                </button>
-            </li>
-        </ol>
+            <div v-if="operationalEvents.length === 0" class="operational-alert-panel__empty">
+                <strong>当前暂无运营异常</strong>
+                <span>
+                    车辆运行间隔正常
+                </span>
+            </div>
+
+            <ol v-else class="operational-alert-panel__list">
+                <li v-for="event in operationalEvents" :key="event.id" class="operational-alert-panel__event">
+                    <time class="operational-alert-panel__time" :datetime="event.detectedAt.toISOString()">
+                        {{ formatDetectedTime(event.detectedAt) }}
+                    </time>
+
+                    <div class="operational-alert-panel__summary">
+                        <strong class="operational-alert-panel__message">
+                            {{ formatEventMessage(event) }}
+                        </strong>
+
+                        <span class="operational-alert-panel__detail">
+                            距前车
+                            {{ formatDistance(event.distanceToFrontVehicleMeters) }}
+                            · 参考
+                            {{ formatDistance(event.referenceHeadwayMeters) }}
+                        </span>
+                    </div>
+
+                    <span class="operational-alert-panel__tag" :class="{
+                            'is-bunching': event.operationalStatus === 'BUNCHING',
+                            'is-large-gap': event.operationalStatus === 'LARGE_GAP',
+                            'is-recovered': event.operationalStatus === 'NORMAL',
+                        }"
+                    >
+                        {{ formatEventLabel(event.operationalStatus) }}
+                    </span>
+
+                    <button type="button" class="operational-alert-panel__view-button"
+                        :aria-label="`查看 ${formatVehicleName(event.vehicleId)}`"
+                        @click.stop=" handleSelectVehicle(event.vehicleId)"
+                    >
+                        查看
+                    </button>
+                </li>
+            </ol>
+        </div>
     </aside>
 </template>
 
@@ -249,9 +261,10 @@ watch(
     z-index: 20;
     right: 24px;
     bottom: 56px;
-    width: 760px;
+    width: 640px;
     max-width: calc(100% - 48px);
-    overflow: hidden;
+    overflow: visible;
+    transition: transform 220ms ease;
     color: #1f2937;
     background: rgba(255, 255, 255, 0.95);
     border: 1px solid rgba(148, 163, 184, 0.55);
@@ -260,6 +273,50 @@ watch(
         0 12px 32px rgba(15, 23, 42, 0.22);
     backdrop-filter: blur(10px);
     pointer-events: auto;
+}
+
+.operational-alert-panel.is-collapsed {
+    transform: translateX(calc(100% + 24px));
+}
+
+.operational-alert-panel__content {
+    visibility: visible;
+}
+
+.operational-alert-panel.is-collapsed
+.operational-alert-panel__content {
+    visibility: hidden;
+}
+
+.operational-alert-panel__toggle {
+    position: absolute;
+    top: 120px;
+    left: -23px;
+    display: grid;
+    width: 20px;
+    height: 30px;
+    place-items: center;
+    padding: 0;
+    color: #2563eb;
+    background: rgba(255, 255, 255, 0.96);
+    border: 1px solid rgba(148, 163, 184, 0.65);
+    border-radius: 8px;
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.2);
+    cursor: pointer;
+    font: inherit;
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.operational-alert-panel__toggle:hover {
+    color: #ffffff;
+    background: #2563eb;
+    border-color: #2563eb;
+}
+
+.operational-alert-panel__toggle:focus-visible {
+    outline: 2px solid #60a5fa;
+    outline-offset: 2px;
 }
 
 .operational-alert-panel__header {
@@ -476,6 +533,10 @@ watch(
         padding: 3px 6px;
         font-size: 11px;
     }
+
+    .operational-alert-panel.is-collapsed {
+    transform: translateX(calc(100% + 12px));
+}
 }
 
 </style>

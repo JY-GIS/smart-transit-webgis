@@ -214,6 +214,8 @@ export function useRealtimeVehicleLayer() {
             properties: entityProperties,
             point: {
                 pixelSize: 18,
+                // 1000 米以内保持 100%，8000 米以外保持 60%
+                scaleByDistance: new Cesium.NearFarScalar(1000, 1.0, 8000, 0.6),
                 color: colorProperty,
                 outlineColor: Cesium.Color.WHITE,
                 outlineWidth: 3,

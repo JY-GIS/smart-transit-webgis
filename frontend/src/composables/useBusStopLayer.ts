@@ -196,6 +196,7 @@ export function useBusStopLayer() {
                     Cesium.Cartesian3.fromDegrees(stop.longitude, stop.latitude),
                 point: {
                     pixelSize: 14,
+                    scaleByDistance: new Cesium.NearFarScalar(1000, 1.0, 8000, 0.6),
                     color: Cesium.Color.BLUEVIOLET,
                     outlineColor: Cesium.Color.WHITE,
                     outlineWidth: 3,

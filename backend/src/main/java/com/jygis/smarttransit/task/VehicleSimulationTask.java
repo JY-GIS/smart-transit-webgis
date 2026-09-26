@@ -8,6 +8,7 @@ import com.jygis.smarttransit.pojo.VehiclePositionSnapshot;
 import com.jygis.smarttransit.pojo.VehicleRuntimeState;
 import com.jygis.smarttransit.pojo.RouteStopMeasure;
 import com.jygis.smarttransit.pojo.VehicleMotionStatus;
+import com.jygis.smarttransit.pojo.VehicleSnapshotRequest;
 import com.jygis.smarttransit.service.VehicleRuntimeStore;
 import com.jygis.smarttransit.service.VehicleSimulationService;
 import com.jygis.smarttransit.service.VehicleSimulationMetrics;
@@ -118,6 +119,9 @@ public class VehicleSimulationTask {
             return;
         }
 
+        // 当前 tick中真正需要重新计算坐标的车辆先进入这个列表。
+        List<PendingVehicleUpdate> pendingUpdates = new ArrayList<>();
+
         // 外层循环处理线路。当前循环中的 routeProfile 只属于当前 routePlan。
         for (RoutePlan routePlan : properties.getRoutes()) {
 
@@ -138,11 +142,16 @@ public class VehicleSimulationTask {
             // 内层循环只处理当前线路生成的车辆。
             for (VehicleSeed vehicleSeed : vehicleSeeds) {
                 try {
-                    tickVehicle(
-                            vehicleSeed,
-                            currentRouteProfile,
-                            now
-                    );
+                    PendingVehicleUpdate pendingUpdate =
+                            prepareVehicleUpdate(
+                                    vehicleSeed,
+                                    currentRouteProfile,
+                                    now
+                            );
+
+                    if (pendingUpdate != null) {
+                        pendingUpdates.add(pendingUpdate);
+                    }
                 } catch (RuntimeException exception) {
                     log.error(
                             "模拟车辆 tick 执行失败，" + "routeId={}，vehicleId={}",
@@ -152,6 +161,20 @@ public class VehicleSimulationTask {
                     );
                 }
             }
+        }
+
+        /*
+         * 所有线路、所有车辆都完成状态准备后，才执行一次批量坐标查询。
+         */
+        try {
+            applyPendingVehicleUpdates(pendingUpdates);
+        } catch (RuntimeException exception) {
+            // 批量查询失败时不保存这些待更新状态，Store继续保留上一轮的完整车辆状态。
+            log.error(
+                    "批量车辆位置更新失败，pendingCount={}",
+                    pendingUpdates.size(),
+                    exception
+            );
         }
 
         /*
@@ -386,9 +409,13 @@ public class VehicleSimulationTask {
     }
 
     /**
-     * 初始化或推进一辆车。
+     * 准备一辆车辆在当前tick中的状态变化。
+     *
+     * 返回值：
+     * - PendingVehicleUpdate：需要批量查询新坐标；
+     * - null：本轮不需要查询新坐标。
      */
-    private void tickVehicle(
+    private PendingVehicleUpdate prepareVehicleUpdate(
             VehicleSeed vehicleSeed,
             RouteSimulationProfile currentRouteProfile,
             Instant now
@@ -398,113 +425,64 @@ public class VehicleSimulationTask {
         VehicleRuntimeState currentState = vehicleRuntimeStore.find(vehicleId);
 
         if (currentState == null) {
-            initializeVehicle(
+            return prepareInitialVehicleUpdate(
                     vehicleSeed,
                     currentRouteProfile,
                     now
             );
-
-            return;
         }
 
-        advanceVehicle(currentState, now);
+        return prepareAdvancedVehicleUpdate(currentState, now);
     }
+
     /**
-     * 按 VehicleSeed 的初始进度创建一辆车。
+     * 准备一辆车辆的初始状态。
+     * - 这里只计算初始里程和目标站，不查询坐标，也不立即保存到 Store
      */
-    private void initializeVehicle(
+    private PendingVehicleUpdate prepareInitialVehicleUpdate(
             VehicleSeed vehicleSeed,
             RouteSimulationProfile currentRouteProfile,
             Instant now
     ) {
         double totalLengthMeters = currentRouteProfile.routeInfo().getTotalLengthMeters();
 
-        /*
-         * 初始里程 = 线路总长度 × 初始进度比例
-         */
         double initialDistanceMeters = totalLengthMeters * vehicleSeed.getInitialProgressRatio();
 
-        /*
-         * 确定车辆启动时面对的目标站。
-         */
         int initialTargetStopIndex =
                 findInitialTargetStopIndex(
                         currentRouteProfile.stops(),
                         initialDistanceMeters
                 );
 
-
-        VehiclePositionSnapshot initialSnapshot =
-                vehicleSimulationService
-                        .calculateSnapshot(
-                                vehicleSeed.getVehicleId(),
-                                currentRouteProfile,
-                                initialDistanceMeters
-                        );
-
-        VehicleRuntimeState initialState =
-                new VehicleRuntimeState(
-                        vehicleSeed.getVehicleId(),
-                        currentRouteProfile,
-                        vehicleSeed.getSpeedMetersPerSecond(),
-                        vehicleSeed.getSpeedMetersPerSecond(),
-                        initialTargetStopIndex,
-                        VehicleMotionStatus.CRUISING,
-                        null,
-                        initialDistanceMeters,
-                        now,
-                        initialSnapshot
-                );
-
-        vehicleRuntimeStore.save(initialState);
-
-        log.info(
-                "模拟车辆初始化完成，vehicleId={}，"
-                        + "routeId={}，speed={}m/s，"
-                        + "motionStatus={}，"
-                        + "targetStopSequence={}，"
-                        + "targetStopName={}，"
-                        + "initialProgress={}%，"
-                        + "initialDistance={}m",
-                initialState.vehicleId(),
-                currentRouteProfile.routeInfo().getRouteId(),
-                initialState.speedMetersPerSecond(),
-                initialState.motionStatus(),
-                initialState.targetStop().getStopSequence(),
-                initialState.targetStop().getStopName(),
-                vehicleSeed.getInitialProgressRatio() * 100.0,
-                initialDistanceMeters
+        return new PendingVehicleUpdate(
+                vehicleSeed.getVehicleId(),
+                currentRouteProfile,
+                vehicleSeed.getSpeedMetersPerSecond(),
+                vehicleSeed.getSpeedMetersPerSecond(),
+                initialTargetStopIndex,
+                VehicleMotionStatus.CRUISING,
+                null,
+                initialDistanceMeters,
+                now,
+                true
         );
     }
 
     /**
-     * 根据旧状态和当前时间推进车辆。
+     * 根据旧状态计算一辆行驶车辆的下一状态参数。
+     * - 这里只完成状态机计算，不查询 PostGIS，也不保存仍缺少新快照的状态
      */
-    private void advanceVehicle(
+    private PendingVehicleUpdate prepareAdvancedVehicleUpdate(
             VehicleRuntimeState currentState,
             Instant now
     ) {
-        /*
-         * Duration.between 计算两个明确时刻之间的真实时间差。
-         *
-         * 不能直接假定每次 tick 都正好经过 1 秒，
-         * 因为：
-         * - 数据库查询需要时间；
-         * - JVM 可能发生 GC；
-         * - 操作系统调度可能延迟；
-         * - fixedDelay 从上一次任务结束后开始计时。
-         */
         Duration elapsed =
                 Duration.between(
                         currentState.lastUpdatedAt(),
                         now
                 );
 
-        /*
-         * 系统时钟可能被人工或时间同步服务向后调整。
-         * 如果时间差为 0 或负数，本次不推进，也不覆盖旧状态。
-         */
-        if (elapsed.isZero() || elapsed.isNegative()) {
+        if (elapsed.isZero()  || elapsed.isNegative()) {
 
             log.warn(
                     "模拟车辆时间没有向前推进，vehicleId={}，"
@@ -514,12 +492,9 @@ public class VehicleSimulationTask {
                     now
             );
 
-            return;
+            return null;
         }
 
-        /*
-         * 停站车辆不能继续执行后面的里程推进公式，否则即使状态为 DWELLING，累计里程仍然会增加。
-         */
         if (currentState.motionStatus() == VehicleMotionStatus.DWELLING) {
 
             advanceDwellingVehicle(
@@ -527,14 +502,11 @@ public class VehicleSimulationTask {
                     now
             );
 
-            return;
+            return null;
         }
 
         double elapsedSeconds = elapsed.toNanos() / NANOS_PER_SECOND;
 
-        /*
-         * 先计算目标站的累计里程和剩余沿线距离，再根据剩余距离决定本 tick 的状态与速度。
-         */
         double targetAccumulatedDistanceMeters =
                 calculateTargetAccumulatedDistance(
                         currentState.accumulatedDistanceMeters(),
@@ -553,33 +525,25 @@ public class VehicleSimulationTask {
                         targetAccumulatedDistanceMeters - currentState.accumulatedDistanceMeters()
                 );
 
-        /*
-         * 距离大于配置的减速区间：CRUISING；
-         * 距离小于等于配置的减速区间：APPROACHING。
-         */
         boolean approaching =
                 distanceToTargetStopMeters <= properties.getApproachDistanceMeters();
 
-        VehicleMotionStatus movingMotionStatus =
-                approaching
-                        ? VehicleMotionStatus.APPROACHING
-                        : VehicleMotionStatus.CRUISING;
+        VehicleMotionStatus nextMovingStatus =
+                approaching ? VehicleMotionStatus.APPROACHING : VehicleMotionStatus.CRUISING;
 
-        /*
-         * 进站区间内使用动态速度，进站区间外使用车辆配置的巡航速度。
-         */
         double movementSpeedMetersPerSecond =
                 approaching
-                        ? calculateApproachSpeed(currentState.speedMetersPerSecond(), distanceToTargetStopMeters)
+                        ? calculateApproachSpeed(
+                            currentState.speedMetersPerSecond(),
+                            distanceToTargetStopMeters
+                        )
                         : currentState.speedMetersPerSecond();
 
         double requestedDistanceDeltaMeters = movementSpeedMetersPerSecond * elapsedSeconds;
 
-        /*
-         * 即使减速后本次位移仍可能超过剩余距离，所以继续使用到站吸附限制。
-         */
         boolean reachesTargetStop =
-                (requestedDistanceDeltaMeters + DISTANCE_EPSILON_METERS) >= distanceToTargetStopMeters;
+                requestedDistanceDeltaMeters + DISTANCE_EPSILON_METERS
+                        >= distanceToTargetStopMeters;
 
         double actualDistanceDeltaMeters =
                 reachesTargetStop
@@ -590,82 +554,127 @@ public class VehicleSimulationTask {
                 currentState.accumulatedDistanceMeters() + actualDistanceDeltaMeters;
 
         if (!Double.isFinite(nextAccumulatedDistanceMeters)) {
-            throw new IllegalStateException("车辆累计里程溢出：" + currentState.vehicleId());
+            throw new IllegalStateException(
+                    "车辆累计里程溢出：" + currentState.vehicleId()
+            );
         }
 
-        /*
-         * 到达目标站后先进入 DWELLING，不能立即把目标切换到下一站。
-         */
         VehicleMotionStatus nextMotionStatus =
-                reachesTargetStop ? VehicleMotionStatus.DWELLING : movingMotionStatus;
+                reachesTargetStop
+                        ? VehicleMotionStatus.DWELLING
+                        : nextMovingStatus;
 
-        /*
-         * 固定延误同时满足三个条件才会触发：
-         * 1. 车辆本次确实到达了目标站；
-         * 2. 当前车辆是配置指定的延误车辆；
-         * 3. 当前目标站是配置指定的延误站点；
-         */
         boolean fixedDelayApplies =
                 reachesTargetStop &&
                 currentState.vehicleId().equals(properties.getDelayVehicleId()) &&
                 currentState.targetStop().getStopSequence() == properties.getDelayStopSequence();
 
-        /*
-         * 普通车辆只使用基础停站时间。指定车辆到达指定站点时，再加上额外延误时间。
-         */
         long nextDwellDurationSeconds = properties.getDwellDurationSeconds();
 
         if (fixedDelayApplies) {
             nextDwellDurationSeconds += properties.getExtraDwellDurationSeconds();
         }
 
-        /*
-         * dwellUntil 保存明确的停站结束时刻。
-         * 后续 tick 只需要比较 now 与 dwellUntil，不需要自己累计已经停靠了多少秒。
-         */
         Instant nextDwellUntil =
                 reachesTargetStop
                         ? now.plusSeconds(nextDwellDurationSeconds)
                         : null;
-        VehiclePositionSnapshot nextSnapshot =
-                vehicleSimulationService
-                        .calculateSnapshot(
-                                currentState.vehicleId(),
-                                currentState.routeProfile(),
-                                nextAccumulatedDistanceMeters
-                        );
 
-        /*
-         * VehicleRuntimeState 是不可变 record。
-         *
-         * 每次 tick 创建完整的新对象，
-         * 不修改 currentState 中的任何字段。
-         */
-        VehicleRuntimeState nextState =
-                new VehicleRuntimeState(
-                        currentState.vehicleId(),
-                        currentState.routeProfile(),
-                        currentState.speedMetersPerSecond(),
-                        reachesTargetStop ? 0 : movementSpeedMetersPerSecond,
-                        currentState.targetStopIndex(),
-                        nextMotionStatus,
-                        nextDwellUntil,
-                        nextAccumulatedDistanceMeters,
-                        now,
-                        nextSnapshot
-                );
-
-        /*
-         * 所有计算完成后再整体替换旧状态。
-         *
-         * 如果 calculateSnapshot 抛出异常，
-         * 代码不会运行到这里，Store 会继续保留旧状态。
-         */
-        vehicleRuntimeStore.save(
-                nextState
+        return new PendingVehicleUpdate(
+                currentState.vehicleId(),
+                currentState.routeProfile(),
+                currentState.speedMetersPerSecond(),
+                reachesTargetStop ? 0 : movementSpeedMetersPerSecond,
+                currentState.targetStopIndex(),
+                nextMotionStatus,
+                nextDwellUntil,
+                nextAccumulatedDistanceMeters,
+                now,
+                false
         );
+    }
 
-        if (reachesTargetStop) {
+    /**
+     * 为本轮全部待更新车辆一次性查询快照，并保存完整状态。
+     */
+    private void applyPendingVehicleUpdates(List<PendingVehicleUpdate> pendingUpdates
+    ) {
+        if (pendingUpdates.isEmpty()) {
+            return;
+        }
+
+        List<VehicleSnapshotRequest> snapshotRequests = new ArrayList<>(pendingUpdates.size());
+
+        for (PendingVehicleUpdate pendingUpdate : pendingUpdates) {
+            snapshotRequests.add(pendingUpdate.toSnapshotRequest());
+        }
+
+        /*
+         * 整个tick中只有这里调用一次批量快照服务。
+         */
+        List<VehiclePositionSnapshot> snapshots =
+                vehicleSimulationService.calculateSnapshots(snapshotRequests);
+
+        if (snapshots.size() != pendingUpdates.size()) {
+
+            throw new IllegalStateException(
+                    "批量快照数量与待更新车辆数量不一致：" +
+                    pendingUpdates.size() + " != " + snapshots.size()
+            );
+        }
+
+        /*
+         * calculateSnapshots保证返回顺序与请求顺序相同。
+         * 这里仍然检查vehicleId，防止错误契约悄悄污染Store。
+         */
+        for (int index = 0; index < pendingUpdates.size(); index++) {
+            PendingVehicleUpdate pendingUpdate = pendingUpdates.get(index);
+
+            VehiclePositionSnapshot snapshot = snapshots.get(index);
+
+            VehicleRuntimeState nextState = pendingUpdate.toRuntimeState(snapshot);
+
+            vehicleRuntimeStore.save(
+                    nextState
+            );
+
+            logAppliedVehicleUpdate(
+                    pendingUpdate,
+                    nextState
+            );
+        }
+    }
+
+    /**
+     * 输出批量更新完成后的车辆日志。
+     */
+    private void logAppliedVehicleUpdate(
+            PendingVehicleUpdate pendingUpdate,
+            VehicleRuntimeState nextState
+    ) {
+        VehiclePositionSnapshot snapshot = nextState.latestSnapshot();
+
+        if (pendingUpdate.initialization()) {
+            log.info(
+                    "模拟车辆初始化完成，vehicleId={}，"
+                            + "routeId={}，"
+                            + "speed={}m/s，"
+                            + "targetStopSequence={}，"
+                            + "initialProgress={}%，"
+                            + "initialDistance={}m",
+                    nextState.vehicleId(),
+                    nextState.routeProfile().routeInfo().getRouteId(),
+                    nextState.speedMetersPerSecond(),
+                    nextState.targetStop().getStopSequence(),
+                    snapshot.routeProgressPercent(),
+                    nextState.accumulatedDistanceMeters()
+            );
+
+            return;
+        }
+
+        if (nextState.motionStatus() == VehicleMotionStatus.DWELLING) {
+
             log.debug(
                     "模拟车辆到站，vehicleId={}，"
                             + "stopSequence={}，"
@@ -678,15 +687,8 @@ public class VehicleSimulationTask {
             );
         }
 
-        /*
-         * 每秒打印一次 INFO 会产生大量日志，
-         * 因此普通运行过程使用 DEBUG。
-         */
         log.debug(
-                "模拟车辆推进完成，vehicleId={}，"
-                        + "elapsedSeconds={}，"
-                        + "actualDistanceDelta={}m，"
-                        + "reachesTargetStop={}，"
+                "模拟车辆批量推进完成，vehicleId={}，"
                         + "motionStatus={}，"
                         + "currentSpeed={}m/s，"
                         + "accumulatedDistance={}m，"
@@ -695,14 +697,11 @@ public class VehicleSimulationTask {
                         + "targetStopSequence={}，"
                         + "targetStopName={}",
                 nextState.vehicleId(),
-                elapsedSeconds,
-                actualDistanceDeltaMeters,
-                reachesTargetStop,
                 nextState.motionStatus(),
                 nextState.currentSpeedMetersPerSecond(),
                 nextState.accumulatedDistanceMeters(),
-                nextSnapshot.distanceMeters(),
-                nextSnapshot.routeProgressPercent(),
+                snapshot.distanceMeters(),
+                snapshot.routeProgressPercent(),
                 nextState.targetStop().getStopSequence(),
                 nextState.targetStop().getStopName()
         );

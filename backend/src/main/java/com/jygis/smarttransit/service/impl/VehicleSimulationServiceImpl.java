@@ -9,12 +9,20 @@ import com.jygis.smarttransit.pojo.RouteSimulationProfile;
 import com.jygis.smarttransit.pojo.RouteStopMeasure;
 import com.jygis.smarttransit.pojo.VehiclePositionSnapshot;
 import com.jygis.smarttransit.pojo.VehicleStopSnapshot;
+import com.jygis.smarttransit.pojo.VehicleInterpolatedPosition;
+import com.jygis.smarttransit.pojo.VehiclePositionQuery;
+import com.jygis.smarttransit.pojo.VehicleSnapshotRequest;
 import com.jygis.smarttransit.service.VehicleSimulationService;
 import com.jygis.smarttransit.service.VehicleSimulationMetrics;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * 单辆模拟车辆位置计算服务实现。
@@ -106,7 +114,7 @@ public class VehicleSimulationServiceImpl implements VehicleSimulationService {
     }
 
     /**
-     * 根据车辆累计里程计算完整位置快照。
+     * 根据车辆累计里程计算一辆车的完整位置快照。
      */
     @Override
     public VehiclePositionSnapshot calculateSnapshot(
@@ -114,61 +122,32 @@ public class VehicleSimulationServiceImpl implements VehicleSimulationService {
             RouteSimulationProfile profile,
             double distanceMeters
     ) {
-        if (vehicleId == null || vehicleId.isBlank()) {
-            throw new IllegalArgumentException("vehicleId 不能为空");
-        }
-
-        if (profile == null) {
-            throw new IllegalArgumentException("profile 不能为空");
-        }
-
-        if (!Double.isFinite(distanceMeters)) {
-            throw new IllegalArgumentException("distanceMeters 必须是有限数字");
-        }
-
-        if (distanceMeters < 0) {
-            throw new IllegalArgumentException("distanceMeters 不能小于 0");
-        }
-
-        RouteSimulationInfo routeInfo = profile.routeInfo();
-
-        double totalDistanceMeters = requireValidTotalDistance(routeInfo);
-
-        /*
-         * 当累计里程超过一圈总长度时，使用取模得到车辆在当前圈中的位置
-         */
-        double normalizedDistanceMeters =
-                normalizeLoopDistance(
-                        distanceMeters,
-                        totalDistanceMeters
+        // 单车入口也先转换成统一的服务层请求，从而复用参数校验和Java计算准备逻辑
+        VehicleSnapshotRequest request =
+                new VehicleSnapshotRequest(
+                        vehicleId,
+                        profile,
+                        distanceMeters
                 );
 
-        double progressRatio =
-                normalizedDistanceMeters
-                        / totalDistanceMeters;
+        PreparedSnapshotCalculation prepared = prepareSnapshotCalculation(request);
 
-        double routeProgressPercent =
-                progressRatio * 100.0;
+        RouteSimulationInfo routeInfo = prepared.routeProfile().routeInfo();
 
-        /*
-         * 每次 calculateSnapshot 只执行一次 PostGIS 位置插值。
-         * 在数据库调用前计数，失败的查询也会被记录。
-         */
         simulationMetrics.recordPositionQuery();
 
-        /*
-         * 这里只包围真正的Mapper调用，因此记录的是Java等待PostGIS返回的耗时，不包含后续站点查找和DTO组装时间。
-         */
         long positionQueryStartedAtNanos = System.nanoTime();
+
         RouteInterpolatedPosition position;
+
         try {
-            position =
-                    vehicleSimulationMapper.findPositionAtProgress(
-                            routeInfo.getRouteId(),
-                            routeInfo.getSourceStartProgressRatio(),
-                            routeInfo.getSourceEndProgressRatio(),
-                            progressRatio
-                    );
+            position = vehicleSimulationMapper
+                            .findPositionAtProgress(
+                                    routeInfo.getRouteId(),
+                                    routeInfo.getSourceStartProgressRatio(),
+                                    routeInfo.getSourceEndProgressRatio(),
+                                    prepared.progressRatio()
+                            );
         } finally {
             simulationMetrics.recordPositionQueryDuration(
                     System.nanoTime() - positionQueryStartedAtNanos
@@ -180,34 +159,194 @@ public class VehicleSimulationServiceImpl implements VehicleSimulationService {
                 position
         );
 
-        /*
-         * findRouteStopMeasures 已按公交站序执行单调约束投影，
-         * loadRouteProfile 也会拒绝进度或里程不递增的数据。
-         *
-         * 当前仍保留线性扫描，避免在本次投影修复中顺带重构上一站/下一站查找逻辑。
-         */
-        RouteStopMeasure previousStop =
-                findPreviousStop(
-                        profile.stops(),
-                        normalizedDistanceMeters
+        return assembleSnapshot(
+                prepared,
+                position.getLongitude(),
+                position.getLatitude()
+        );
+    }
+
+    /**
+     * 一次计算多辆车辆的完整位置快照。
+     */
+    @Override
+    public List<VehiclePositionSnapshot> calculateSnapshots(
+            List<VehicleSnapshotRequest> requests
+    ) {
+        if (requests == null) {
+            throw new IllegalArgumentException("批量快照请求不能为空");
+        }
+
+        // 空批次直接返回不可变空列表，不执行无意义SQL
+        if (requests.isEmpty()) {
+            return List.of();
+        }
+
+        List<PreparedSnapshotCalculation> preparedCalculations = new ArrayList<>(requests.size());
+
+        List<VehiclePositionQuery> positionQueries = new ArrayList<>(requests.size());
+
+        Set<String> requestedVehicleIds = new HashSet<>();
+
+        for (VehicleSnapshotRequest request : requests) {
+            if (request == null) {
+                throw new IllegalArgumentException("批量快照请求中存在null");
+            }
+
+            if (!requestedVehicleIds.add(request.vehicleId())) {
+                throw new IllegalArgumentException(
+                        "批量快照请求中vehicleId重复：" + request.vehicleId()
                 );
+            }
+
+            PreparedSnapshotCalculation prepared = prepareSnapshotCalculation(request);
+
+            RouteSimulationInfo routeInfo = prepared.routeProfile().routeInfo();
+
+            preparedCalculations.add(prepared);
+
+            positionQueries.add(
+                    new VehiclePositionQuery(
+                            prepared.vehicleId(),
+                            routeInfo.getRouteId(),
+                            routeInfo.getSourceStartProgressRatio(),
+                            routeInfo.getSourceEndProgressRatio(),
+                            prepared.progressRatio()
+                    )
+            );
+        }
+
+        /*
+         * 整个批次只记录一次数据库位置查询。
+         */
+        simulationMetrics.recordPositionQuery();
+
+        long positionQueryStartedAtNanos = System.nanoTime();
+
+        List<VehicleInterpolatedPosition> positions;
+
+        try {
+            positions = vehicleSimulationMapper.findPositionsAtProgress(positionQueries);
+        } finally {
+            simulationMetrics.recordPositionQueryDuration(
+                    System.nanoTime() - positionQueryStartedAtNanos
+            );
+        }
+
+        if (positions == null) {
+            throw new IllegalStateException("批量位置查询返回null");
+        }
+
+        // Map 按 vehicleId 建立结果索引
+        Map<String, VehicleInterpolatedPosition> positionByVehicleId = new HashMap<>();
+
+        for (VehicleInterpolatedPosition position : positions) {
+            validateInterpolatedPosition(position);
+
+            String returnedVehicleId = position.getVehicleId();
+
+            if (!requestedVehicleIds.contains( returnedVehicleId)) {
+                throw new IllegalStateException(
+                        "批量位置查询返回了未请求的vehicleId：" + returnedVehicleId
+                );
+            }
+
+            VehicleInterpolatedPosition previous =
+                    positionByVehicleId.putIfAbsent(returnedVehicleId, position);
+
+            if (previous != null) {
+                throw new IllegalStateException(
+                        "批量位置查询返回重复vehicleId：" + returnedVehicleId
+                );
+            }
+        }
+
+        List<VehiclePositionSnapshot> snapshots =
+                new ArrayList<>( preparedCalculations.size() );
+
+        /*
+         * 按原请求准备顺序组装结果，因此最终返回列表与requests顺序一致。
+         */
+        for (PreparedSnapshotCalculation prepared : preparedCalculations) {
+            VehicleInterpolatedPosition position =
+                    positionByVehicleId.get(prepared.vehicleId());
+
+            if (position == null) {
+                throw new IllegalStateException(
+                        "批量位置查询缺少车辆结果：" + prepared.vehicleId()
+                );
+            }
+
+            snapshots.add(
+                    assembleSnapshot(
+                            prepared,
+                            position.getLongitude(),
+                            position.getLatitude()
+                    )
+            );
+        }
+
+        return List.copyOf(snapshots);
+    }
+
+    /**
+     * 完成不依赖数据库的车辆快照准备计算。
+     * - 批量化的关键不是简单把SQL换成foreach，而是先把“Java状态计算”和“数据库坐标查询”拆开。
+     */
+    private PreparedSnapshotCalculation prepareSnapshotCalculation(
+            VehicleSnapshotRequest request
+    ) {
+        RouteSimulationProfile profile = request.routeProfile();
+
+        RouteSimulationInfo routeInfo = profile.routeInfo();
+
+        double totalDistanceMeters = requireValidTotalDistance(routeInfo);
+
+        double normalizedDistanceMeters =
+                normalizeLoopDistance(
+                        request.accumulatedDistanceMeters(),
+                        totalDistanceMeters
+                );
+
+        double progressRatio = normalizedDistanceMeters / totalDistanceMeters;
+
+        return new PreparedSnapshotCalculation(
+                request.vehicleId(),
+                profile,
+                normalizedDistanceMeters,
+                totalDistanceMeters,
+                progressRatio
+        );
+    }
+
+    /**
+     * 使用已经准备好的Java计算结果和数据库坐标组装完整快照。
+     */
+    private VehiclePositionSnapshot assembleSnapshot(
+            PreparedSnapshotCalculation prepared,
+            double longitude, double latitude
+    ) {
+        RouteSimulationProfile profile = prepared.routeProfile();
+
+        RouteSimulationInfo routeInfo = profile.routeInfo();
+
+        double normalizedDistanceMeters = prepared.normalizedDistanceMeters();
+
+        double totalDistanceMeters = prepared.totalDistanceMeters();
+
+        double routeProgressPercent = prepared.progressRatio() * 100.0;
+
+        RouteStopMeasure previousStop =
+                findPreviousStop(profile.stops(), normalizedDistanceMeters);
 
         RouteStopMeasure nextStop =
-                findNextStop(
-                        profile.stops(),
-                        normalizedDistanceMeters
-                );
+                findNextStop(profile.stops(), normalizedDistanceMeters);
 
-        /*
-         * 对闭环线路来说，如果当前位置之后没有普通下一站，
-         * 下一站应回到里程最小的第一个站点。
-         */
         boolean nextStopWrapped = false;
 
         if (nextStop == null && !profile.stops().isEmpty()) {
-            nextStop = findFirstStopByDistance(
-                    profile.stops()
-            );
+
+            nextStop = findFirstStopByDistance(profile.stops());
 
             nextStopWrapped = nextStop != null;
         }
@@ -221,11 +360,11 @@ public class VehicleSimulationServiceImpl implements VehicleSimulationService {
                 );
 
         return new VehiclePositionSnapshot(
-                vehicleId.trim(),
+                prepared.vehicleId(),
                 routeInfo.getRouteId(),
                 routeInfo.getRouteFid(),
-                position.getLongitude(),
-                position.getLatitude(),
+                longitude,
+                latitude,
                 normalizedDistanceMeters,
                 totalDistanceMeters,
                 routeProgressPercent,
@@ -537,6 +676,42 @@ public class VehicleSimulationServiceImpl implements VehicleSimulationService {
     }
 
     /**
+     * 校验PostGIS批量查询返回的一辆车辆坐标。
+     */
+    private void validateInterpolatedPosition(VehicleInterpolatedPosition position) {
+        if (position == null) {
+            throw new IllegalStateException("批量位置查询结果中存在null");
+        }
+
+        String vehicleId = position.getVehicleId();
+
+        if (vehicleId == null || vehicleId.isBlank()) {
+            throw new IllegalStateException("批量位置查询结果缺少vehicleId");
+        }
+
+        Double longitude = position.getLongitude();
+        Double latitude = position.getLatitude();
+
+        if (longitude == null || latitude == null) {
+            throw new IllegalStateException(
+                    "批量位置查询没有返回坐标：" + vehicleId
+            );
+        }
+
+        if (!Double.isFinite(longitude) || !Double.isFinite(latitude)) {
+            throw new IllegalStateException(
+                    "批量位置查询返回非有限坐标：" + vehicleId
+            );
+        }
+
+        if (longitude < -180 || longitude > 180 || latitude < -90 || latitude > 90) {
+            throw new IllegalStateException(
+                    "批量位置查询返回非法经纬度：" + vehicleId
+            );
+        }
+    }
+
+    /**
      * 将累计里程归一化到当前闭环中的里程。
      */
     private double normalizeLoopDistance(
@@ -680,5 +855,24 @@ public class VehicleSimulationServiceImpl implements VehicleSimulationService {
                 stop.getStopSequence(),
                 stop.getDistanceAlongRouteMeters()
         );
+    }
+
+    /**
+     * 服务内部使用的快照准备结果。
+     * 只保存已经完成的纯Java计算结果，不属于Controller、Mapper或WebSocket的公开DTO。
+     * 使用private record可以限制它只在当前服务实现中使用。
+     */
+    private record PreparedSnapshotCalculation(
+
+            String vehicleId,
+
+            RouteSimulationProfile routeProfile,
+
+            double normalizedDistanceMeters,
+
+            double totalDistanceMeters,
+
+            double progressRatio
+    ) {
     }
 }

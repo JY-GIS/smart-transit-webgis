@@ -2,6 +2,9 @@ package com.jygis.smarttransit.service;
 
 import com.jygis.smarttransit.pojo.RouteSimulationProfile;
 import com.jygis.smarttransit.pojo.VehiclePositionSnapshot;
+import com.jygis.smarttransit.pojo.VehicleSnapshotRequest;
+
+import java.util.List;
 
 /**
  * 单辆模拟车辆的位置计算服务
@@ -26,5 +29,13 @@ public interface VehicleSimulationService {
             String vehicleId,
             RouteSimulationProfile profile,
             double distanceMeters
+    );
+
+    /**
+     * 一次计算多辆车辆的完整位置快照。
+     * - 方法内部先完成全部Java进度计算，再执行一次PostGIS批量坐标查询，最后按照vehicleId重新组装快照。
+     */
+    List<VehiclePositionSnapshot> calculateSnapshots(
+            List<VehicleSnapshotRequest> requests
     );
 }

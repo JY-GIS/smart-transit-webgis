@@ -157,16 +157,23 @@ public class VehicleSimulationServiceImpl implements VehicleSimulationService {
         simulationMetrics.recordPositionQuery();
 
         /*
-         * 将业务层计算出的进度交给 PostGIS，
-         * 由 ST_LineInterpolatePoint 返回实际经纬度。
+         * 这里只包围真正的Mapper调用，因此记录的是Java等待PostGIS返回的耗时，不包含后续站点查找和DTO组装时间。
          */
-        RouteInterpolatedPosition position =
-                vehicleSimulationMapper.findPositionAtProgress(
-                        routeInfo.getRouteId(),
-                        routeInfo.getSourceStartProgressRatio(),
-                        routeInfo.getSourceEndProgressRatio(),
-                        progressRatio
-                );
+        long positionQueryStartedAtNanos = System.nanoTime();
+        RouteInterpolatedPosition position;
+        try {
+            position =
+                    vehicleSimulationMapper.findPositionAtProgress(
+                            routeInfo.getRouteId(),
+                            routeInfo.getSourceStartProgressRatio(),
+                            routeInfo.getSourceEndProgressRatio(),
+                            progressRatio
+                    );
+        } finally {
+            simulationMetrics.recordPositionQueryDuration(
+                    System.nanoTime() - positionQueryStartedAtNanos
+            );
+        }
 
         validateInterpolatedPosition(
                 routeInfo.getRouteId(),

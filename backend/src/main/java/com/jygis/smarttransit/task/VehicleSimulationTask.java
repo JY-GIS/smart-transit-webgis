@@ -17,6 +17,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.lang.management.ManagementFactory;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HashSet;
@@ -74,6 +75,12 @@ public class VehicleSimulationTask {
      * fixedDelay 默认串行执行，因此这里不需要 AtomicLong。
      */
     private long completedTickCount;
+
+    /*
+     * 上一次成功完成 WebSocket发布的单调时间。
+     *（ 当前任务使用fixedDelay，所以配置的1000ms只是“上一轮结束后等待多久”，不能代表两批消息真实相隔1000ms ）
+     */
+    private long previousPublishCompletedAtNanos;
 
     /**
      * 周期推进全部配置线路中的模拟车辆。
@@ -147,11 +154,33 @@ public class VehicleSimulationTask {
             }
         }
 
-        // 所有线路处理完成后再统一发布
+        /*
+         * publishDuration：本轮从收集快照到交给消息系统完成的耗时。
+         * publishInterval：两次成功发布完成之间的真实间隔。
+         */
+        long publishStartedAtNanos = System.nanoTime();
+        long publishDurationNanos;
+        long publishIntervalNanos = 0;
+        boolean publishSucceeded = false;
+
         try {
             vehiclePositionPublisher.publishCurrentPositions();
+
+            long publishCompletedAtNanos = System.nanoTime();
+
+            publishDurationNanos = publishCompletedAtNanos - publishStartedAtNanos;
+
+            if (previousPublishCompletedAtNanos != 0) {
+                publishIntervalNanos = publishCompletedAtNanos - previousPublishCompletedAtNanos;
+            }
+
+            previousPublishCompletedAtNanos = publishCompletedAtNanos;
+
+            publishSucceeded = true;
         } catch (RuntimeException exception) {
-            // WebSocket 发布失败不回滚已经推进完成的车辆状态
+            // 即使发布失败，也记录本次失败前已经消耗的时间
+            publishDurationNanos = System.nanoTime() - publishStartedAtNanos;
+
             log.error("车辆实时位置发布失败", exception);
         }
 
@@ -159,23 +188,36 @@ public class VehicleSimulationTask {
 
         // 每10轮输出一次，避免每秒产生一条性能日志
         if (completedTickCount % 10 == 0) {
-            logTickMetrics(tickStartedAtNanos);
+            logTickMetrics(
+                    tickStartedAtNanos,
+                    publishDurationNanos,
+                    publishIntervalNanos,
+                    publishSucceeded
+            );
         }
     }
 
     /**
-     * 输出当前区域级模拟的轻量性能指标。
-     * 当前先记录：
-     * - 成功加载的线路数量；
-     * - 当前车辆快照数量；
-     * - 本轮 PostGIS 位置查询次数；
-     * - 单次 tick 总耗时；
-     * - JVM 已使用堆内存；
+     * 输出当前区域级模拟的汇总性能指标 - 每10轮输出一次，避免Console日志本身干扰性能测试
      */
-    private void logTickMetrics(long tickStartedAtNanos) {
+    private void logTickMetrics(
+            long tickStartedAtNanos,
+            long publishDurationNanos,
+            long publishIntervalNanos,
+            boolean publishSucceeded
+    ) {
         long tickDurationNanos = System.nanoTime() - tickStartedAtNanos;
 
         double tickDurationMilliseconds = tickDurationNanos / 1_000_000.0;
+        double publishDurationMilliseconds = publishDurationNanos / 1_000_000.0;
+        double publishIntervalMilliseconds = publishIntervalNanos / 1_000_000.0;
+
+        int positionQueryCount = simulationMetrics.positionQueryCount();
+
+        double positionQueryTotalMilliseconds = simulationMetrics.positionQueryDurationMilliseconds();
+
+        double positionQueryAverageMilliseconds = positionQueryCount == 0
+                        ? 0 : positionQueryTotalMilliseconds / positionQueryCount;
 
         Runtime runtime = Runtime.getRuntime();
 
@@ -183,14 +225,55 @@ public class VehicleSimulationTask {
 
         double usedHeapMegabytes = usedHeapBytes / 1024.0 / 1024.0;
 
+        /*
+         * ManagementFactory：读取JVM管理信息。
+         * GC数据是JVM启动以来的累计值。
+         * 测试结束值减去开始值，才是本次测试发生的GC次数和耗时。
+         */
+        long garbageCollectionCount =
+                ManagementFactory
+                        .getGarbageCollectorMXBeans()
+                        .stream()
+                        .mapToLong(bean ->
+                                Math.max(bean.getCollectionCount(), 0)
+                        )
+                        .sum();
+
+        long garbageCollectionTimeMilliseconds =
+                ManagementFactory
+                        .getGarbageCollectorMXBeans()
+                        .stream()
+                        .mapToLong(bean ->
+                                Math.max(bean.getCollectionTime(), 0)
+                        )
+                        .sum();
+
         log.info(
-                "模拟 tick 指标，" + "routeCount={}，" + "snapshotCount={}，"+
-                "positionQueryCount={}，" + "duration={}ms，" + "usedHeap={}MB",
+                "PERF_SIMULATION "
+                        + "routeCount={} "
+                        + "snapshotCount={} "
+                        + "positionQueryCount={} "
+                        + "positionQueryTotalMs={} "
+                        + "positionQueryAverageMs={} "
+                        + "tickDurationMs={} "
+                        + "publishDurationMs={} "
+                        + "publishIntervalMs={} "
+                        + "publishSucceeded={} "
+                        + "usedHeapMb={} "
+                        + "gcCount={} "
+                        + "gcTimeMs={}",
                 routeProfiles.size(),
                 vehicleRuntimeStore.findAll().size(),
-                simulationMetrics.positionQueryCount(),
+                positionQueryCount,
+                positionQueryTotalMilliseconds,
+                positionQueryAverageMilliseconds,
                 tickDurationMilliseconds,
-                usedHeapMegabytes
+                publishDurationMilliseconds,
+                publishIntervalMilliseconds,
+                publishSucceeded,
+                usedHeapMegabytes,
+                garbageCollectionCount,
+                garbageCollectionTimeMilliseconds
         );
     }
 
@@ -583,7 +666,7 @@ public class VehicleSimulationTask {
         );
 
         if (reachesTargetStop) {
-            log.info(
+            log.debug(
                     "模拟车辆到站，vehicleId={}，"
                             + "stopSequence={}，"
                             + "stopName={}，"
@@ -698,7 +781,7 @@ public class VehicleSimulationTask {
                 departureState
         );
 
-        log.info(
+        log.debug(
                 "模拟车辆结束停站，vehicleId={}，"
                         + "nextStopSequence={}，"
                         + "nextStopName={}",

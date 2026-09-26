@@ -3,6 +3,8 @@ package com.jygis.smarttransit.mapper;
 import com.jygis.smarttransit.pojo.RouteInterpolatedPosition;
 import com.jygis.smarttransit.pojo.RouteSimulationInfo;
 import com.jygis.smarttransit.pojo.RouteStopMeasure;
+import com.jygis.smarttransit.pojo.VehicleInterpolatedPosition;
+import com.jygis.smarttransit.pojo.VehiclePositionQuery;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
@@ -45,5 +47,12 @@ public interface VehicleSimulationMapper {
             @Param("sourceStartProgressRatio") Double sourceStartProgressRatio,
             @Param("sourceEndProgressRatio") Double sourceEndProgressRatio,
             @Param("progressRatio") Double progressRatio
+    );
+
+    /**
+     * 一次查询多辆车辆的线路插值坐标
+     */
+    List<VehicleInterpolatedPosition> findPositionsAtProgress(
+            @Param("queries") List<VehiclePositionQuery> queries
     );
 }

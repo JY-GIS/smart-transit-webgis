@@ -711,4 +711,159 @@
 
     </select>
 
+    <!--
+        批量计算一轮车辆的位置坐标。
+
+        - 优化前：
+        每辆车分别读取线路、转换坐标系、计算插值点。
+
+        - 优化后：
+        1. 把本轮全部车辆组成vehicle_input；
+        2. 提取本轮不同的route_id；
+        3. 每条线路只合并、转换一次；
+        4. 车辆输入与线路上下文连接；
+        5. 一次返回全部车辆坐标。
+    -->
+    <select id="findPositionsAtProgress"
+            resultType="com.jygis.smarttransit.pojo.VehicleInterpolatedPosition">
+
+        WITH vehicle_input (
+            vehicle_id,
+            route_id,
+            source_start_progress_ratio,
+            source_end_progress_ratio,
+            progress_ratio
+        ) AS (
+            VALUES
+
+            <!--
+                遍历 Java List 并生成多组 VALUES 参数。
+                - separator=","负责在相邻车辆之间添加逗号。
+            -->
+            <foreach collection="queries" item="query" separator=",">
+
+                (
+                    CAST(
+                        #{query.vehicleId}
+                        AS text
+                    ),
+
+                    CAST(
+                        #{query.routeId}
+                        AS text
+                    ),
+
+                    CAST(
+                        #{query.sourceStartProgressRatio}
+                        AS double precision
+                    ),
+
+                    CAST(
+                        #{query.sourceEndProgressRatio}
+                        AS double precision
+                    ),
+
+                    CAST(
+                        #{query.progressRatio}
+                        AS double precision
+                    )
+                )
+
+            </foreach>
+        ),
+
+        <!--
+            当前 tick可能有多辆车属于同一线路。
+            DISTINCT保证每条线路只进入一次几何准备阶段 - 去重
+        -->
+        requested_routes AS (
+            SELECT DISTINCT
+                route_id
+
+            FROM vehicle_input
+        ),
+
+        <!--
+            MATERIALIZED：要求PostgreSQL先计算并保存当前CTE结果，避免查询优化器把CTE展开后为同线路的多辆车重复执行ST_LineMerge
+        -->
+        merged_routes AS MATERIALIZED (
+            SELECT
+                r.route_id,
+                ST_LineMerge( r.geom ) AS merged_line
+
+        FROM public.routes r
+
+        JOIN requested_routes requested
+            ON requested.route_id = r.route_id
+        ),
+
+        <!--
+            每条线路只做一次米制坐标转换。
+
+            ST_LineMerge：将可连接的线路片段合并成一条线。
+            ST_Transform：把线路转换到指定坐标参考系。
+
+            32650是项目当前使用的米制坐标系，4326是最终经纬度坐标系。
+        -->
+        route_context AS MATERIALIZED (
+            SELECT
+                route_id,
+                ST_Transform( merged_line, 32650 ) AS original_metric_line
+
+            FROM merged_routes
+
+            WHERE ST_GeometryType( merged_line ) = 'ST_LineString'
+        ),
+
+        <!--
+            把车辆在有效子线上的0～1进度，换算回原始完整线路的进度。
+            sourceProgress = sourceStart + progress × (sourceEnd - sourceStart)
+        -->
+        source_progress AS (
+            SELECT
+                input.vehicle_id,
+
+                route.original_metric_line,
+
+                input.source_start_progress_ratio + input.progress_ratio *
+                ( input.source_end_progress_ratio - input.source_start_progress_ratio )
+                    AS source_progress_ratio
+
+            FROM vehicle_input input
+
+            JOIN route_context route
+                ON route.route_id = input.route_id
+        ),
+
+        <!--
+            ST_LineInterpolatePoint：根据0～1进度在线路上取得对应点。
+            同一条SQL中会为每辆车插值一次，但不再产生每辆车一次的数据库网络往返。
+        -->
+        interpolated_positions AS (
+            SELECT
+                vehicle_id,
+
+                ST_Transform(
+                    ST_LineInterpolatePoint(
+                        original_metric_line,
+                        source_progress_ratio
+                    ),
+                    4326
+                ) AS position
+
+            FROM source_progress
+        )
+
+        SELECT
+            vehicle_id,
+
+            ST_X(position) AS longitude,
+            ST_Y(position) AS latitude
+
+        FROM interpolated_positions
+
+        ORDER BY vehicle_id
+
+    </select>
+
 </mapper>

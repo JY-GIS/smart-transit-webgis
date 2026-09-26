@@ -50,7 +50,7 @@ transit:
     # 在普通停靠 5 秒之外额外停靠 300 秒
     extra-dwell-duration-seconds: 300
 
-    # 区域级模拟：20 条线路，每条线路自动生成 3 辆车
+    # 区域级模拟：52 条线路，每条线路自动生成 3 辆车
     routes:
       # M103
       - route-id: route_000185

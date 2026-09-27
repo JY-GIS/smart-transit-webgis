@@ -2,6 +2,8 @@ import { ref } from 'vue'
 import * as Cesium from 'cesium'
 import type { BusRouteProperties } from '@/types/busRoute'
 import type { RealtimeVehicleEntityProperties } from '@/types/realtimeVehicle'
+import type { RouteBusStopEntityProperties } from '@/types/busStop'
+import { readRouteBusStopProperties } from './useBusStopLayer'
 import { readBusRouteProperties } from './useBusRouteLayer'
 
 // 公交线路选择交互：监听 Cesium 选中 Entity，读取属性并高亮同一 fid 的全部片段。
@@ -11,6 +13,16 @@ type RouteStyleSnapshot = {
     material: Cesium.MaterialProperty
     width: Cesium.Property | undefined
     depthFailMaterial: Cesium.MaterialProperty
+}
+
+// 被选中站点高亮前的样式快照
+type RouteStopStyleSnapshot = {
+    entity: Cesium.Entity
+    color: Cesium.Property | undefined
+    pixelSize: Cesium.Property | undefined
+    outlineColor: Cesium.Property | undefined
+    outlineWidth: Cesium.Property | undefined
+    disableDepthTestDistance: Cesium.Property | undefined
 }
 
 // 通过回调复用已有点击事件，避免重复注册
@@ -77,6 +89,14 @@ export function useBusRouteSelection() {
 
     // 当前选中的实时车辆业务编号
     const selectedVehicleId = ref<string | null>(null)
+
+    // 当前选中的“线路站点”
+    const selectedRouteStop = ref<RouteBusStopEntityProperties | null>(null)
+
+    // 当前被高亮站点的原始样式
+    let highlightedRouteStopStyle:
+        | RouteStopStyleSnapshot
+        | undefined
 
     // key 使用 Entity.id，允许一条 fid 线路包含多个独立片段。
     const highlightedRouteStyles =
@@ -154,8 +174,77 @@ export function useBusRouteSelection() {
         }
     }
 
+    /**
+ * 恢复上一个选中站点的原始样式。
+ */
+    function clearRouteStopHighlight() {
+        const snapshot = highlightedRouteStopStyle
+
+        if (!snapshot) {
+            return
+        }
+
+        const point = snapshot.entity.point
+
+        if (point) {
+            point.color = snapshot.color
+            point.pixelSize = snapshot.pixelSize
+
+            point.outlineColor =
+                snapshot.outlineColor
+
+            point.outlineWidth =
+                snapshot.outlineWidth
+
+            point.disableDepthTestDistance =
+                snapshot.disableDepthTestDistance
+        }
+
+        highlightedRouteStopStyle = undefined
+    }
+
+    /**
+     * 只清除线路站点选择，不取消当前线路。关闭到站面板时使用这个函数。
+     */
+    function clearRouteStopSelection() {
+        selectedRouteStop.value = null
+        clearRouteStopHighlight()
+    }
+
+    /**
+     * 高亮用户点击的线路站点。
+     */
+    function highlightRouteStop(entity: Cesium.Entity) {
+        clearRouteStopHighlight()
+
+        const point = entity.point
+
+        if (!point) return
+
+        /*
+         * 先保存原样式，再覆盖为选中样式。
+         * 如果不保存，切换站点后无法恢复原来的紫色。
+         */
+        highlightedRouteStopStyle = {
+            entity,
+            color: point.color,
+            pixelSize: point.pixelSize,
+            outlineColor: point.outlineColor,
+            outlineWidth: point.outlineWidth,
+            disableDepthTestDistance: point.disableDepthTestDistance,
+        }
+
+        // 当前选中样式不需要时间动画，因此 ConstantProperty 比 CallbackProperty 更合适
+        point.color = new Cesium.ConstantProperty(Cesium.Color.WHITE)
+        point.outlineColor = new Cesium.ConstantProperty(Cesium.Color.GOLD)
+        point.outlineWidth = new Cesium.ConstantProperty(3)
+
+        point.disableDepthTestDistance = new Cesium.ConstantProperty(Number.POSITIVE_INFINITY)
+    }
+
     function clearRouteSelection() {
         selectedVehicleId.value = null
+        clearRouteStopSelection()
         selectedRoute.value = null
         clearRouteHighlight()
     }
@@ -166,6 +255,8 @@ export function useBusRouteSelection() {
         routeEntitiesByFid: Map<number, Cesium.Entity[]>,
         time: Cesium.JulianDate
     ) {
+        clearRouteStopSelection()
+
         const routeEntity = routeEntitiesByFid.get(fid)?.[0]
 
         const properties = routeEntity ? readBusRouteProperties(routeEntity, time) : null
@@ -279,7 +370,45 @@ export function useBusRouteSelection() {
                 return
             }
 
-            // 没有车辆时，再查找公交线路 Entity
+            /*
+             * 车辆之后检查线路站点
+             */
+            const routeStopEntity =
+                pickedEntities.find(
+                    (entity) => readRouteBusStopProperties(entity, currentTime) !== null
+                )
+
+            if (routeStopEntity) {
+                const routeStopProperties =
+                    readRouteBusStopProperties(routeStopEntity, currentTime)
+
+                if (!routeStopProperties) {
+                    viewer.selectedEntity = undefined
+                    clearRouteSelection()
+                    return
+                }
+
+                viewer.selectedEntity = routeStopEntity
+
+                /*
+                 * 点击来源切换为站点：
+                 * - 关闭车辆详情；
+                 * - 保留当前线路及线路高亮；
+                 * - 保存线路站点；
+                 * - 高亮当前站点。
+                 */
+                selectedVehicleId.value = null
+
+                selectedRouteStop.value = routeStopProperties
+
+                highlightRouteStop(routeStopEntity)
+
+                console.log('线路站点选择：', routeStopProperties,)
+
+                return
+            }
+
+            // 没有车辆和线路站点时，再查找公交线路 Entity
             const routeEntity = pickedEntities.find((entity) => {
                 if (!dataSource.entities.contains(entity) || !entity.polyline) {
                     return false
@@ -351,6 +480,15 @@ export function useBusRouteSelection() {
         }
     }
 
+    // 关闭站点到站面板时，只清除站点，不取消线路
+    function closeRouteStopPanel(viewer: Cesium.Viewer | undefined,) {
+        if (viewer && !viewer.isDestroyed()) {
+            viewer.selectedEntity = undefined
+        }
+
+        clearRouteStopSelection()
+    }
+
     function closeRoutePanel(
         viewer: Cesium.Viewer | undefined,
     ) {
@@ -376,9 +514,15 @@ export function useBusRouteSelection() {
     return {
         selectedRoute,
         selectedVehicleId,
+        selectedRouteStop,
+
         selectRealtimeVehicle,
+
         bindRouteSelection,
+
         closeRoutePanel,
+        closeRouteStopPanel,
+
         cleanup,
     }
 }

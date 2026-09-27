@@ -8,6 +8,7 @@ import BusRouteInfoPanel from '@/components/transit/BusRouteInfoPanel.vue'
 import NearbyBusStopPanel from '@/components/transit/NearbyBusStopPanel.vue'
 import RealtimeVehicleInfoPanel from '@/components/transit/RealtimeVehicleInfoPanel.vue'
 import RealtimeOperationalAlertPanel from '@/components/transit/RealtimeOperationalAlertPanel.vue'
+import StopArrivalPanel from '@/components/transit/StopArrivalPanel.vue'
 import { useBusRouteLayer } from '@/composables/useBusRouteLayer'
 import { useBusRouteSelection } from '@/composables/useBusRouteSelection'
 import { useBusStopLayer } from '@/composables/useBusStopLayer'
@@ -17,6 +18,7 @@ import { useFutianBoundaryLayer } from '@/composables/useFutianBoundaryLayer'
 import { useNearbyBusStops } from '@/composables/useNearbyBusStops'
 import { useRealtimeVehicles } from '@/composables/useRealtimeVehicles'
 import { useRealtimeVehicleLayer } from '@/composables/useRealtimeVehicleLayer'
+import { useStopArrivals } from '@/composables/useStopArrivals'
 
 import type { NearbyQueryCenter } from '@/types/busStop'
 
@@ -39,9 +41,11 @@ const {
 const {
     selectedRoute,
     selectedVehicleId,
+    selectedRouteStop,
     selectRealtimeVehicle,
     bindRouteSelection,
     closeRoutePanel,
+    closeRouteStopPanel,
     cleanup: cleanupRouteSelection,
 } = useBusRouteSelection()
 
@@ -54,6 +58,15 @@ const {
     clearNearbyQuery,
     cleanup: cleanupNearbyBusStops,
 } = useNearbyBusStops()
+
+const {
+    arrivalBoard,
+    arrivalQueryStatus,
+    arrivalErrorMessage,
+    queryArrivals,
+    clearArrivals,
+    cleanup: cleanupStopArrivals,
+} = useStopArrivals()
 
 const {
     loadBusStops,
@@ -110,6 +123,32 @@ const {
 
 function handleCloseRoutePanel() {
     closeRoutePanel(viewer)
+}
+
+// 查询当前选中线路站点的到站车辆。
+function loadSelectedStopArrivals() {
+    const stop = selectedRouteStop.value
+
+    if (!stop) {
+        clearArrivals()
+        return
+    }
+
+    void queryArrivals({
+        routeId: stop.routeId,
+        stopId: stop.stopId,
+    })
+}
+
+// 关闭到站面板
+function handleCloseStopArrivalPanel() {
+    closeRouteStopPanel(viewer)
+    clearArrivals()
+}
+
+// 查询失败后的手动重试
+function handleRetryStopArrivals() {
+    loadSelectedStopArrivals()
 }
 
 // 处理异常播报面板发出的车辆选择请求
@@ -232,6 +271,20 @@ function toRouteId(fid: number): string {
     return `route_${String(fid).padStart(6, '0')}`
 }
 
+watch(
+    selectedRouteStop, (stop) => {
+        if (!stop) {
+            clearArrivals()
+            return
+        }
+
+        void queryArrivals({
+            routeId: stop.routeId,
+            stopId: stop.stopId,
+        })
+    },
+)
+
 watch(selectedRoute, (route) => {
     if (!route) {
         clearRouteStops()
@@ -302,6 +355,7 @@ onBeforeUnmount(() => {
     void disconnectRealtimeVehicles()
 
     cleanupRouteSelection()
+    cleanupStopArrivals()
     cleanupNearbyBusStops(viewer)
     cleanupBusStopLayer(viewer)
     cleanupRealtimeVehicleLayer(viewer)
@@ -356,10 +410,21 @@ onBeforeUnmount(() => {
         </div>
 
         <!-- 信息面板覆盖在 Cesium 容器上方，不参与 Cesium Entity 绘制。 -->
-        <BusRouteInfoPanel
-            :route="selectedRealtimeVehicle ? null : selectedRoute"
+        <BusRouteInfoPanel :route="selectedRealtimeVehicle || selectedRouteStop ? null : selectedRoute"
             @close="handleCloseRoutePanel"
         />
+
+        <StopArrivalPanel
+            :route="selectedRoute"
+            :stop="selectedRouteStop"
+            :board="arrivalBoard"
+            :status="arrivalQueryStatus"
+            :error-message="arrivalErrorMessage"
+            @close="handleCloseStopArrivalPanel"
+            @retry="handleRetryStopArrivals"
+            @select-vehicle="handleSelectOperationalVehicle"
+        />
+        
         <RealtimeVehicleInfoPanel
             :vehicle="selectedRealtimeVehicle"
             :route="selectedRoute"

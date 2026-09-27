@@ -19,6 +19,14 @@ export const TRANSIT_CONFIG = {
     // 线路—站点关系数据。
     routeStopsUrl: '/api/route-stops',
 
+    // 指定线路、指定站点的到站查询。
+    stopArrivals: {
+        // 最终请求格式：/api/stops/{stopId}/arrivals?routeId=xxx&limit=3
+        baseUrl: '/api/stops',
+        defaultLimit: 3,
+        maximumLimit: 10,
+    },
+
     // 原始线路样式；选中线路的临时高亮样式在 useBusRouteSelection 中处理。
     routeStyle: {
         strokeWidth: 2,

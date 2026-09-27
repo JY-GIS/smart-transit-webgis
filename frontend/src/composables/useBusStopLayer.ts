@@ -3,6 +3,7 @@ import type {
     BusRouteStopRelation,
     BusStopRecord,
     OrderedBusStop,
+    RouteBusStopEntityProperties,
 } from '@/types/busStop'
 
 import { TRANSIT_CONFIG } from '@/config/transit.config'
@@ -24,6 +25,40 @@ interface RouteStopApiRelation {
     routeId: string
     stopId: string
     stopSequence: number
+}
+
+/**
+ * 从 Cesium Entity 中读取线路站点业务属性
+ */
+export function readRouteBusStopProperties(
+    entity: Cesium.Entity,
+    time: Cesium.JulianDate,
+): RouteBusStopEntityProperties | null {
+    // PropertyBag 上有个方法 getValue(time)，把这一时刻所有属性解包成一个普通对象
+    const values = entity.properties?.getValue(time) as
+        | Record<string, unknown>
+        | undefined
+
+    if (!values || values.entityType !== 'route-bus-stop') {
+        return null
+    }
+
+    const routeId = String(values.routeId ?? '')
+    const stopId = String(values.stopId ?? '')
+    const stopName = String(values.stopName ?? '')
+    const stopSequence = Number(values.stopSequence)
+
+    if (!routeId || !stopId || !stopName || !Number.isInteger(stopSequence) || stopSequence <= 0) {
+        return null
+    }
+
+    return {
+        entityType: 'route-bus-stop',
+        routeId,
+        stopId,
+        stopName,
+        stopSequence,
+    }
 }
 
 // 公交站点图层。
@@ -192,12 +227,18 @@ export function useBusStopLayer() {
             busStopDataSource.entities.add({
                 id: `bus-stop-${stop.stop_id}`,
                 name: stop.stop_name,
-                position:
-                    Cesium.Cartesian3.fromDegrees(stop.longitude, stop.latitude),
+                position: Cesium.Cartesian3.fromDegrees(stop.longitude, stop.latitude),
+                properties: {
+                    entityType: 'route-bus-stop',
+                    routeId: relation.route_id,
+                    stopId: stop.stop_id,
+                    stopName: stop.stop_name,
+                    stopSequence: relation.stop_sequence,
+                },
                 point: {
                     pixelSize: 14,
                     scaleByDistance: new Cesium.NearFarScalar(1000, 1.0, 8000, 0.6),
-                    color: Cesium.Color.BLUEVIOLET,
+                    color: Cesium.Color.WHITE,
                     outlineColor: Cesium.Color.WHITE,
                     outlineWidth: 3,
                     heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,

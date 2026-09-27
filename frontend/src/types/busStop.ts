@@ -33,6 +33,15 @@ export interface OrderedBusStop {
     stopSequence: number
 }
 
+// 挂载到 Cesium 线路站点 Entity 上的业务属性
+export interface RouteBusStopEntityProperties {
+    entityType: 'route-bus-stop'
+    routeId: string
+    stopId: string
+    stopName: string
+    stopSequence: number
+}
+
 // 后端附近公交站查询结果
 export interface NearbyBusStopRecord {
     stopId: string

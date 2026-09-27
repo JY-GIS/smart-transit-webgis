@@ -25,6 +25,8 @@ export const TRANSIT_CONFIG = {
         baseUrl: '/api/stops',
         defaultLimit: 3,
         maximumLimit: 10,
+        // 到站面板自动刷新间隔
+        refreshIntervalMilliseconds: 2000,
     },
 
     // 原始线路样式；选中线路的临时高亮样式在 useBusRouteSelection 中处理。

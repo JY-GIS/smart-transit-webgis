@@ -244,73 +244,76 @@ function formatGeneratedAt(generatedAt: string,): string {
 .arrival-panel {
     position: absolute;
     z-index: 20;
-    top: 180px;
-    left: 24px;
-    width: 360px;
+    top: 88px;
+    right: 24px;
+    left: auto;
+    width: 420px;
     max-width: calc(100% - 48px);
-    overflow: hidden;
-    color: #f4f8ff;
-    background: rgba(13, 25, 42, 0.95);
-    border: 1px solid rgba(255, 190, 72, 0.58);
-    border-radius: 14px;
-    box-shadow: 0 16px 42px rgba(0, 0, 0, 0.42);
-    backdrop-filter: blur(14px);
+    max-height: min(520px, calc(100% - 140px));
+    overflow-x: hidden;
+    overflow-y: auto;
+    color: #1f2937;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(148, 163, 184, 0.55);
+    border-radius: 12px;
+    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.22);
+    backdrop-filter: blur(10px);
 }
 
 .arrival-panel__header {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    gap: 16px;
-    padding: 15px 16px 13px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    gap: 12px;
+    padding: 10px 12px 9px;
+    border-bottom: 1px solid #e5e7eb;
 }
 
 .arrival-panel__label {
-    color: #ffbd59;
-    font-size: 13px;
+    color: #d97706;
+    font-size: 12px;
     letter-spacing: 0.08em;
 }
 
 .arrival-panel__route-name {
-    margin: 5px 0 0;
-    color: #ffffff;
-    font-size: 22px;
+    margin: 3px 0 0;
+    color: #111827;
+    font-size: 18px;
     line-height: 1.3;
 }
 
 .arrival-panel__close {
     flex: 0 0 auto;
-    width: 28px;
-    height: 28px;
+    width: 24px;
+    height: 24px;
     padding: 0;
     border: 0;
     border-radius: 6px;
-    color: #d7e8f4;
+    color: #64748b;
     background: transparent;
     cursor: pointer;
     font: inherit;
-    font-size: 24px;
-    line-height: 26px;
+    font-size: 21px;
+    line-height: 22px;
 }
 
 .arrival-panel__close:hover {
     color: #ffffff;
-    background: rgba(255, 255, 255, 0.12);
+    background: #2563eb;
 }
 
 .arrival-panel__route {
-    padding: 14px 16px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 10px 12px;
+    border-bottom: 1px solid #e5e7eb;
 }
 
 .arrival-panel__direction {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
     align-items: center;
-    gap: 8px;
-    color: #c9d9e7;
-    font-size: 14px;
+    gap: 6px;
+    color: #475569;
+    font-size: 12px;
     line-height: 1.4;
 }
 
@@ -319,50 +322,50 @@ function formatGeneratedAt(generatedAt: string,): string {
 }
 
 .arrival-panel__direction-arrow {
-    color: #ffbd59;
-    font-size: 18px;
+    color: #d97706;
+    font-size: 16px;
 }
 
 .arrival-panel__stop {
     display: flex;
     align-items: baseline;
     flex-wrap: wrap;
-    gap: 6px 8px;
-    margin-top: 13px;
+    gap: 4px 6px;
+    margin-top: 9px;
 }
 
 .arrival-panel__stop-label {
     width: 100%;
-    color: #91a6b9;
-    font-size: 12px;
+    color: #64748b;
+    font-size: 11px;
 }
 
 .arrival-panel__stop-name {
-    color: #ffffff;
-    font-size: 18px;
+    color: #111827;
+    font-size: 15px;
     overflow-wrap: anywhere;
 }
 
 .arrival-panel__stop-sequence {
-    color: #ffbd59;
-    font-size: 13px;
+    color: #d97706;
+    font-size: 12px;
 }
 
 .arrival-panel__message {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 10px;
-    min-height: 150px;
-    padding: 24px;
-    color: #b8cad9;
-    font-size: 14px;
+    gap: 8px;
+    min-height: 100px;
+    padding: 16px;
+    color: #64748b;
+    font-size: 13px;
     text-align: center;
 }
 
 .arrival-panel__message--error {
     flex-direction: column;
-    color: #ffb1a8;
+    color: #b91c1c;
 }
 
 .arrival-panel__message p {
@@ -370,20 +373,20 @@ function formatGeneratedAt(generatedAt: string,): string {
 }
 
 .arrival-panel__spinner {
-    width: 16px;
-    height: 16px;
-    border: 2px solid rgba(114, 216, 255, 0.25);
-    border-top-color: #72d8ff;
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(37, 99, 235, 0.2);
+    border-top-color: #2563eb;
     border-radius: 50%;
     animation: arrival-panel-spin 0.8s linear infinite;
 }
 
 .arrival-panel__retry {
-    padding: 7px 12px;
-    border: 1px solid rgba(255, 177, 168, 0.55);
+    padding: 6px 10px;
+    border: 1px solid #93c5fd;
     border-radius: 6px;
-    color: #ffd2cd;
-    background: rgba(255, 120, 105, 0.12);
+    color: #1d4ed8;
+    background: #eff6ff;
     cursor: pointer;
     font: inherit;
 }
@@ -392,17 +395,17 @@ function formatGeneratedAt(generatedAt: string,): string {
     display: flex;
     flex-direction: column;
     align-items: center;
-    width: calc(100% - 32px);
-    margin: 16px;
-    padding: 18px 16px;
-    border: 1px solid rgba(255, 190, 72, 0.38);
-    border-radius: 12px;
+    width: calc(100% - 24px);
+    margin: 12px;
+    padding: 12px;
+    border: 1px solid #fcd34d;
+    border-radius: 10px;
     color: inherit;
     background:
         linear-gradient(
             135deg,
-            rgba(255, 177, 67, 0.18),
-            rgba(58, 203, 255, 0.08)
+            rgba(254, 243, 199, 0.9),
+            rgba(239, 246, 255, 0.9)
         );
     cursor: pointer;
     font: inherit;
@@ -413,51 +416,51 @@ function formatGeneratedAt(generatedAt: string,): string {
 }
 
 .arrival-panel__primary:hover {
-    border-color: rgba(255, 190, 72, 0.78);
+    border-color: #f59e0b;
     transform: translateY(-1px);
 }
 
 .arrival-panel__primary-label {
-    color: #9db0c4;
-    font-size: 12px;
+    color: #64748b;
+    font-size: 11px;
     letter-spacing: 0.06em;
 }
 
 .arrival-panel__primary-stops {
-    margin-top: 5px;
-    color: #ffbd59;
-    font-size: 32px;
+    margin-top: 3px;
+    color: #d97706;
+    font-size: 26px;
     font-weight: 600;
     line-height: 1.25;
 }
 
 .arrival-panel__primary-detail {
-    margin-top: 2px;
-    color: #f5fbff;
-    font-size: 16px;
+    margin-top: 1px;
+    color: #1f2937;
+    font-size: 14px;
 }
 
 .arrival-panel__vehicle-id {
-    margin-top: 9px;
-    color: #94abc0;
-    font-size: 12px;
+    margin-top: 6px;
+    color: #64748b;
+    font-size: 11px;
     overflow-wrap: anywhere;
 }
 
 .arrival-panel__following {
-    padding: 0 16px 14px;
+    padding: 0 12px 10px;
 }
 
 .arrival-panel__section-title {
-    margin: 0 0 8px;
-    color: #b7c8d8;
-    font-size: 13px;
+    margin: 0 0 6px;
+    color: #475569;
+    font-size: 12px;
     font-weight: 500;
 }
 
 .arrival-panel__list {
     display: grid;
-    gap: 8px;
+    gap: 6px;
     margin: 0;
     padding: 0;
     list-style: none;
@@ -467,21 +470,21 @@ function formatGeneratedAt(generatedAt: string,): string {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
+    gap: 10px;
     width: 100%;
-    padding: 10px 12px;
-    border: 1px solid rgba(255, 255, 255, 0.09);
+    padding: 8px 10px;
+    border: 1px solid #e5e7eb;
     border-radius: 8px;
     color: inherit;
-    background: rgba(255, 255, 255, 0.035);
+    background: #f8fafc;
     cursor: pointer;
     font: inherit;
     text-align: left;
 }
 
 .arrival-panel__item:hover {
-    border-color: rgba(114, 216, 255, 0.45);
-    background: rgba(114, 216, 255, 0.08);
+    border-color: #93c5fd;
+    background: #eff6ff;
 }
 
 .arrival-panel__item-main {
@@ -491,27 +494,27 @@ function formatGeneratedAt(generatedAt: string,): string {
 }
 
 .arrival-panel__item-main strong {
-    color: #ffffff;
-    font-size: 15px;
+    color: #111827;
+    font-size: 13px;
 }
 
 .arrival-panel__item-main span {
-    color: #8fa5b8;
-    font-size: 11px;
+    color: #64748b;
+    font-size: 10px;
     overflow-wrap: anywhere;
 }
 
 .arrival-panel__item-meta {
     flex: 0 0 auto;
-    color: #ffbd59;
-    font-size: 13px;
+    color: #d97706;
+    font-size: 12px;
 }
 
 .arrival-panel__footer {
-    padding: 10px 16px 13px;
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
-    color: #73899d;
-    font-size: 11px;
+    padding: 8px 12px 9px;
+    border-top: 1px solid #e5e7eb;
+    color: #64748b;
+    font-size: 10px;
     text-align: right;
 }
 
@@ -539,8 +542,10 @@ function formatGeneratedAt(generatedAt: string,): string {
         top: 210px;
         right: 12px;
         left: 12px;
+
         width: auto;
         max-width: none;
+        max-height: calc(100% - 270px);
     }
 }
 </style>

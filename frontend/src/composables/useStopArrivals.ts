@@ -45,6 +45,21 @@ export function useStopArrivals() {
 
     let latestRequestId = 0
 
+    /*
+     * 当前正在自动刷新的站点查询。
+     * null 表示自动刷新已经停止。
+     */
+    let activeAutoRefreshQuery:
+        | StopArrivalQuery
+        | null = null
+
+    /*
+     * 保存下一次刷新任务的编号。
+     */
+    let refreshTimeoutId:
+        | ReturnType<typeof window.setTimeout>
+        | undefined
+
     /**
      * 查询指定线路即将到达目标站点的车辆。
      */
@@ -79,8 +94,15 @@ export function useStopArrivals() {
 
         activeAbortController = abortController
 
-        arrivalBoard.value = null
-        arrivalQueryStatus.value = 'loading'
+        const refreshingCurrentBoard =
+            arrivalBoard.value?.routeId === routeId &&
+            arrivalBoard.value.stopId === stopId
+
+        if (!refreshingCurrentBoard) {
+            arrivalBoard.value = null
+            arrivalQueryStatus.value = 'loading'
+        }
+
         arrivalErrorMessage.value = null
 
         /*
@@ -160,9 +182,74 @@ export function useStopArrivals() {
     }
 
     /**
+     * 停止定时循环
+     */
+    function stopAutoRefresh() {
+        activeAutoRefreshQuery = null
+
+        if (refreshTimeoutId !== undefined) {
+            window.clearTimeout(refreshTimeoutId)
+            refreshTimeoutId = undefined
+        }
+    }
+
+    /**
+     * 执行一次查询，并在查询结束后安排下一次刷新。
+     */
+    async function runAutoRefreshCycle(query: StopArrivalQuery): Promise<void> {
+        await queryArrivals(query)
+
+        /*
+         * 等待请求期间，用户可能已经关闭面板或切换站点。
+         *
+         * 使用对象引用判断当前循环是否仍然有效。
+         * 如果不是同一个查询对象，就不能继续安排下一轮。
+         */
+        if (activeAutoRefreshQuery !== query) {
+            return
+        }
+
+        refreshTimeoutId = window.setTimeout(
+            () => {
+                void runAutoRefreshCycle(query)
+            },
+            TRANSIT_CONFIG
+                .stopArrivals
+                .refreshIntervalMilliseconds,
+        )
+    }
+
+    /**
+     * 启动一个站点的自动刷新。
+     * 切换站点时先停止旧循环，然后立即查询新站点，不需要先等待 2 秒。
+     */
+    function startAutoRefresh(query: StopArrivalQuery) {
+        stopAutoRefresh()
+
+        /*
+         * 创建新的查询对象。
+         *
+         * 每次启动都有独立对象，
+         * runAutoRefreshCycle 可以通过对象引用判断
+         * 自己是否仍是当前有效循环。
+         */
+        const autoRefreshQuery: StopArrivalQuery = {
+            routeId: query.routeId,
+            stopId: query.stopId,
+            limit: query.limit,
+        }
+
+        activeAutoRefreshQuery = autoRefreshQuery
+
+        void runAutoRefreshCycle(autoRefreshQuery)
+    }
+
+    /**
      * 清除当前查询和页面状态。
      */
     function clearArrivals() {
+        stopAutoRefresh()
+
         activeAbortController?.abort()
         activeAbortController = undefined
 
@@ -183,6 +270,8 @@ export function useStopArrivals() {
         arrivalQueryStatus,
         arrivalErrorMessage,
         queryArrivals,
+        startAutoRefresh,
+        stopAutoRefresh,
         clearArrivals,
         cleanup,
     }

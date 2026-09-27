@@ -63,7 +63,7 @@ const {
     arrivalBoard,
     arrivalQueryStatus,
     arrivalErrorMessage,
-    queryArrivals,
+    startAutoRefresh,
     clearArrivals,
     cleanup: cleanupStopArrivals,
 } = useStopArrivals()
@@ -134,7 +134,7 @@ function loadSelectedStopArrivals() {
         return
     }
 
-    void queryArrivals({
+    startAutoRefresh({
         routeId: stop.routeId,
         stopId: stop.stopId,
     })
@@ -278,7 +278,7 @@ watch(
             return
         }
 
-        void queryArrivals({
+        startAutoRefresh({
             routeId: stop.routeId,
             stopId: stop.stopId,
         })

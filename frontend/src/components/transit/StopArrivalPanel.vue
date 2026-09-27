@@ -2,8 +2,10 @@
 import { computed } from 'vue'
 
 import type { BusRouteProperties } from '@/types/busRoute'
-import type { RouteBusStopEntityProperties } from '@/types/busStop'
+import type { OrderedBusStop, RouteBusStopEntityProperties } from '@/types/busStop'
 import type { StopArrivalBoard, StopArrivalPrediction, StopArrivalQueryStatus } from '@/types/stopArrival'
+
+import RouteStopProgress from '@/components/transit/RouteStopProgress.vue'
 
 const props = defineProps<{
     route: BusRouteProperties | null
@@ -11,6 +13,7 @@ const props = defineProps<{
     board: StopArrivalBoard | null
     status: StopArrivalQueryStatus
     errorMessage: string | null
+    routeStops: OrderedBusStop[]
 }>()
 
 const emit = defineEmits<{
@@ -100,7 +103,10 @@ function formatGeneratedAt(generatedAt: string,): string {
                         站点到站
                     </span>
 
-                    <h2 class="arrival-panel__route-name">
+                    <h2
+                        class="arrival-panel__route-name"
+                        :title="board?.routeName ?? route?.rname ?? stop.routeId"
+                    >
                         {{
                             board?.routeName ??
                             route?.rname ??
@@ -172,6 +178,11 @@ function formatGeneratedAt(generatedAt: string,): string {
             </div>
 
             <template v-else-if=" status === 'success' && firstArrival">
+                <RouteStopProgress
+                    :stops="routeStops"
+                    :selected-stop-id="stop.stopId"
+                />
+
                 <button type="button" class="arrival-panel__primary" @click="emit('selectVehicle', firstArrival.vehicleId)">
                     <span class="arrival-panel__primary-label">
                         最近车辆
@@ -189,9 +200,6 @@ function formatGeneratedAt(generatedAt: string,): string {
                         }}
                     </span>
 
-                    <span class="arrival-panel__vehicle-id">
-                        {{ firstArrival.vehicleId }}
-                    </span>
                 </button>
 
                 <section v-if="followingArrivals.length > 0" class="arrival-panel__following">
@@ -208,12 +216,6 @@ function formatGeneratedAt(generatedAt: string,): string {
                                             formatEta(arrival)
                                         }}
                                     </strong>
-
-                                    <span>
-                                        {{
-                                            arrival.vehicleId
-                                        }}
-                                    </span>
                                 </span>
 
                                 <span class="arrival-panel__item-meta">
@@ -244,12 +246,12 @@ function formatGeneratedAt(generatedAt: string,): string {
 .arrival-panel {
     position: absolute;
     z-index: 20;
-    top: 88px;
+    top: 80px;
     right: 24px;
     left: auto;
     width: 420px;
     max-width: calc(100% - 48px);
-    max-height: min(520px, calc(100% - 140px));
+    max-height: min(535px, calc(100% - 140px));
     overflow-x: hidden;
     overflow-y: auto;
     color: #1f2937;
@@ -269,6 +271,10 @@ function formatGeneratedAt(generatedAt: string,): string {
     border-bottom: 1px solid #e5e7eb;
 }
 
+.arrival-panel__header > div {
+    min-width: 0;
+}
+
 .arrival-panel__label {
     color: #d97706;
     font-size: 12px;
@@ -277,9 +283,12 @@ function formatGeneratedAt(generatedAt: string,): string {
 
 .arrival-panel__route-name {
     margin: 3px 0 0;
+    overflow: hidden;
     color: #111827;
-    font-size: 18px;
+    font-size: 16px;
     line-height: 1.3;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .arrival-panel__close {
@@ -440,13 +449,6 @@ function formatGeneratedAt(generatedAt: string,): string {
     font-size: 14px;
 }
 
-.arrival-panel__vehicle-id {
-    margin-top: 6px;
-    color: #64748b;
-    font-size: 11px;
-    overflow-wrap: anywhere;
-}
-
 .arrival-panel__following {
     padding: 0 12px 10px;
 }
@@ -460,17 +462,22 @@ function formatGeneratedAt(generatedAt: string,): string {
 
 .arrival-panel__list {
     display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 6px;
     margin: 0;
     padding: 0;
     list-style: none;
 }
 
+.arrival-panel__list li {
+    min-width: 0;
+}
+
 .arrival-panel__item {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 10px;
+    gap: 6px;
     width: 100%;
     padding: 8px 10px;
     border: 1px solid #e5e7eb;
@@ -488,26 +495,22 @@ function formatGeneratedAt(generatedAt: string,): string {
 }
 
 .arrival-panel__item-main {
-    display: grid;
-    gap: 3px;
+    display: flex;
+    align-items: center;
     min-width: 0;
 }
 
 .arrival-panel__item-main strong {
     color: #111827;
-    font-size: 13px;
-}
-
-.arrival-panel__item-main span {
-    color: #64748b;
-    font-size: 10px;
-    overflow-wrap: anywhere;
+    font-size: 12px;
+    white-space: nowrap;
 }
 
 .arrival-panel__item-meta {
     flex: 0 0 auto;
     color: #d97706;
-    font-size: 12px;
+    font-size: 11px;
+    white-space: nowrap;
 }
 
 .arrival-panel__footer {

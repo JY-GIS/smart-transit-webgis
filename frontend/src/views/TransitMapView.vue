@@ -20,11 +20,13 @@ import { useRealtimeVehicles } from '@/composables/useRealtimeVehicles'
 import { useRealtimeVehicleLayer } from '@/composables/useRealtimeVehicleLayer'
 import { useStopArrivals } from '@/composables/useStopArrivals'
 
-import type { NearbyQueryCenter } from '@/types/busStop'
+import type { NearbyQueryCenter, OrderedBusStop } from '@/types/busStop'
 
 const cesiumContainer = ref<HTMLElement | null>(null)
 
 const nearbyQueryEnabled = ref(false)
+
+const selectedRouteStops = ref<OrderedBusStop[]>([])
 
 // viewer 属于当前页面实例，页面卸载时必须销毁，避免 WebGL 资源泄漏。
 let viewer: Cesium.Viewer | undefined
@@ -70,6 +72,7 @@ const {
 
 const {
     loadBusStops,
+    getOrderedRouteStops,
     showRouteStops,
     clearRouteStops,
     cleanup: cleanupBusStopLayer,
@@ -287,6 +290,8 @@ watch(
 
 watch(selectedRoute, (route) => {
     if (!route) {
+        selectedRouteStops.value = []
+
         clearRouteStops()
         return
     }
@@ -294,6 +299,8 @@ watch(selectedRoute, (route) => {
     const routeId = toRouteId(route.fid)
 
     showRouteStops(routeId)
+
+    selectedRouteStops.value = getOrderedRouteStops(routeId)
 })
 
 watch(realtimeVehicles, (snapshots) => {
@@ -420,6 +427,7 @@ onBeforeUnmount(() => {
             :board="arrivalBoard"
             :status="arrivalQueryStatus"
             :error-message="arrivalErrorMessage"
+            :route-stops="selectedRouteStops"
             @close="handleCloseStopArrivalPanel"
             @retry="handleRetryStopArrivals"
             @select-vehicle="handleSelectOperationalVehicle"

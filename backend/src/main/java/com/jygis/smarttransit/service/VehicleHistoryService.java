@@ -1,6 +1,8 @@
 package com.jygis.smarttransit.service;
 
 import com.jygis.smarttransit.pojo.VehiclePositionSnapshot;
+import com.jygis.smarttransit.pojo.VehicleHistoryAvailability;
+import com.jygis.smarttransit.pojo.VehicleTrajectory;
 
 import java.time.Instant;
 import java.util.List;
@@ -22,5 +24,19 @@ public interface VehicleHistoryService {
     int saveSnapshots(
             List<VehiclePositionSnapshot> snapshots,
             Instant sampledAt
+    );
+
+    /**
+     * 查询当前拥有历史数据、可以进行回放的车辆。
+     */
+    List<VehicleHistoryAvailability> findAvailability();
+
+    /**
+     * 查询一辆车在指定时间范围内的完整轨迹。
+     */
+    VehicleTrajectory findTrajectory(
+            String vehicleId,
+            Instant startTime,
+            Instant endTime
     );
 }

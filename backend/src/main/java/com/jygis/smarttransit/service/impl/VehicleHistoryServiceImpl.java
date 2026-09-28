@@ -4,11 +4,15 @@ import com.jygis.smarttransit.config.VehicleHistoryProperties;
 import com.jygis.smarttransit.mapper.VehicleHistoryMapper;
 import com.jygis.smarttransit.pojo.VehiclePositionHistoryRecord;
 import com.jygis.smarttransit.pojo.VehiclePositionSnapshot;
+import com.jygis.smarttransit.pojo.VehicleHistoryAvailability;
+import com.jygis.smarttransit.pojo.VehicleTrajectory;
+import com.jygis.smarttransit.pojo.VehicleTrajectoryPoint;
 import com.jygis.smarttransit.service.VehicleHistoryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
@@ -71,5 +75,104 @@ public class VehicleHistoryServiceImpl implements VehicleHistoryService {
         }
 
         return vehicleHistoryMapper.insertBatch(records);
+    }
+
+    /**
+     * 查询当前拥有历史位置的车辆。
+     */
+    @Override
+    public List<VehicleHistoryAvailability> findAvailability() {
+        return vehicleHistoryMapper.findAvailability();
+    }
+
+    /**
+     * 查询并组装一辆车的完整历史轨迹。
+     */
+    @Override
+    public VehicleTrajectory findTrajectory(
+            String vehicleId,
+            Instant startTime,
+            Instant endTime
+    ) {
+        String normalizedVehicleId = requireText(vehicleId, "vehicleId");
+
+        validateQueryRange(startTime, endTime);
+
+        List<VehicleTrajectoryPoint> points =
+                vehicleHistoryMapper.findTrajectory(
+                        normalizedVehicleId,
+                        startTime,
+                        endTime
+                );
+
+        if (points.size() < 2) {
+            throw new IllegalStateException("指定时间范围内没有足够的轨迹点");
+        }
+
+        VehicleTrajectoryPoint firstPoint = points.get(0);
+        VehicleTrajectoryPoint lastPoint = points.get(points.size() - 1);
+
+        double averageSpeedMetersPerSecond =
+                points
+                        .stream()
+                        .mapToDouble(VehicleTrajectoryPoint::getSpeedMetersPerSecond)
+                        .average()
+                        .orElse(0);
+
+        double maximumSpeedMetersPerSecond =
+                points
+                        .stream()
+                        .mapToDouble(VehicleTrajectoryPoint::getSpeedMetersPerSecond)
+                        .max()
+                        .orElse(0);
+
+        return new VehicleTrajectory(
+                normalizedVehicleId,
+                firstPoint.getRecordedAt(),
+                lastPoint.getRecordedAt(),
+                points.size(),
+                averageSpeedMetersPerSecond,
+                maximumSpeedMetersPerSecond,
+                points
+        );
+    }
+
+    /**
+     * 检查文本参数，并去除首尾空格。
+     */
+    private String requireText(String value, String parameterName) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException(parameterName + " 不能为空");
+        }
+        return value.trim();
+    }
+
+    /**
+     * 检查轨迹查询时间范围。
+     */
+    private void validateQueryRange(Instant startTime, Instant endTime) {
+        if (startTime == null) {
+            throw new IllegalArgumentException("startTime 不能为空");
+        }
+        if (endTime == null) {
+            throw new IllegalArgumentException("endTime 不能为空");
+        }
+
+        /*
+         * Duration.between：计算两个时间点之间相隔多久。
+         */
+        Duration queryDuration = Duration.between(startTime, endTime);
+
+        if (queryDuration.isZero() || queryDuration.isNegative()) {
+            throw new IllegalArgumentException("endTime 必须晚于 startTime");
+        }
+
+        Duration maximumDuration = Duration.ofMinutes(historyProperties.getMaximumQueryRangeMinutes());
+
+        if (queryDuration.compareTo(maximumDuration) > 0) {
+            throw new IllegalArgumentException(
+                    "轨迹查询时间范围不能超过 " + historyProperties.getMaximumQueryRangeMinutes() + " 分钟"
+            );
+        }
     }
 }

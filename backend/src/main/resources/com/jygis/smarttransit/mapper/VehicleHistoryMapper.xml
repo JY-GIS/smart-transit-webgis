@@ -61,4 +61,69 @@
 
     </insert>
 
+    <!--
+        查询拥有历史记录的车辆。
+
+        每辆车最终只返回一行：
+        - min取得最早记录时间；
+        - max取得最晚记录时间；
+        - count统计轨迹点数量。
+    -->
+    <select
+            id="findAvailability"
+            resultType="com.jygis.smarttransit.pojo.VehicleHistoryAvailability">
+
+        select
+            history.vehicle_id,
+            history.route_id,
+            route.fid as route_fid,
+            route.rname as route_name,
+            min(history.recorded_at) as first_recorded_at,
+            max(history.recorded_at) as last_recorded_at,
+            count(*) as point_count
+
+        from public.vehicle_position_history history
+
+        join public.routes route on route.route_id = history.route_id
+
+        group by
+            history.vehicle_id,
+            history.route_id,
+            route.fid,
+            route.rname
+
+        order by
+            route.rname,
+            history.vehicle_id
+
+    </select>
+
+    <!--
+        查询一辆车在指定时间范围内的位置。
+    -->
+    <select
+            id="findTrajectory"
+            resultType="com.jygis.smarttransit.pojo.VehicleTrajectoryPoint">
+
+        select
+            recorded_at,
+
+            st_x(geom) as longitude,
+            st_y(geom) as latitude,
+
+            distance_meters,
+            total_distance_meters,
+            route_progress_percent,
+            speed_meters_per_second,
+            motion_status,
+            operational_status
+
+        from public.vehicle_position_history
+
+        where vehicle_id = #{vehicleId} and recorded_at &gt;= #{startTime} and recorded_at &lt;= #{endTime}
+
+        order by recorded_at
+
+    </select>
+
 </mapper>

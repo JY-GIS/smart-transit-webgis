@@ -3,6 +3,7 @@ package com.jygis.smarttransit.task;
 import com.jygis.smarttransit.config.VehicleSimulationProperties;
 import com.jygis.smarttransit.config.VehicleSimulationProperties.VehicleSeed;
 import com.jygis.smarttransit.config.VehicleSimulationProperties.RoutePlan;
+import com.jygis.smarttransit.config.VehicleHistoryProperties;
 import com.jygis.smarttransit.pojo.RouteSimulationProfile;
 import com.jygis.smarttransit.pojo.VehiclePositionSnapshot;
 import com.jygis.smarttransit.pojo.VehicleRuntimeState;
@@ -11,6 +12,8 @@ import com.jygis.smarttransit.pojo.VehicleMotionStatus;
 import com.jygis.smarttransit.pojo.VehicleSnapshotRequest;
 import com.jygis.smarttransit.service.VehicleRuntimeStore;
 import com.jygis.smarttransit.service.VehicleSimulationService;
+import com.jygis.smarttransit.service.VehicleHistoryService;
+import com.jygis.smarttransit.service.VehicleQueryService;
 import com.jygis.smarttransit.service.VehicleSimulationMetrics;
 import com.jygis.smarttransit.realtime.VehiclePositionPublisher;
 import lombok.RequiredArgsConstructor;
@@ -64,6 +67,15 @@ public class VehicleSimulationTask {
 
     private final VehicleSimulationMetrics simulationMetrics;
 
+    // 历史轨迹采样配置
+    private final VehicleHistoryProperties historyProperties;
+
+    // 查询当前全部车辆的完整公开快照
+    private final VehicleQueryService vehicleQueryService;
+
+    // 筛选并批量保存车辆历史快照
+    private final VehicleHistoryService vehicleHistoryService;
+
     /**
      * 已经加载的多条线路档案。
      * key：routeId，例如 route_000185。
@@ -77,11 +89,14 @@ public class VehicleSimulationTask {
      */
     private long completedTickCount;
 
-    /*
+    /**
      * 上一次成功完成 WebSocket发布的单调时间。
      *（ 当前任务使用fixedDelay，所以配置的1000ms只是“上一轮结束后等待多久”，不能代表两批消息真实相隔1000ms ）
      */
     private long previousPublishCompletedAtNanos;
+
+    // 下一次允许写入历史记录的墙上时间
+    private Instant nextHistorySampleAt;
 
     /**
      * 周期推进全部配置线路中的模拟车辆。
@@ -164,10 +179,19 @@ public class VehicleSimulationTask {
         }
 
         /*
-         * 所有线路、所有车辆都完成状态准备后，才执行一次批量坐标查询。
+         * 只有本轮车辆状态成功更新后，才允许记录历史快照。
+         *
+         * 如果位置批量计算失败：
+         * - RuntimeStore仍保留上一轮位置；
+         * - WebSocket仍可以发布上一轮状态；
+         * - 但不能把上一轮位置伪装成当前时刻的新历史点。
          */
+        boolean vehicleUpdateSucceeded = false;
+
         try {
             applyPendingVehicleUpdates(pendingUpdates);
+
+            vehicleUpdateSucceeded = true;
         } catch (RuntimeException exception) {
             // 批量查询失败时不保存这些待更新状态，Store继续保留上一轮的完整车辆状态。
             log.error(
@@ -175,6 +199,14 @@ public class VehicleSimulationTask {
                     pendingUpdates.size(),
                     exception
             );
+        }
+
+        /*
+         * 历史采样位于：车辆状态更新之后、WebSocket发布之前。
+         * 此时读取到的是本轮最新完整状态，并且所有记录可以共用 tick开始时创建的 now。
+         */
+        if (vehicleUpdateSucceeded) {
+            recordVehicleHistoryIfDue(now);
         }
 
         /*
@@ -217,6 +249,50 @@ public class VehicleSimulationTask {
                     publishIntervalNanos,
                     publishSucceeded
             );
+        }
+    }
+
+    /**
+     * 到达采样时间时，保存一次车辆历史位置。
+     *
+     * 调用关系：
+     * tick
+     *   → recordVehicleHistoryIfDue
+     *   → VehicleQueryService
+     *   → VehicleHistoryService
+     *   → VehicleHistoryMapper
+     */
+    private void recordVehicleHistoryIfDue(Instant now) {
+        if (!historyProperties.isEnabled()) {
+            return;
+        }
+
+        /*
+         * Instant.isBefore：判断当前时刻是否仍然早于下一次采样时间。
+         * 当前时间还没到采样点时直接返回，因此车辆可以每秒模拟，但只会每5秒写一次数据库。
+         */
+        if (nextHistorySampleAt != null && now.isBefore(nextHistorySampleAt)) {
+            return;
+        }
+
+        /*
+         * 先推进下一次采样时间，再访问数据库。
+         */
+        nextHistorySampleAt =
+                // now.plusSeconds(n) 在 now 的基础上加 n 秒
+                now.plusSeconds(historyProperties.getSampleIntervalSeconds());
+
+        try {
+            // 查询当前车辆位置
+            List<VehiclePositionSnapshot> snapshots = vehicleQueryService.findCurrentPositions();
+
+            // 批量保存
+            int insertedCount = vehicleHistoryService.saveSnapshots(snapshots, now);
+
+            log.debug("车辆历史位置采样完成，sampledAt={}，insertedCount={}", now, insertedCount);
+
+        } catch (RuntimeException exception) {
+            log.error("车辆历史位置采样失败，sampledAt={}", now, exception);
         }
     }
 

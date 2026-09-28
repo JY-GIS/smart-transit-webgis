@@ -29,6 +29,18 @@ export const TRANSIT_CONFIG = {
         refreshIntervalMilliseconds: 2000,
     },
 
+    // 车辆历史轨迹查询配置
+    vehicleHistory: {
+        // 后端历史轨迹接口统一前缀
+        baseUrl: '/api/vehicles/history',
+
+        // 打开面板时默认查询最近30分钟
+        defaultQueryRangeMinutes: 30,
+
+        // 前端先限制一次，方便立即提示用户。后端仍然会再次校验，后端限制才是最终安全边界。
+        maximumQueryRangeMinutes: 120,
+    },
+
     // 原始线路样式；选中线路的临时高亮样式在 useBusRouteSelection 中处理。
     routeStyle: {
         strokeWidth: 2,

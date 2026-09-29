@@ -3,6 +3,7 @@ package com.jygis.smarttransit.service;
 import com.jygis.smarttransit.pojo.VehiclePositionSnapshot;
 import com.jygis.smarttransit.pojo.VehicleHistoryAvailability;
 import com.jygis.smarttransit.pojo.VehicleTrajectory;
+import com.jygis.smarttransit.pojo.RouteTrajectoryReplay;
 
 import java.time.Instant;
 import java.util.List;
@@ -36,6 +37,15 @@ public interface VehicleHistoryService {
      */
     VehicleTrajectory findTrajectory(
             String vehicleId,
+            Instant startTime,
+            Instant endTime
+    );
+
+    /**
+     * 查询一条线路中多辆车的同步回放数据。
+     */
+    RouteTrajectoryReplay findRouteTrajectories(
+            String routeId,
             Instant startTime,
             Instant endTime
     );

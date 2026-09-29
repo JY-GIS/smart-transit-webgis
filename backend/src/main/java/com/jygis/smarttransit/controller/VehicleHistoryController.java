@@ -32,6 +32,37 @@ public class VehicleHistoryController {
     }
 
     /**
+     * 查询一条线路中多辆车的同步回放数据。
+     * 请求示例：
+     * GET /api/vehicles/history/routes/route_000185/trajectories
+     *     ?startTime=2026-09-29T02:00:00Z
+     *     &endTime=2026-09-29T02:30:00Z
+     */
+    @GetMapping("/routes/{routeId}/trajectories")
+    public Result findRouteTrajectories(
+            @PathVariable("routeId") String routeId,
+            @RequestParam(name = "startTime", required = false) String startTimeText,
+            @RequestParam(name = "endTime", required = false) String endTimeText
+    ) {
+        try {
+            Instant startTime = parseInstant(startTimeText, "startTime");
+            Instant endTime = parseInstant(endTimeText, "endTime");
+
+            return Result.success(
+                    vehicleHistoryService
+                            .findRouteTrajectories(
+                                    routeId,
+                                    startTime,
+                                    endTime
+                            )
+            );
+
+        } catch (IllegalArgumentException | IllegalStateException exception) {
+            return Result.error(exception.getMessage());
+        }
+    }
+
+    /**
      * 查询一辆车在指定时间范围内的轨迹。
      *
      * 请求示例：

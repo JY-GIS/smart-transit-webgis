@@ -99,6 +99,38 @@
     </select>
 
     <!--
+        查询指定线路中拥有历史记录的车辆。
+    -->
+    <select
+            id="findAvailabilityByRoute"
+            resultType="com.jygis.smarttransit.pojo.VehicleHistoryAvailability">
+
+        select
+            history.vehicle_id,
+            history.route_id,
+            route.fid as route_fid,
+            route.rname as route_name,
+            min(history.recorded_at) as first_recorded_at,
+            max(history.recorded_at) as last_recorded_at,
+            count(*) as point_count
+
+        from public.vehicle_position_history history
+
+        join public.routes route on route.route_id = history.route_id
+
+        where history.route_id = #{routeId}
+
+        group by
+            history.vehicle_id,
+            history.route_id,
+            route.fid,
+            route.rname
+
+        order by history.vehicle_id
+
+    </select>
+
+    <!--
         查询一辆车在指定时间范围内的位置。
     -->
     <select
@@ -123,6 +155,37 @@
         where vehicle_id = #{vehicleId} and recorded_at &gt;= #{startTime} and recorded_at &lt;= #{endTime}
 
         order by recorded_at
+
+    </select>
+
+    <!--
+        查询一条线路中全部车辆的历史位置。
+    -->
+    <select
+            id="findRouteTrajectoryPoints"
+            resultType="com.jygis.smarttransit.pojo.RouteVehicleTrajectoryPoint">
+
+        select
+            vehicle_id,
+            recorded_at,
+
+            ST_X(geom) as longitude,
+            ST_Y(geom) as latitude,
+
+            distance_meters,
+            total_distance_meters,
+            route_progress_percent,
+            speed_meters_per_second,
+            motion_status,
+            operational_status
+
+        from public.vehicle_position_history
+
+        where route_id = #{routeId} and recorded_at &gt;= #{startTime} and recorded_at &lt;= #{endTime}
+
+        order by
+            vehicle_id,
+            recorded_at
 
     </select>
 

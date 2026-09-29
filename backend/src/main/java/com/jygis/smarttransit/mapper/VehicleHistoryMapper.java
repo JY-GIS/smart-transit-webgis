@@ -3,6 +3,7 @@ package com.jygis.smarttransit.mapper;
 import com.jygis.smarttransit.pojo.VehiclePositionHistoryRecord;
 import com.jygis.smarttransit.pojo.VehicleHistoryAvailability;
 import com.jygis.smarttransit.pojo.VehicleTrajectoryPoint;
+import com.jygis.smarttransit.pojo.RouteVehicleTrajectoryPoint;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
@@ -38,4 +39,21 @@ public interface VehicleHistoryMapper {
             @Param("startTime") Instant startTime,
             @Param("endTime") Instant endTime
     );
+
+    /**
+     * 查询一条线路中全部车辆在指定时间范围内的历史位置。
+     */
+    List<RouteVehicleTrajectoryPoint> findRouteTrajectoryPoints(
+            @Param("routeId") String routeId,
+            @Param("startTime") Instant startTime,
+            @Param("endTime") Instant endTime
+    );
+
+    /**
+     * 查询指定线路中拥有历史数据的车辆。
+     */
+    List<VehicleHistoryAvailability> findAvailabilityByRoute(
+            @Param("routeId") String routeId
+    );
+
 }

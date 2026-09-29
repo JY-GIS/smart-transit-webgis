@@ -25,8 +25,8 @@ transit:
     # 每辆受监控车辆每 5 秒保存一个历史位置点
     sample-interval-seconds: 5
 
-    # 自动保留最近 7 天历史数据
-    retention-days: 7
+    # 自动保留最近 3 天历史数据
+    retention-days: 3
 
     # 单辆车一次最多查询 120 分钟
     maximum-query-range-minutes: 120

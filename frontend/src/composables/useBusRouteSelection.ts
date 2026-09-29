@@ -7,15 +7,6 @@ import { createTransitPolylineHighlightMaterial, TRANSIT_POLYLINE_HIGHLIGHT_WIDT
 import { readRouteBusStopProperties } from './useBusStopLayer'
 import { readBusRouteProperties } from './useBusRouteLayer'
 
-// 公交线路选择交互：监听 Cesium 选中 Entity，读取属性并高亮同一 fid 的全部片段。
-// 高亮前保存原样式，关闭面板或切换线路时恢复，避免永久污染原始图层样式。
-type RouteStyleSnapshot = {
-    entity: Cesium.Entity
-    material: Cesium.MaterialProperty
-    width: Cesium.Property | undefined
-    depthFailMaterial: Cesium.MaterialProperty
-}
-
 // 被选中站点高亮前的样式快照
 type RouteStopStyleSnapshot = {
     entity: Cesium.Entity
@@ -99,31 +90,39 @@ export function useBusRouteSelection() {
         | RouteStopStyleSnapshot
         | undefined
 
-    // key 使用 Entity.id，允许一条 fid 线路包含多个独立片段。
-    const highlightedRouteStyles =
-        new Map<string, RouteStyleSnapshot>()
+    let routeHighlightDataSource:
+        | Cesium.CustomDataSource
+        | undefined
 
-    // 保存监听器移除函数，组件卸载时释放 Cesium 事件。
+    let routeSelectionViewer:
+        | Cesium.Viewer
+        | undefined
+
     let removeRouteSelectionListener:
         | (() => void)
         | undefined
 
-    function clearRouteHighlight() {
-        // 恢复每个片段高亮前保存的 material、width 和 depthFailMaterial。
-        for (const snapshot of highlightedRouteStyles.values()) {
-            const polyline = snapshot.entity.polyline
-
-            if (!polyline) {
-                continue
-            }
-
-            polyline.material = snapshot.material
-            polyline.width = snapshot.width
-            polyline.depthFailMaterial =
-                snapshot.depthFailMaterial
+    /**
+     * 创建或复用线路高亮图层。
+     */
+    function ensureRouteHighlightDataSource(viewer: Cesium.Viewer): Cesium.CustomDataSource | undefined {
+        if (viewer.isDestroyed()) {
+            return undefined
         }
 
-        highlightedRouteStyles.clear()
+        if (routeHighlightDataSource) {
+            return routeHighlightDataSource
+        }
+
+        routeHighlightDataSource = new Cesium.CustomDataSource('bus-route-highlight-layer')
+
+        viewer.dataSources.add(routeHighlightDataSource)
+
+        return routeHighlightDataSource
+    }
+
+    function clearRouteHighlight() {
+        routeHighlightDataSource?.entities.removeAll()
     }
 
     function highlightRoute(
@@ -132,35 +131,53 @@ export function useBusRouteSelection() {
     ) {
         clearRouteHighlight()
 
-        // 通过业务 fid 找到整条线路，而不是只高亮被点击的一个片段。
-        const entities = routeEntitiesByFid.get(fid) ?? []
+        const currentViewer = routeSelectionViewer
+
+        if (!currentViewer || currentViewer.isDestroyed()) {
+            return
+        }
+
+        const highlightDataSource = ensureRouteHighlightDataSource(currentViewer)
+
+        if (!highlightDataSource) {
+            return
+        }
+
+        // 一个 fid 可能对应多个线段，因此需要把全部片段都复制到高亮图层。
+        const sourceEntities = routeEntitiesByFid.get(fid) ?? []
 
         const highlightMaterial = createTransitPolylineHighlightMaterial(1, 0.35)
 
         const depthFailHighlightMaterial = createTransitPolylineHighlightMaterial(0.65, 0.25)
 
-        const highlightWidth = new Cesium.ConstantProperty(TRANSIT_POLYLINE_HIGHLIGHT_WIDTH)
+        for (const sourceEntity of sourceEntities) {
+            const sourcePolyline = sourceEntity.polyline
 
-        for (const entity of entities) {
-            const polyline = entity.polyline
-
-            if (!polyline) {
+            if (!sourcePolyline) {
                 continue
             }
 
-            highlightedRouteStyles.set(entity.id, {
-                entity,
-                material: polyline.material,
-                width: polyline.width,
-                depthFailMaterial:
-                    polyline.depthFailMaterial,
-            })
+            const positions = sourcePolyline.positions
 
-            polyline.material = highlightMaterial
-            polyline.width = highlightWidth
-            polyline.depthFailMaterial =
-                depthFailHighlightMaterial
+            if (!positions) {
+                continue
+            }
+
+            highlightDataSource.entities.add({
+                id: `bus-route-highlight:${sourceEntity.id}`,
+                name: `选中公交线路 ${fid}`,
+                polyline: {
+                    positions,
+                    width: TRANSIT_POLYLINE_HIGHLIGHT_WIDTH,
+                    material: highlightMaterial,
+                    depthFailMaterial: depthFailHighlightMaterial,
+                    clampToGround: sourcePolyline.clampToGround,
+                    classificationType: sourcePolyline.classificationType,
+                },
+            })
         }
+
+        currentViewer.scene.requestRender()
     }
 
     /**
@@ -291,6 +308,8 @@ export function useBusRouteSelection() {
         onMapClick?: MapClickHandler,
     ) {
         removeRouteSelectionListener?.()
+
+        routeSelectionViewer = viewer
 
         const screenSpaceEventHandler = viewer.screenSpaceEventHandler
 
@@ -493,11 +512,19 @@ export function useBusRouteSelection() {
     }
 
     function cleanup() {
-        // 页面卸载时只清理本 composable 创建的监听和样式状态。
         removeRouteSelectionListener?.()
         removeRouteSelectionListener = undefined
 
         clearRouteSelection()
+
+        const currentViewer = routeSelectionViewer
+
+        if (currentViewer && !currentViewer.isDestroyed() && routeHighlightDataSource) {
+            currentViewer.dataSources.remove(routeHighlightDataSource, true)
+        }
+
+        routeHighlightDataSource = undefined
+        routeSelectionViewer = undefined
     }
 
     return {

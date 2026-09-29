@@ -39,6 +39,12 @@ export const TRANSIT_CONFIG = {
 
         // 前端先限制一次，方便立即提示用户。后端仍然会再次校验，后端限制才是最终安全边界。
         maximumQueryRangeMinutes: 120,
+
+        // 相邻轨迹点超过15秒时，认为中间发生了数据中断
+        maximumContinuousGapSeconds: 15,
+
+        // 历史回放支持的播放倍速
+        playbackSpeeds: [1, 2, 5, 10],
     },
 
     // 原始线路样式；选中线路的临时高亮样式在 useBusRouteSelection 中处理。

@@ -3,6 +3,7 @@ import * as Cesium from 'cesium'
 import type { BusRouteProperties } from '@/types/busRoute'
 import type { RealtimeVehicleEntityProperties } from '@/types/realtimeVehicle'
 import type { RouteBusStopEntityProperties } from '@/types/busStop'
+import { createTransitPolylineHighlightMaterial, TRANSIT_POLYLINE_HIGHLIGHT_WIDTH } from '@/utils/transitPolylineHighlight'
 import { readRouteBusStopProperties } from './useBusStopLayer'
 import { readBusRouteProperties } from './useBusRouteLayer'
 
@@ -134,23 +135,11 @@ export function useBusRouteSelection() {
         // 通过业务 fid 找到整条线路，而不是只高亮被点击的一个片段。
         const entities = routeEntitiesByFid.get(fid) ?? []
 
-        // 使用发光材质 + 加粗线宽提升选中线路的可见性；不隐藏原线。
-        const highlightMaterial =
-            new Cesium.PolylineGlowMaterialProperty({
-                color: Cesium.Color.CYAN,
-                glowPower: 0.35,
-                taperPower: 1.0,
-            })
+        const highlightMaterial = createTransitPolylineHighlightMaterial(1, 0.35)
 
-        const depthFailHighlightMaterial =
-            new Cesium.PolylineGlowMaterialProperty({
-                color: Cesium.Color.CYAN.withAlpha(0.65),
-                glowPower: 0.25,
-                taperPower: 1.0,
-            })
+        const depthFailHighlightMaterial = createTransitPolylineHighlightMaterial(0.65, 0.25)
 
-        const highlightWidth =
-            new Cesium.ConstantProperty(12)
+        const highlightWidth = new Cesium.ConstantProperty(TRANSIT_POLYLINE_HIGHLIGHT_WIDTH)
 
         for (const entity of entities) {
             const polyline = entity.polyline

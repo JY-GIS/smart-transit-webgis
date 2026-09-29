@@ -69,6 +69,9 @@ export function useRealtimeVehicleLayer() {
     // 当前实时车辆图层所属的 Viewer
     let activeViewer: Cesium.Viewer | undefined
 
+    // 当前是否显示实时车辆图层
+    let vehiclesVisible = true
+
     // 确保实时车辆 DataSource 已经加入 Viewe
     function ensureDataSource(viewer: Cesium.Viewer): Cesium.CustomDataSource | undefined {
         if (viewer.isDestroyed()) {
@@ -81,6 +84,8 @@ export function useRealtimeVehicleLayer() {
 
         // 单独使用 CustomDataSource 管理实时车辆，避免清理车辆时误删线路、站点或行政区 Entity
         vehicleDataSource = new Cesium.CustomDataSource('realtime-vehicle-layer')
+
+        vehicleDataSource.show = vehiclesVisible
 
         viewer.dataSources.add(vehicleDataSource)
 
@@ -337,6 +342,21 @@ export function useRealtimeVehicleLayer() {
         return vehicleVisuals.get(vehicleId)?.entity
     }
 
+    // 显示或隐藏整个实时车辆图层
+    function setVehiclesVisible(visible: boolean) {
+        vehiclesVisible = visible
+
+        if (vehicleDataSource) {
+            vehicleDataSource.show = visible
+        }
+
+        const viewer = activeViewer
+
+        if (viewer && !viewer.isDestroyed()) {
+            viewer.scene.requestRender()
+        }
+    }
+
     // 清理实时车辆图层
     function cleanup(viewer?: Cesium.Viewer) {
         // 页面卸载时取消仍在等待执行的动画帧
@@ -355,11 +375,13 @@ export function useRealtimeVehicleLayer() {
         }
 
         vehicleDataSource = undefined
+        vehiclesVisible = true
     }
 
     return {
         getVehicleEntity,
         updateVehicles,
+        setVehiclesVisible,
         cleanup,
     }
 }

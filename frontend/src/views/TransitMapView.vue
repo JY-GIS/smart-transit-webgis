@@ -9,6 +9,7 @@ import NearbyBusStopPanel from '@/components/transit/NearbyBusStopPanel.vue'
 import RealtimeVehicleInfoPanel from '@/components/transit/RealtimeVehicleInfoPanel.vue'
 import RealtimeOperationalAlertPanel from '@/components/transit/RealtimeOperationalAlertPanel.vue'
 import StopArrivalPanel from '@/components/transit/StopArrivalPanel.vue'
+import VehicleTrajectoryPanel from '@/components/transit/VehicleTrajectoryPanel.vue'
 import { useBusRouteLayer } from '@/composables/useBusRouteLayer'
 import { useBusRouteSelection } from '@/composables/useBusRouteSelection'
 import { useBusStopLayer } from '@/composables/useBusStopLayer'
@@ -19,12 +20,17 @@ import { useNearbyBusStops } from '@/composables/useNearbyBusStops'
 import { useRealtimeVehicles } from '@/composables/useRealtimeVehicles'
 import { useRealtimeVehicleLayer } from '@/composables/useRealtimeVehicleLayer'
 import { useStopArrivals } from '@/composables/useStopArrivals'
+import { useVehicleTrajectory } from '@/composables/useVehicleTrajectory'
+import { useVehicleTrajectoryLayer } from '@/composables/useVehicleTrajectoryLayer'
 
 import type { NearbyQueryCenter, OrderedBusStop } from '@/types/busStop'
+import type { VehicleTrajectoryQuery } from '@/types/vehicleTrajectory'
 
 const cesiumContainer = ref<HTMLElement | null>(null)
 
 const nearbyQueryEnabled = ref(false)
+
+const historyModeEnabled = ref(false)
 
 const selectedRouteStops = ref<OrderedBusStop[]>([])
 
@@ -101,8 +107,37 @@ const selectedRealtimeVehicle = computed(() => {
 const {
     getVehicleEntity: getRealtimeVehicleEntity,
     updateVehicles: updateRealtimeVehicleLayer,
+    setVehiclesVisible: setRealtimeVehiclesVisible,
     cleanup: cleanupRealtimeVehicleLayer,
 } = useRealtimeVehicleLayer()
+
+const {
+    availableVehicles: historyAvailableVehicles,
+    availabilityStatus: historyAvailabilityStatus,
+    availabilityErrorMessage: historyAvailabilityErrorMessage,
+    trajectory: vehicleTrajectory,
+    trajectoryStatus: vehicleTrajectoryStatus,
+    trajectoryErrorMessage: vehicleTrajectoryErrorMessage,
+    loadAvailability: loadVehicleHistoryAvailability,
+    queryTrajectory: queryVehicleTrajectory,
+    clearTrajectory: clearVehicleTrajectory,
+    cleanup: cleanupVehicleTrajectoryQuery,
+} = useVehicleTrajectory()
+
+const {
+    trajectoryLoaded,
+    isPlaying: trajectoryIsPlaying,
+    playbackSpeed: trajectoryPlaybackSpeed,
+    cameraTrackingEnabled: trajectoryCameraTrackingEnabled,
+    loadTrajectoryLayer,
+    clearTrajectoryLayer,
+    play: playVehicleTrajectory,
+    pause: pauseVehicleTrajectory,
+    reset: resetVehicleTrajectory,
+    setPlaybackSpeed: setVehicleTrajectoryPlaybackSpeed,
+    setCameraTracking: setVehicleTrajectoryCameraTracking,
+    cleanup: cleanupVehicleTrajectoryLayer,
+} = useVehicleTrajectoryLayer()
 
 // Cesium Viewer 和各基础图层分别管理，页面只按业务顺序调用它们。
 const {
@@ -152,6 +187,64 @@ function handleCloseStopArrivalPanel() {
 // 查询失败后的手动重试
 function handleRetryStopArrivals() {
     loadSelectedStopArrivals()
+}
+
+// 进入历史轨迹模式
+function openHistoryMode() {
+    historyModeEnabled.value = true
+
+    // 历史模式与当前实时业务面板互斥
+    handleCloseRoutePanel()
+    handleCloseStopArrivalPanel()
+    handleClearNearbyQuery()
+
+    // 隐藏实时车辆，但不关闭WebSocket
+    setRealtimeVehiclesVisible(false)
+
+    clearVehicleTrajectory()
+    clearTrajectoryLayer()
+
+    void loadVehicleHistoryAvailability()
+}
+
+/**
+ * 退出历史轨迹模式。
+ */
+function closeHistoryMode() {
+    /*
+     * 先清理历史图层并恢复Cesium时钟，
+     * 再重新显示实时车辆。
+     */
+    cleanupVehicleTrajectoryLayer(viewer)
+    cleanupVehicleTrajectoryQuery()
+
+    setRealtimeVehiclesVisible(true)
+
+    historyModeEnabled.value = false
+}
+
+function toggleHistoryMode() {
+    if (historyModeEnabled.value) {
+        closeHistoryMode()
+        return
+    }
+
+    openHistoryMode()
+}
+
+/**
+ * 接收历史面板提交的查询参数。
+ */
+function handleVehicleTrajectoryQuery(query: VehicleTrajectoryQuery) {
+    void queryVehicleTrajectory(query)
+}
+
+/**
+ * 清除上一辆车或上一次查询的轨迹。
+ */
+function handleClearVehicleTrajectory() {
+    clearVehicleTrajectory()
+    clearTrajectoryLayer()
 }
 
 // 处理异常播报面板发出的车辆选择请求
@@ -314,6 +407,22 @@ watch(realtimeVehicles, (snapshots) => {
     updateRealtimeVehicleLayer(currentViewer, snapshots)
 })
 
+// 查询成功后将轨迹加载到Cesium
+watch(
+    vehicleTrajectory, (trajectory) => {
+        const currentViewer = viewer
+
+        if (!historyModeEnabled.value || !trajectory || !currentViewer || currentViewer.isDestroyed()) {
+            return
+        }
+
+        void loadTrajectoryLayer(
+            currentViewer,
+            trajectory,
+        )
+    },
+)
+
 // 页面挂载后按“Viewer → 白膜 → 行政区 → 公交线路 → 点击交互”的顺序初始化。
 onMounted(async () => { 
     // WebSocket 与 Cesium 图层初始化相互独立
@@ -361,6 +470,8 @@ onMounted(async () => {
 onBeforeUnmount(() => { 
     void disconnectRealtimeVehicles()
 
+    cleanupVehicleTrajectoryQuery()
+    cleanupVehicleTrajectoryLayer(viewer)
     cleanupRouteSelection()
     cleanupStopArrivals()
     cleanupNearbyBusStops(viewer)
@@ -402,6 +513,16 @@ onBeforeUnmount(() => {
             </button>
             <button
                 class="layer-control-button"
+                :class="{ 'is-active': historyModeEnabled }"
+                type="button"
+                :aria-pressed="historyModeEnabled"
+                @click="toggleHistoryMode"
+            >
+                <span class="layer-control-dot" aria-hidden="true"></span>
+                {{ historyModeEnabled ? '退出历史回放' : '历史轨迹回放' }}
+            </button>
+            <button
+                class="layer-control-button"
                 :class="{ 'is-active': nearbyQueryEnabled }"
                 type="button"
                 :aria-pressed="nearbyQueryEnabled"
@@ -416,38 +537,62 @@ onBeforeUnmount(() => {
             </button>
         </div>
 
-        <!-- 信息面板覆盖在 Cesium 容器上方，不参与 Cesium Entity 绘制。 -->
-        <BusRouteInfoPanel :route="selectedRealtimeVehicle || selectedRouteStop ? null : selectedRoute"
-            @close="handleCloseRoutePanel"
-        />
+        <template v-if="!historyModeEnabled">
+            <!-- 信息面板覆盖在 Cesium 容器上方，不参与 Cesium Entity 绘制。 -->
+            <BusRouteInfoPanel :route="selectedRealtimeVehicle || selectedRouteStop ? null : selectedRoute"
+                @close="handleCloseRoutePanel"
+            />
 
-        <StopArrivalPanel
-            :route="selectedRoute"
-            :stop="selectedRouteStop"
-            :board="arrivalBoard"
-            :status="arrivalQueryStatus"
-            :error-message="arrivalErrorMessage"
-            :route-stops="selectedRouteStops"
-            @close="handleCloseStopArrivalPanel"
-            @retry="handleRetryStopArrivals"
-            @select-vehicle="handleSelectOperationalVehicle"
-        />
-        
-        <RealtimeVehicleInfoPanel
-            :vehicle="selectedRealtimeVehicle"
-            :route="selectedRoute"
-            @close="handleCloseRoutePanel"
-        />
-        <RealtimeOperationalAlertPanel
-            :vehicles="realtimeVehicles"
-            @select-vehicle="handleSelectOperationalVehicle"
-        />
-        <NearbyBusStopPanel
-            :stops="nearbyStops"
-            :status="queryStatus"
-            :error-message="errorMessage"
-            :radius-meters="queryRadiusMeters"
-            @clear="handleClearNearbyQuery"
+            <StopArrivalPanel
+                :route="selectedRoute"
+                :stop="selectedRouteStop"
+                :board="arrivalBoard"
+                :status="arrivalQueryStatus"
+                :error-message="arrivalErrorMessage"
+                :route-stops="selectedRouteStops"
+                @close="handleCloseStopArrivalPanel"
+                @retry="handleRetryStopArrivals"
+                @select-vehicle="handleSelectOperationalVehicle"
+            />
+            
+            <RealtimeVehicleInfoPanel
+                :vehicle="selectedRealtimeVehicle"
+                :route="selectedRoute"
+                @close="handleCloseRoutePanel"
+            />
+            <RealtimeOperationalAlertPanel
+                :vehicles="realtimeVehicles"
+                @select-vehicle="handleSelectOperationalVehicle"
+            />
+            <NearbyBusStopPanel
+                :stops="nearbyStops"
+                :status="queryStatus"
+                :error-message="errorMessage"
+                :radius-meters="queryRadiusMeters"
+                @clear="handleClearNearbyQuery"
+            />
+        </template>
+        <VehicleTrajectoryPanel
+            v-if="historyModeEnabled"
+            :vehicles="historyAvailableVehicles"
+            :availability-status="historyAvailabilityStatus"
+            :availability-error-message="historyAvailabilityErrorMessage"
+            :trajectory="vehicleTrajectory"
+            :trajectory-status="vehicleTrajectoryStatus"
+            :trajectory-error-message="vehicleTrajectoryErrorMessage"
+            :trajectory-loaded="trajectoryLoaded"
+            :is-playing="trajectoryIsPlaying"
+            :playback-speed="trajectoryPlaybackSpeed"
+            :camera-tracking-enabled="trajectoryCameraTrackingEnabled"
+            @query="handleVehicleTrajectoryQuery"
+            @close="closeHistoryMode"
+            @retry-availability="loadVehicleHistoryAvailability"
+            @clear-trajectory="handleClearVehicleTrajectory"
+            @play="playVehicleTrajectory"
+            @pause="pauseVehicleTrajectory"
+            @reset="resetVehicleTrajectory"
+            @change-speed="setVehicleTrajectoryPlaybackSpeed"
+            @change-camera-tracking="setVehicleTrajectoryCameraTracking"
         />
     </div>
 </template>

@@ -13,6 +13,8 @@ export type VehicleHistoryQueryStatus =
     | 'empty'
     | 'error'
 
+export type TrajectoryReplayMode = 'vehicle' | 'route'
+
 /**
  * 一辆拥有历史数据、可以进行回放的车辆。
  *
@@ -71,6 +73,49 @@ export interface VehicleTrajectory {
  */
 export interface VehicleTrajectoryQuery {
     vehicleId: string
+    startTime: Date
+    endTime: Date
+}
+
+/**
+ * 前端根据车辆可用信息整理出的一条可回放线路。
+ */
+export interface VehicleHistoryRouteAvailability {
+    routeId: string
+    routeFid: number
+    routeName: string
+
+    vehicleCount: number
+    pointCount: number
+
+    firstRecordedAt: string
+    lastRecordedAt: string
+}
+
+/**
+ * 一条线路中多辆车的同步回放数据。
+ */
+export interface RouteTrajectoryReplay {
+    routeId: string
+    routeFid: number
+    routeName: string
+
+    startTime: string
+    endTime: string
+
+    vehicleCount: number
+    totalPointCount: number
+
+    trajectories: VehicleTrajectory[]
+
+    unavailableVehicleIds: string[]
+}
+
+/**
+ * 前端查询一条线路多车轨迹时使用的参数。
+ */
+export interface RouteTrajectoryQuery {
+    routeId: string
     startTime: Date
     endTime: Date
 }

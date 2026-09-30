@@ -532,6 +532,7 @@ export function useBusRouteSelection() {
         selectedVehicleId,
         selectedRouteStop,
 
+        selectRouteByFid,
         selectRealtimeVehicle,
 
         bindRouteSelection,

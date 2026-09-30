@@ -4,14 +4,20 @@ import { computed, ref, watch } from 'vue'
 import { TRANSIT_CONFIG } from '@/config/transit.config'
 import { REALTIME_VEHICLE_STATUS_STYLES } from '@/config/realtimeVehicleStatus.config'
 import type {
+    RouteTrajectoryQuery,
+    RouteTrajectoryReplay,
+    TrajectoryReplayMode,
     VehicleHistoryAvailability,
     VehicleHistoryQueryStatus,
+    VehicleHistoryRouteAvailability,
     VehicleTrajectory,
     VehicleTrajectoryQuery,
 } from '@/types/vehicleTrajectory'
 
 const props = defineProps<{
+    mode: TrajectoryReplayMode
     vehicles: VehicleHistoryAvailability[]
+    routes: VehicleHistoryRouteAvailability[]
 
     availabilityStatus: VehicleHistoryQueryStatus
     availabilityErrorMessage: string | null
@@ -20,15 +26,22 @@ const props = defineProps<{
     trajectoryStatus: VehicleHistoryQueryStatus
     trajectoryErrorMessage: string | null
 
+    routeReplay: RouteTrajectoryReplay | null
+    routeReplayStatus: VehicleHistoryQueryStatus
+    routeReplayErrorMessage: string | null
+
     trajectoryLoaded: boolean
     isPlaying: boolean
     playbackSpeed: number
     cameraTrackingEnabled: boolean
+    trackedRouteVehicleId: string | null
 }>()
 
 const emit = defineEmits<{
-    query: [query: VehicleTrajectoryQuery]
     close: []
+    'change-mode': [mode: TrajectoryReplayMode]
+    'query-vehicle': [query: VehicleTrajectoryQuery]
+    'query-route': [query: RouteTrajectoryQuery]
     'retry-availability': []
     'clear-trajectory': []
 
@@ -38,9 +51,11 @@ const emit = defineEmits<{
 
     'change-speed': [speed: number]
     'change-camera-tracking': [enabled: boolean]
+    'change-route-tracking': [vehicleId: string | null]
 }>()
 
 const selectedVehicleId = ref('')
+const selectedRouteId = ref('')
 
 const startTimeText = ref('')
 const endTimeText = ref('')
@@ -52,43 +67,58 @@ const activePresetMinutes =
 
 const presetMinutes = [5, 15, 30] as const
 
-const selectedVehicle = computed(
-    (): VehicleHistoryAvailability | null => {
-        return (
-            props.vehicles.find(
-                (vehicle) => vehicle.vehicleId === selectedVehicleId.value
-            ) ?? null
-        )
-    },
-)
+const selectedVehicle = computed(() => {
+    return props.vehicles.find((vehicle) => vehicle.vehicleId === selectedVehicleId.value) ?? null
+})
+
+const selectedRoute =
+    computed(
+        (): VehicleHistoryRouteAvailability | null => {
+            return (
+                props.routes.find(
+                    (route) => route.routeId === selectedRouteId.value,
+                ) ?? null
+            )
+        },
+    )
+
+const selectedAvailability = computed(() => {
+    return props.mode === 'vehicle' ? selectedVehicle.value : selectedRoute.value
+})
+
+const activeQueryStatus = computed(() => {
+    return props.mode === 'vehicle' ? props.trajectoryStatus : props.routeReplayStatus
+})
+
+const activeErrorMessage = computed(() => {
+    return props.mode === 'vehicle' ? props.trajectoryErrorMessage : props.routeReplayErrorMessage
+})
 
 const minimumTimeText = computed(() => {
-    const vehicle = selectedVehicle.value
+    const availability = selectedAvailability.value
 
-    if (!vehicle) {
+    if (!availability) {
         return ''
     }
 
-    return formatDateTimeLocal(
-        new Date(vehicle.firstRecordedAt),
-    )
+    return formatDateTimeLocal(new Date(availability.firstRecordedAt))
 })
 
 const maximumTimeText = computed(() => {
-    const vehicle = selectedVehicle.value
+    const availability = selectedAvailability.value
 
-    if (!vehicle) {
+    if (!availability) {
         return ''
     }
 
-    return formatDateTimeLocal(new Date(vehicle.lastRecordedAt))
+    return formatDateTimeLocal(new Date(availability.lastRecordedAt))
 })
 
 const queryButtonDisabled = computed(() => {
     return (
         props.availabilityStatus !== 'success' ||
-        props.trajectoryStatus === 'loading' ||
-        selectedVehicle.value === null
+        activeQueryStatus.value === 'loading' ||
+        selectedAvailability.value === null
     )
 })
 
@@ -154,14 +184,9 @@ function formatDisplayTime(value: string): string {
     ).format(date)
 }
 
-function formatSpeed(metersPerSecond: number): string {
-    // 米/秒 × 3.6 = 千米/小时
-    return `${(metersPerSecond * 3.6).toFixed(1)} km/h`
-}
-
-function formatTrajectoryDuration(trajectory: VehicleTrajectory): string {
-    const startTime = Date.parse(trajectory.startTime)
-    const endTime = Date.parse(trajectory.endTime)
+function formatTrajectoryDuration(startTimeText: string, endTimeText: string): string {
+    const startTime = Date.parse(startTimeText)
+    const endTime = Date.parse(endTimeText)
 
     const durationSeconds = Math.max(0, Math.round((endTime - startTime) / 1000))
 
@@ -176,21 +201,23 @@ function formatTrajectoryDuration(trajectory: VehicleTrajectory): string {
     return `${minutes}分${seconds}秒`
 }
 
-/**
- * 使用所选车辆最后一条历史记录作为结束时间
- */
-function applyPreset(minutes: number) {
-    const vehicle = selectedVehicle.value
+function formatSpeed(metersPerSecond: number): string {
+    return `${(metersPerSecond * 3.6).toFixed(1)} km/h`
+}
 
-    if (!vehicle) {
+// 使用当前选择项的最后一条历史记录作为结束时间。
+function applyPreset(minutes: number) {
+    const availability = selectedAvailability.value
+
+    if (!availability) {
         return
     }
 
-    const firstRecordedAt = new Date(vehicle.firstRecordedAt)
-    const lastRecordedAt = new Date(vehicle.lastRecordedAt)
+    const firstRecordedAt = new Date(availability.firstRecordedAt)
+    const lastRecordedAt = new Date(availability.lastRecordedAt)
 
     if (!Number.isFinite(firstRecordedAt.getTime()) || !Number.isFinite(lastRecordedAt.getTime())) {
-        formErrorMessage.value = '车辆历史时间范围无效'
+        formErrorMessage.value = '历史时间范围无效'
 
         return
     }
@@ -217,45 +244,40 @@ function handleCustomTimeInput() {
 }
 
 /**
- * 校验表单并通知父组件查询。
+ * 校验当前模式的选择项和时间范围，然后通知父组件查询。
  */
 function handleSubmit() {
-    const vehicle = selectedVehicle.value
+    const availability = selectedAvailability.value
 
-    if (!vehicle) {
-        formErrorMessage.value = '请选择需要回放的车辆'
-
+    if (!availability) {
+        formErrorMessage.value = props.mode === 'vehicle' ? '请选择需要回放的车辆' : '请选择需要回放的线路'
         return
     }
 
     const startTime = parseLocalDateTime(startTimeText.value)
+
     const endTime = parseLocalDateTime(endTimeText.value)
 
     if (!startTime || !endTime) {
         formErrorMessage.value = '请选择有效的开始和结束时间'
-
         return
     }
 
     if (endTime.getTime() <= startTime.getTime()) {
         formErrorMessage.value = '结束时间必须晚于开始时间'
-
         return
     }
 
-    const firstRecordedAt = new Date(vehicle.firstRecordedAt)
-    const lastRecordedAt = new Date(vehicle.lastRecordedAt)
+    const firstRecordedAt = new Date(availability.firstRecordedAt)
+    const lastRecordedAt = new Date(availability.lastRecordedAt)
 
-    /*
-     * 输入框已经设置min和max，
-     * 这里仍然再次检查，避免用户手动修改页面后绕过限制。
-     */
     if (
         startTime.getTime() < firstRecordedAt.getTime() ||
         endTime.getTime() > lastRecordedAt.getTime()
     ) {
-        formErrorMessage.value = '查询时间必须位于车辆已有历史数据范围内'
-
+        formErrorMessage.value = props.mode === 'vehicle'
+            ? '查询时间必须位于车辆已有历史数据范围内'
+            : '查询时间必须位于全部车辆的共同历史范围内'
         return
     }
 
@@ -264,21 +286,26 @@ function handleSubmit() {
     if (durationMinutes > TRANSIT_CONFIG.vehicleHistory.maximumQueryRangeMinutes) {
         formErrorMessage.value =
             `查询时间不能超过` + `${TRANSIT_CONFIG.vehicleHistory.maximumQueryRangeMinutes}分钟`
-
         return
     }
 
     formErrorMessage.value = null
 
-    emit(
-        'query',
-        {
-            vehicleId: vehicle.vehicleId,
+    if (props.mode === 'vehicle' && selectedVehicle.value) {
+        emit('query-vehicle', {
+            vehicleId: selectedVehicle.value.vehicleId,
             startTime,
             endTime,
-        },
-    )
+        })
+    } else if (props.mode === 'route' && selectedRoute.value) {
+        emit('query-route', {
+            routeId: selectedRoute.value.routeId,
+            startTime,
+            endTime,
+        })
+    }
 }
+
 /**
  * 根据当前播放状态发送播放或暂停事件。
  */
@@ -291,73 +318,82 @@ function handlePlayPause() {
     emit('play')
 }
 
-/**
- * 读取相机跟随复选框。
- */
 function handleCameraTrackingChange(event: Event) {
-    const target = event.target
-
-    // instanceof HTMLInputElement：确认事件确实来自input元素，然后才能安全读取checked
-    if (!(target instanceof HTMLInputElement)) {
-        return
+    if (event.target instanceof HTMLInputElement) {
+        emit('change-camera-tracking', event.target.checked)
     }
-
-    emit(
-        'change-camera-tracking',
-        target.checked,
-    )
 }
 
-/**
- * 可回放车辆列表加载或刷新后，
- * 自动选中第一辆车。
- */
+function handleRouteTrackingChange(event: Event) {
+    if (event.target instanceof HTMLSelectElement) {
+        emit('change-route-tracking', event.target.value || null)
+    }
+}
+
+// 可回放车辆加载后自动选择第一辆车。
 watch(
     () => props.vehicles,
     (vehicles) => {
         if (vehicles.length === 0) {
             selectedVehicleId.value = ''
-            startTimeText.value = ''
-            endTimeText.value = ''
-
             return
         }
 
-        const selectedVehicleStillExists =
-            vehicles.some(
-                (vehicle) => vehicle.vehicleId === selectedVehicleId.value,
+        if (!vehicles.some((vehicle) => vehicle.vehicleId === selectedVehicleId.value)) {
+            selectedVehicleId.value = vehicles[0].vehicleId
+            return
+        }
+
+        if (props.mode === 'vehicle') {
+            applyPreset(TRANSIT_CONFIG.vehicleHistory.defaultQueryRangeMinutes)
+        }
+    },
+    { immediate: true },
+)
+
+// 可回放线路加载后自动选择第一条线路。
+watch(
+    () => props.routes,
+    (routes) => {
+        if (routes.length === 0) {
+            selectedRouteId.value = ''
+            return
+        }
+
+        const selectedRouteStillExists =
+            routes.some(
+                (route) => route.routeId === selectedRouteId.value
             )
 
-        if (!selectedVehicleStillExists) {
-            selectedVehicleId.value = vehicles[0].vehicleId
-
+        if (!selectedRouteStillExists) {
+            selectedRouteId.value = routes[0].routeId
             return
         }
 
-        applyPreset(TRANSIT_CONFIG.vehicleHistory.defaultQueryRangeMinutes)
+        if (props.mode === 'route') {
+            applyPreset(TRANSIT_CONFIG.vehicleHistory.defaultQueryRangeMinutes)
+        }
     },
     {
         immediate: true,
     },
 )
 
-/**
- * 用户切换车辆时重设默认时间范围，
- * 并清除上一辆车的查询结果。
- */
+// 切换回放模式或查询对象后重置默认时间。
 watch(
-    selectedVehicleId,
-    (
-        currentVehicleId,
-        previousVehicleId,
-    ) => {
-        if (!currentVehicleId) {
+    [() => props.mode, selectedVehicleId, selectedRouteId],
+    ([currentMode, currentVehicleId, currentRouteId], previousSelection) => {
+        const currentId = currentMode === 'vehicle' ? currentVehicleId : currentRouteId
+
+        if (!currentId) {
+            startTimeText.value = ''
+            endTimeText.value = ''
             return
         }
 
         applyPreset(TRANSIT_CONFIG.vehicleHistory.defaultQueryRangeMinutes)
 
-        if (previousVehicleId && previousVehicleId !== currentVehicleId) {
+        if (previousSelection) {
             emit('clear-trajectory')
         }
     },
@@ -390,6 +426,24 @@ watch(
                     ×
                 </button>
             </header>
+
+            <div class="trajectory-panel__mode-switch" aria-label="历史轨迹查询模式">
+                <button
+                    type="button"
+                    :class="{ 'is-active': props.mode === 'vehicle' }"
+                    @click="emit('change-mode', 'vehicle')"
+                >
+                    单车回放
+                </button>
+
+                <button
+                    type="button"
+                    :class="{ 'is-active': props.mode === 'route' }"
+                    @click="emit('change-mode', 'route')"
+                >
+                    线路多车
+                </button>
+            </div>
 
             <div
                 v-if="props.availabilityStatus === 'loading'"
@@ -430,50 +484,47 @@ watch(
                 class="trajectory-panel__form"
                 @submit.prevent="handleSubmit"
             >
-                <label class="trajectory-panel__field">
+                <label v-if="props.mode === 'vehicle'" class="trajectory-panel__field">
                     <span class="trajectory-panel__field-label">
                         回放车辆
                     </span>
 
-                    <select
-                        v-model="selectedVehicleId"
-                        class="trajectory-panel__control"
-                    >
-                        <option
-                            v-for="vehicle in props.vehicles"
-                            :key="vehicle.vehicleId"
-                            :value="vehicle.vehicleId"
-                        >
-                            {{ vehicle.routeName }} ·
-                            {{ vehicle.vehicleId }}
+                    <select v-model="selectedVehicleId" class="trajectory-panel__control">
+                        <option v-for="vehicle in props.vehicles" :key="vehicle.vehicleId" :value="vehicle.vehicleId">
+                            {{ vehicle.vehicleId }} · {{ vehicle.routeName }}
                         </option>
                     </select>
                 </label>
 
-                <div
-                    v-if="selectedVehicle"
-                    class="trajectory-panel__availability"
-                >
+                <label v-else class="trajectory-panel__field">
+                    <span class="trajectory-panel__field-label">
+                        回放线路
+                    </span>
+
+                    <select v-model="selectedRouteId" class="trajectory-panel__control">
+                        <option v-for="route in props.routes" :key="route.routeId" :value="route.routeId">
+                            {{ route.routeName }} · {{ route.vehicleCount }}辆车
+                        </option>
+                    </select>
+                </label>
+
+                <div v-if="selectedAvailability" class="trajectory-panel__availability">
                     <span>
-                        可用范围
+                        {{ props.mode === 'vehicle' ? '可用范围' : '全部车辆共同可用范围' }}
                     </span>
 
                     <strong>
-                        {{
-                            formatDisplayTime(
-                                selectedVehicle.firstRecordedAt,
-                            )
-                        }}
+                        {{ formatDisplayTime(selectedAvailability.firstRecordedAt) }}
                         —
-                        {{
-                            formatDisplayTime(
-                                selectedVehicle.lastRecordedAt,
-                            )
-                        }}
+                        {{ formatDisplayTime(selectedAvailability.lastRecordedAt) }}
                     </strong>
 
-                    <small>
-                        共 {{ selectedVehicle.pointCount }} 个历史点
+                    <small v-if="props.mode === 'vehicle'">
+                        共 {{ selectedAvailability.pointCount }} 个历史点
+                    </small>
+
+                    <small v-else-if="selectedRoute">
+                        {{ selectedRoute.vehicleCount }} 辆车，共 {{ selectedRoute.pointCount }} 个历史点
                     </small>
                 </div>
 
@@ -538,14 +589,8 @@ watch(
                     {{ formErrorMessage }}
                 </div>
 
-                <div
-                    v-if="props.trajectoryStatus === 'error'"
-                    class="trajectory-panel__error"
-                >
-                    {{
-                        props.trajectoryErrorMessage ??
-                        '历史轨迹查询失败'
-                    }}
+                <div v-if="activeQueryStatus === 'error'" class="trajectory-panel__error">
+                    {{ activeErrorMessage ?? '历史轨迹查询失败' }}
                 </div>
 
                 <button
@@ -554,7 +599,7 @@ watch(
                     :disabled="queryButtonDisabled"
                 >
                     {{
-                        props.trajectoryStatus === 'loading'
+                        activeQueryStatus === 'loading'
                             ? '正在查询……'
                             : '查询并加载轨迹'
                     }}
@@ -562,73 +607,98 @@ watch(
             </form>
 
             <section
-                v-if="
-                    props.trajectoryStatus === 'success' &&
-                    props.trajectory
-                "
+                v-if="props.mode === 'vehicle' && props.trajectoryStatus === 'success' && props.trajectory"
                 class="trajectory-panel__summary"
             >
                 <h3>
-                    轨迹统计
+                    单车回放统计
                 </h3>
 
                 <dl class="trajectory-panel__metrics">
                     <div>
                         <dt>轨迹点</dt>
-                        <dd>
-                            {{ props.trajectory.pointCount }}
-                        </dd>
+
+                        <dd>{{ props.trajectory.pointCount }}</dd>
                     </div>
 
                     <div>
-                        <dt>时间跨度</dt>
-                        <dd>
-                            {{
-                                formatTrajectoryDuration(
-                                    props.trajectory,
-                                )
-                            }}
-                        </dd>
+                        <dt>回放时长</dt>
+
+                        <dd>{{ formatTrajectoryDuration(props.trajectory.startTime, props.trajectory.endTime) }}</dd>
                     </div>
 
                     <div>
                         <dt>平均速度</dt>
+
+                        <dd>{{ formatSpeed(props.trajectory.averageSpeedMetersPerSecond) }}</dd>
+                    </div>
+
+                    <div>
+                        <dt>最高速度</dt>
+
+                        <dd>{{ formatSpeed(props.trajectory.maximumSpeedMetersPerSecond) }}</dd>
+                    </div>
+                </dl>
+            </section>
+
+            <section
+                v-if="props.mode === 'route' && props.routeReplayStatus === 'success' && props.routeReplay"
+                class="trajectory-panel__summary"
+            >
+                <h3>
+                    线路回放统计
+                </h3>
+
+                <dl class="trajectory-panel__metrics">
+                    <div>
+                        <dt>车辆数量</dt>
+
                         <dd>
-                            {{
-                                formatSpeed(
-                                    props.trajectory
-                                        .averageSpeedMetersPerSecond,
-                                )
-                            }}
+                            {{ props.routeReplay.vehicleCount }}
                         </dd>
                     </div>
 
                     <div>
-                        <dt>最大速度</dt>
+                        <dt>轨迹点</dt>
+
                         <dd>
-                            {{
-                                formatSpeed(
-                                    props.trajectory
-                                        .maximumSpeedMetersPerSecond,
-                                )
-                            }}
+                            {{ props.routeReplay.totalPointCount }}
+                        </dd>
+                    </div>
+
+                    <div>
+                        <dt>共同时间</dt>
+
+                        <dd>
+                            {{ formatTrajectoryDuration(props.routeReplay.startTime, props.routeReplay.endTime) }}
+                        </dd>
+                    </div>
+
+                    <div>
+                        <dt>数据不足</dt>
+
+                        <dd>
+                            {{ props.routeReplay.unavailableVehicleIds.length }}
                         </dd>
                     </div>
                 </dl>
 
+                <div v-if="props.routeReplay.unavailableVehicleIds.length > 0" class="trajectory-panel__error">
+                    以下车辆在当前时间范围内数据不足：
+                    {{ props.routeReplay.unavailableVehicleIds.join('、') }}
+                </div>
+            </section>
+
+            <section v-if="props.trajectoryLoaded" class="trajectory-panel__summary">
                 <div class="trajectory-panel__status-legend" aria-label="车辆运行状态图例">
                     <span v-for="(style, status) in REALTIME_VEHICLE_STATUS_STYLES" :key="status" class="trajectory-panel__status-item">
-                        <i
-                            class="trajectory-panel__status-dot"
-                            :style="{ backgroundColor: style.color }"
-                            aria-hidden="true"
-                        ></i>
+                        <i class="trajectory-panel__status-dot" :style="{ backgroundColor: style.color }" aria-hidden="true"></i>
 
                         {{ style.label }}
                     </span>
                 </div>
 
-                <div v-if="props.trajectoryLoaded" class="trajectory-panel__playback">
+                <div class="trajectory-panel__playback">
                     <div class="trajectory-panel__playback-buttons">
                         <button type="button" class="trajectory-panel__play-button" @click="handlePlayPause">
                             {{ props.isPlaying ? '暂停' : '播放' }}
@@ -649,23 +719,46 @@ watch(
                             :key="speed"
                             type="button"
                             class="trajectory-panel__speed-button"
-                            :class="{ 'is-active': props.playbackSpeed === speed }"
+                            :class="{'is-active': props.playbackSpeed === speed}"
                             @click="emit('change-speed', speed)"
                         >
                             {{ speed }}×
                         </button>
                     </fieldset>
 
-                    <label class="trajectory-panel__tracking">
-                        <input type="checkbox" :checked="props.cameraTrackingEnabled" @change="handleCameraTrackingChange">
+                    <label v-if="props.mode === 'vehicle'" class="trajectory-panel__tracking">
+                        <input
+                            type="checkbox"
+                            :checked="props.cameraTrackingEnabled"
+                            @change="handleCameraTrackingChange"
+                        >
 
-                        <span>
-                            相机跟随历史车辆
+                        镜头跟随车辆
+                    </label>
+
+                    <label v-else class="trajectory-panel__field">
+                        <span class="trajectory-panel__field-label">
+                            镜头跟随
                         </span>
+
+                        <select
+                            :value="props.trackedRouteVehicleId ?? ''"
+                            class="trajectory-panel__control"
+                            @change="handleRouteTrackingChange"
+                        >
+                            <option value="">全局视角</option>
+                            <option
+                                v-for="trajectory in props.routeReplay?.trajectories ?? []"
+                                :key="trajectory.vehicleId"
+                                :value="trajectory.vehicleId"
+                            >
+                                {{ trajectory.vehicleId }}
+                            </option>
+                        </select>
                     </label>
 
                     <p class="trajectory-panel__timeline-tip">
-                        可拖动地图底部时间轴跳转到任意时刻
+                        可拖动地图底部时间轴，{{ props.mode === 'vehicle' ? '车辆' : '线路内车辆' }}会同步跳转到对应时刻
                     </p>
                 </div>
             </section>
@@ -730,6 +823,28 @@ watch(
 .trajectory-panel__close:hover {
     color: #ffffff;
     background: rgba(255, 255, 255, 0.12);
+}
+
+.trajectory-panel__mode-switch {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    padding: 12px 16px 0;
+}
+
+.trajectory-panel__mode-switch button {
+    padding: 8px 10px;
+    color: #a9bdcc;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 6px;
+}
+
+.trajectory-panel__mode-switch button.is-active {
+    color: #ffffff;
+    background: rgba(81, 214, 255, 0.2);
+    border-color: #51d6ff;
 }
 
 .trajectory-panel__message {

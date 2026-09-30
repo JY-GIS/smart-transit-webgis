@@ -20,17 +20,24 @@ import { useNearbyBusStops } from '@/composables/useNearbyBusStops'
 import { useRealtimeVehicles } from '@/composables/useRealtimeVehicles'
 import { useRealtimeVehicleLayer } from '@/composables/useRealtimeVehicleLayer'
 import { useStopArrivals } from '@/composables/useStopArrivals'
-import { useVehicleTrajectory } from '@/composables/useVehicleTrajectory'
+import type {
+    RouteTrajectoryQuery,
+    TrajectoryReplayMode,
+    VehicleTrajectoryQuery,
+} from '@/types/vehicleTrajectory'
 import { useVehicleTrajectoryLayer } from '@/composables/useVehicleTrajectoryLayer'
+import { useVehicleTrajectory } from '@/composables/useVehicleTrajectory'
+import { useRouteTrajectoryReplay } from '@/composables/useRouteTrajectoryReplay'
+import { useRouteTrajectoryReplayLayer } from '@/composables/useRouteTrajectoryReplayLayer'
 
 import type { NearbyQueryCenter, OrderedBusStop } from '@/types/busStop'
-import type { VehicleTrajectoryQuery } from '@/types/vehicleTrajectory'
 
 const cesiumContainer = ref<HTMLElement | null>(null)
 
 const nearbyQueryEnabled = ref(false)
 
 const historyModeEnabled = ref(false)
+const historyReplayMode = ref<TrajectoryReplayMode>('vehicle')
 
 const selectedRouteStops = ref<OrderedBusStop[]>([])
 
@@ -51,6 +58,7 @@ const {
     selectedVehicleId,
     selectedRouteStop,
     selectRealtimeVehicle,
+    selectRouteByFid,
     bindRouteSelection,
     closeRoutePanel,
     closeRouteStopPanel,
@@ -125,6 +133,16 @@ const {
 } = useVehicleTrajectory()
 
 const {
+    availableRoutes: historyAvailableRoutes,
+    routeReplay: vehicleRouteReplay,
+    routeReplayStatus: vehicleRouteReplayStatus,
+    routeReplayErrorMessage: vehicleRouteReplayErrorMessage,
+    queryRouteTrajectories: queryVehicleRouteTrajectories,
+    clearRouteReplay: clearVehicleRouteReplay,
+    cleanup: cleanupVehicleRouteReplayQuery,
+} = useRouteTrajectoryReplay(historyAvailableVehicles)
+
+const {
     trajectoryLoaded,
     isPlaying: trajectoryIsPlaying,
     playbackSpeed: trajectoryPlaybackSpeed,
@@ -138,6 +156,33 @@ const {
     setCameraTracking: setVehicleTrajectoryCameraTracking,
     cleanup: cleanupVehicleTrajectoryLayer,
 } = useVehicleTrajectoryLayer()
+
+const {
+    routeReplayLoaded,
+    isPlaying: routeReplayIsPlaying,
+    playbackSpeed: routeReplayPlaybackSpeed,
+    trackedVehicleId: trackedRouteVehicleId,
+    loadRouteReplayLayer,
+    clearRouteReplayLayer,
+    play: playRouteReplay,
+    pause: pauseRouteReplay,
+    reset: resetRouteReplay,
+    setPlaybackSpeed: setRouteReplayPlaybackSpeed,
+    setTrackedVehicle: setTrackedRouteVehicle,
+    cleanup: cleanupRouteReplayLayer,
+} = useRouteTrajectoryReplayLayer()
+
+const activeTrajectoryLoaded = computed(() => {
+    return historyReplayMode.value === 'vehicle' ? trajectoryLoaded.value : routeReplayLoaded.value
+})
+
+const activeTrajectoryIsPlaying = computed(() => {
+    return historyReplayMode.value === 'vehicle' ? trajectoryIsPlaying.value : routeReplayIsPlaying.value
+})
+
+const activeTrajectoryPlaybackSpeed = computed(() => {
+    return historyReplayMode.value === 'vehicle' ? trajectoryPlaybackSpeed.value : routeReplayPlaybackSpeed.value
+})
 
 // Cesium Viewer 和各基础图层分别管理，页面只按业务顺序调用它们。
 const {
@@ -192,6 +237,7 @@ function handleRetryStopArrivals() {
 // 进入历史轨迹模式
 function openHistoryMode() {
     historyModeEnabled.value = true
+    historyReplayMode.value = 'vehicle'
 
     // 历史模式与当前实时业务面板互斥
     handleCloseRoutePanel()
@@ -203,6 +249,8 @@ function openHistoryMode() {
 
     clearVehicleTrajectory()
     clearTrajectoryLayer()
+    clearVehicleRouteReplay()
+    clearRouteReplayLayer()
 
     void loadVehicleHistoryAvailability()
 }
@@ -216,7 +264,10 @@ function closeHistoryMode() {
      * 再重新显示实时车辆。
      */
     cleanupVehicleTrajectoryLayer(viewer)
+    cleanupRouteReplayLayer(viewer)
     cleanupVehicleTrajectoryQuery()
+    cleanupVehicleRouteReplayQuery()
+    handleCloseRoutePanel()
 
     setRealtimeVehiclesVisible(true)
 
@@ -232,11 +283,27 @@ function toggleHistoryMode() {
     openHistoryMode()
 }
 
-/**
- * 接收历史面板提交的查询参数。
- */
+function handleHistoryReplayModeChange(mode: TrajectoryReplayMode) {
+    if (historyReplayMode.value === mode) {
+        return
+    }
+
+    cleanupVehicleTrajectoryLayer(viewer)
+    cleanupRouteReplayLayer(viewer)
+    clearVehicleTrajectory()
+    clearVehicleRouteReplay()
+    handleCloseRoutePanel()
+    historyReplayMode.value = mode
+}
+
+// 接收历史面板提交的单车查询参数。
 function handleVehicleTrajectoryQuery(query: VehicleTrajectoryQuery) {
     void queryVehicleTrajectory(query)
+}
+
+// 接收历史面板提交的线路查询参数。
+function handleRouteTrajectoryQuery(query: RouteTrajectoryQuery) {
+    void queryVehicleRouteTrajectories(query)
 }
 
 /**
@@ -244,7 +311,46 @@ function handleVehicleTrajectoryQuery(query: VehicleTrajectoryQuery) {
  */
 function handleClearVehicleTrajectory() {
     clearVehicleTrajectory()
+    clearVehicleRouteReplay()
     clearTrajectoryLayer()
+    clearRouteReplayLayer()
+    handleCloseRoutePanel()
+}
+
+function handleTrajectoryPlay() {
+    if (historyReplayMode.value === 'vehicle') {
+        playVehicleTrajectory()
+        return
+    }
+
+    playRouteReplay()
+}
+
+function handleTrajectoryPause() {
+    if (historyReplayMode.value === 'vehicle') {
+        pauseVehicleTrajectory()
+        return
+    }
+
+    pauseRouteReplay()
+}
+
+function handleTrajectoryReset() {
+    if (historyReplayMode.value === 'vehicle') {
+        resetVehicleTrajectory()
+        return
+    }
+
+    resetRouteReplay()
+}
+
+function handleTrajectoryPlaybackSpeed(speed: number) {
+    if (historyReplayMode.value === 'vehicle') {
+        setVehicleTrajectoryPlaybackSpeed(speed)
+        return
+    }
+
+    setRouteReplayPlaybackSpeed(speed)
 }
 
 // 处理异常播报面板发出的车辆选择请求
@@ -389,6 +495,12 @@ watch(selectedRoute, (route) => {
         return
     }
 
+    if (historyModeEnabled.value) {
+        selectedRouteStops.value = []
+        clearRouteStops()
+        return
+    }
+
     const routeId = toRouteId(route.fid)
 
     showRouteStops(routeId)
@@ -412,7 +524,7 @@ watch(
     vehicleTrajectory, (trajectory) => {
         const currentViewer = viewer
 
-        if (!historyModeEnabled.value || !trajectory || !currentViewer || currentViewer.isDestroyed()) {
+        if (historyReplayMode.value !== 'vehicle' || !historyModeEnabled.value || !trajectory || !currentViewer || currentViewer.isDestroyed()) {
             return
         }
 
@@ -420,6 +532,25 @@ watch(
             currentViewer,
             trajectory,
         )
+    },
+)
+
+// 线路查询成功后加载多车轨迹并高亮线路。
+watch(
+    vehicleRouteReplay, (routeReplay) => {
+        const currentViewer = viewer
+
+        if (historyReplayMode.value !== 'route' || !historyModeEnabled.value || !routeReplay || !currentViewer || currentViewer.isDestroyed()) {
+            return
+        }
+
+        selectRouteByFid(
+            routeReplay.routeFid,
+            routeEntitiesByFid,
+            currentViewer.clock.currentTime,
+        )
+
+        void loadRouteReplayLayer(currentViewer, routeReplay)
     },
 )
 
@@ -472,6 +603,8 @@ onBeforeUnmount(() => {
 
     cleanupVehicleTrajectoryQuery()
     cleanupVehicleTrajectoryLayer(viewer)
+    cleanupVehicleRouteReplayQuery()
+    cleanupRouteReplayLayer(viewer)
     cleanupRouteSelection()
     cleanupStopArrivals()
     cleanupNearbyBusStops(viewer)
@@ -574,25 +707,34 @@ onBeforeUnmount(() => {
         </template>
         <VehicleTrajectoryPanel
             v-if="historyModeEnabled"
+            :mode="historyReplayMode"
             :vehicles="historyAvailableVehicles"
+            :routes="historyAvailableRoutes"
             :availability-status="historyAvailabilityStatus"
             :availability-error-message="historyAvailabilityErrorMessage"
             :trajectory="vehicleTrajectory"
             :trajectory-status="vehicleTrajectoryStatus"
             :trajectory-error-message="vehicleTrajectoryErrorMessage"
-            :trajectory-loaded="trajectoryLoaded"
-            :is-playing="trajectoryIsPlaying"
-            :playback-speed="trajectoryPlaybackSpeed"
+            :route-replay="vehicleRouteReplay"
+            :route-replay-status="vehicleRouteReplayStatus"
+            :route-replay-error-message="vehicleRouteReplayErrorMessage"
+            :trajectory-loaded="activeTrajectoryLoaded"
+            :is-playing="activeTrajectoryIsPlaying"
+            :playback-speed="activeTrajectoryPlaybackSpeed"
             :camera-tracking-enabled="trajectoryCameraTrackingEnabled"
-            @query="handleVehicleTrajectoryQuery"
+            :tracked-route-vehicle-id="trackedRouteVehicleId"
+            @change-mode="handleHistoryReplayModeChange"
+            @query-vehicle="handleVehicleTrajectoryQuery"
+            @query-route="handleRouteTrajectoryQuery"
             @close="closeHistoryMode"
             @retry-availability="loadVehicleHistoryAvailability"
             @clear-trajectory="handleClearVehicleTrajectory"
-            @play="playVehicleTrajectory"
-            @pause="pauseVehicleTrajectory"
-            @reset="resetVehicleTrajectory"
-            @change-speed="setVehicleTrajectoryPlaybackSpeed"
+            @play="handleTrajectoryPlay"
+            @pause="handleTrajectoryPause"
+            @reset="handleTrajectoryReset"
+            @change-speed="handleTrajectoryPlaybackSpeed"
             @change-camera-tracking="setVehicleTrajectoryCameraTracking"
+            @change-route-tracking="setTrackedRouteVehicle"
         />
     </div>
 </template>

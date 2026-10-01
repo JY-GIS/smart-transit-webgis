@@ -396,13 +396,19 @@ function handleTrajectoryPause() {
     pauseNetworkReplay()
 }
 
+// 将当前模式的历史回放重置到起点
 function handleTrajectoryReset() {
     if (historyReplayMode.value === 'vehicle') {
         resetVehicleTrajectory()
         return
     }
 
-    resetRouteReplay()
+    if (historyReplayMode.value === 'route') {
+        resetRouteReplay()
+        return
+    }
+
+    resetNetworkReplay()
 }
 
 // 修改当前模式的历史回放倍速

@@ -4,6 +4,8 @@ import { computed, ref, watch } from 'vue'
 import { TRANSIT_CONFIG } from '@/config/transit.config'
 import { REALTIME_VEHICLE_STATUS_STYLES } from '@/config/realtimeVehicleStatus.config'
 import type {
+    NetworkTrajectoryQuery,
+    NetworkTrajectoryReplay,
     RouteTrajectoryQuery,
     RouteTrajectoryReplay,
     TrajectoryReplayMode,
@@ -30,11 +32,16 @@ const props = defineProps<{
     routeReplayStatus: VehicleHistoryQueryStatus
     routeReplayErrorMessage: string | null
 
+    networkReplay: NetworkTrajectoryReplay | null
+    networkReplayStatus: VehicleHistoryQueryStatus
+    networkReplayErrorMessage: string | null
+
     trajectoryLoaded: boolean
     isPlaying: boolean
     playbackSpeed: number
     cameraTrackingEnabled: boolean
     trackedRouteVehicleId: string | null
+    trackedNetworkVehicleId: string | null
 }>()
 
 const emit = defineEmits<{
@@ -42,6 +49,7 @@ const emit = defineEmits<{
     'change-mode': [mode: TrajectoryReplayMode]
     'query-vehicle': [query: VehicleTrajectoryQuery]
     'query-route': [query: RouteTrajectoryQuery]
+    'query-network': [query: NetworkTrajectoryQuery]
     'retry-availability': []
     'clear-trajectory': []
 
@@ -52,6 +60,7 @@ const emit = defineEmits<{
     'change-speed': [speed: number]
     'change-camera-tracking': [enabled: boolean]
     'change-route-tracking': [vehicleId: string | null]
+    'change-network-tracking': [vehicleId: string | null]
 }>()
 
 const selectedVehicleId = ref('')
@@ -82,16 +91,53 @@ const selectedRoute =
         },
     )
 
+const networkAvailability = computed(() => {
+    const firstVehicle = props.vehicles[0]
+
+    if (!firstVehicle) {
+        return null
+    }
+
+    let firstRecordedAt = firstVehicle.firstRecordedAt
+    let lastRecordedAt = firstVehicle.lastRecordedAt
+    let pointCount = 0
+
+    for (const vehicle of props.vehicles) {
+        if (Date.parse(vehicle.firstRecordedAt) < Date.parse(firstRecordedAt)) {
+            firstRecordedAt = vehicle.firstRecordedAt
+        }
+
+        if (Date.parse(vehicle.lastRecordedAt) > Date.parse(lastRecordedAt)) {
+            lastRecordedAt = vehicle.lastRecordedAt
+        }
+
+        pointCount += vehicle.pointCount
+    }
+
+    return {
+        firstRecordedAt,
+        lastRecordedAt,
+        pointCount,
+    }
+})
+
+// 返回当前回放模式使用的历史数据范围
 const selectedAvailability = computed(() => {
-    return props.mode === 'vehicle' ? selectedVehicle.value : selectedRoute.value
+    if (props.mode === 'vehicle') return selectedVehicle.value
+    if (props.mode === 'route') return selectedRoute.value
+    return networkAvailability.value
 })
-
+// 返回当前回放模式的查询状态
 const activeQueryStatus = computed(() => {
-    return props.mode === 'vehicle' ? props.trajectoryStatus : props.routeReplayStatus
+    if (props.mode === 'vehicle') return props.trajectoryStatus
+    if (props.mode === 'route') return props.routeReplayStatus
+    return props.networkReplayStatus
 })
-
+// 返回当前回放模式的查询错误
 const activeErrorMessage = computed(() => {
-    return props.mode === 'vehicle' ? props.trajectoryErrorMessage : props.routeReplayErrorMessage
+    if (props.mode === 'vehicle') return props.trajectoryErrorMessage
+    if (props.mode === 'route') return props.routeReplayErrorMessage
+    return props.networkReplayErrorMessage
 })
 
 const minimumTimeText = computed(() => {
@@ -250,7 +296,9 @@ function handleSubmit() {
     const availability = selectedAvailability.value
 
     if (!availability) {
-        formErrorMessage.value = props.mode === 'vehicle' ? '请选择需要回放的车辆' : '请选择需要回放的线路'
+        if (props.mode === 'vehicle') formErrorMessage.value = '请选择需要回放的车辆'
+        else if (props.mode === 'route') formErrorMessage.value = '请选择需要回放的线路' 
+        else formErrorMessage.value = '当前没有可回放的全网历史数据'
         return
     }
 
@@ -275,9 +323,13 @@ function handleSubmit() {
         startTime.getTime() < firstRecordedAt.getTime() ||
         endTime.getTime() > lastRecordedAt.getTime()
     ) {
-        formErrorMessage.value = props.mode === 'vehicle'
-            ? '查询时间必须位于车辆已有历史数据范围内'
-            : '查询时间必须位于全部车辆的共同历史范围内'
+        if (props.mode === 'vehicle') {
+            formErrorMessage.value = '查询时间必须位于车辆已有历史数据范围内'
+        } else if (props.mode === 'route') {
+            formErrorMessage.value = '查询时间必须位于全部车辆的共同历史范围内'
+        } else {
+            formErrorMessage.value = '查询时间必须位于全网历史数据范围内'
+        }
         return
     }
 
@@ -300,6 +352,11 @@ function handleSubmit() {
     } else if (props.mode === 'route' && selectedRoute.value) {
         emit('query-route', {
             routeId: selectedRoute.value.routeId,
+            startTime,
+            endTime,
+        })
+    } else if (props.mode === 'network') {
+        emit('query-network', {
             startTime,
             endTime,
         })
@@ -327,6 +384,13 @@ function handleCameraTrackingChange(event: Event) {
 function handleRouteTrackingChange(event: Event) {
     if (event.target instanceof HTMLSelectElement) {
         emit('change-route-tracking', event.target.value || null)
+    }
+}
+
+// 读取全网回放需要跟随的车辆
+function handleNetworkTrackingChange(event: Event) {
+    if (event.target instanceof HTMLSelectElement) {
+        emit('change-network-tracking', event.target.value || null)
     }
 }
 
@@ -381,11 +445,24 @@ watch(
 
 // 切换回放模式或查询对象后重置默认时间。
 watch(
-    [() => props.mode, selectedVehicleId, selectedRouteId],
-    ([currentMode, currentVehicleId, currentRouteId], previousSelection) => {
-        const currentId = currentMode === 'vehicle' ? currentVehicleId : currentRouteId
+    [() => props.mode, selectedVehicleId, selectedRouteId, networkAvailability],
+    (
+        [
+            currentMode,
+            currentVehicleId,
+            currentRouteId,
+            currentNetworkAvailability,
+        ],
+        previousSelection,
+    ) => {
+        const hasSelection =
+            currentMode === 'vehicle'
+                ? Boolean(currentVehicleId)
+                : currentMode === 'route'
+                    ? Boolean(currentRouteId)
+                    : currentNetworkAvailability !== null
 
-        if (!currentId) {
+        if (!hasSelection) {
             startTimeText.value = ''
             endTimeText.value = ''
             return
@@ -443,6 +520,14 @@ watch(
                 >
                     线路多车
                 </button>
+
+                <button
+                    type="button"
+                    :class="{ 'is-active': props.mode === 'network' }"
+                    @click="emit('change-mode', 'network')"
+                >
+                    全网回放
+                </button>
             </div>
 
             <div
@@ -496,7 +581,7 @@ watch(
                     </select>
                 </label>
 
-                <label v-else class="trajectory-panel__field">
+                <label v-else-if="props.mode === 'route'" class="trajectory-panel__field">
                     <span class="trajectory-panel__field-label">
                         回放线路
                     </span>
@@ -509,8 +594,16 @@ watch(
                 </label>
 
                 <div v-if="selectedAvailability" class="trajectory-panel__availability">
-                    <span>
-                        {{ props.mode === 'vehicle' ? '可用范围' : '全部车辆共同可用范围' }}
+                    <span v-if="props.mode === 'vehicle'">
+                        可用范围
+                    </span>
+
+                    <span v-else-if="props.mode === 'route'">
+                        全部车辆共同可用范围
+                    </span>
+
+                    <span v-else>
+                        全网历史数据覆盖范围
                     </span>
 
                     <strong>
@@ -523,8 +616,15 @@ watch(
                         共 {{ selectedAvailability.pointCount }} 个历史点
                     </small>
 
-                    <small v-else-if="selectedRoute">
-                        {{ selectedRoute.vehicleCount }} 辆车，共 {{ selectedRoute.pointCount }} 个历史点
+                    <small v-else-if="props.mode === 'route' && selectedRoute">
+                        {{ selectedRoute.vehicleCount }} 辆车，共
+                        {{ selectedRoute.pointCount }} 个历史点
+                    </small>
+
+                    <small v-else>
+                        {{ props.routes.length }} 条线路，
+                        {{ props.vehicles.length }} 辆车，共
+                        {{ selectedAvailability.pointCount }} 个历史点
                     </small>
                 </div>
 
@@ -689,6 +789,57 @@ watch(
                 </div>
             </section>
 
+            <section
+                v-if="props.mode === 'network' && props.networkReplayStatus === 'success' && props.networkReplay"
+                class="trajectory-panel__summary"
+            >
+                <h3>
+                    全网回放统计
+                </h3>
+
+                <dl class="trajectory-panel__metrics">
+                    <div>
+                        <dt>线路数量</dt>
+
+                        <dd>
+                            {{ props.networkReplay.routeCount }}
+                        </dd>
+                    </div>
+
+                    <div>
+                        <dt>车辆数量</dt>
+
+                        <dd>
+                            {{ props.networkReplay.vehicleCount }}
+                        </dd>
+                    </div>
+
+                    <div>
+                        <dt>轨迹点</dt>
+
+                        <dd>
+                            {{ props.networkReplay.totalPointCount }}
+                        </dd>
+                    </div>
+
+                    <div>
+                        <dt>数据不足</dt>
+
+                        <dd>
+                            {{ props.networkReplay.unavailableVehicleIds.length }}
+                        </dd>
+                    </div>
+                </dl>
+
+                <div
+                    v-if="props.networkReplay.unavailableVehicleIds.length > 0"
+                    class="trajectory-panel__error"
+                >
+                    以下车辆在当前时间范围内数据不足：
+                    {{ props.networkReplay.unavailableVehicleIds.join('、') }}
+                </div>
+            </section>
+
             <section v-if="props.trajectoryLoaded" class="trajectory-panel__summary">
                 <div class="trajectory-panel__status-legend" aria-label="车辆运行状态图例">
                     <span v-for="(style, status) in REALTIME_VEHICLE_STATUS_STYLES" :key="status" class="trajectory-panel__status-item">
@@ -736,7 +887,7 @@ watch(
                         镜头跟随车辆
                     </label>
 
-                    <label v-else class="trajectory-panel__field">
+                    <label v-else-if="props.mode === 'route'" class="trajectory-panel__field">
                         <span class="trajectory-panel__field-label">
                             镜头跟随
                         </span>
@@ -757,8 +908,40 @@ watch(
                         </select>
                     </label>
 
+                    <label v-else class="trajectory-panel__field">
+                        <span class="trajectory-panel__field-label">
+                            镜头跟随
+                        </span>
+
+                        <select
+                            :value="props.trackedNetworkVehicleId ?? ''"
+                            class="trajectory-panel__control"
+                            @change="handleNetworkTrackingChange"
+                        >
+                            <option value="">
+                                全网视角
+                            </option>
+
+                            <option
+                                v-for="replayVehicle in props.networkReplay?.trajectories ?? []"
+                                :key="replayVehicle.trajectory.vehicleId"
+                                :value="replayVehicle.trajectory.vehicleId"
+                            >
+                                {{ replayVehicle.routeName }} ·
+                                {{ replayVehicle.trajectory.vehicleId }}
+                            </option>
+                        </select>
+                    </label>
+
                     <p class="trajectory-panel__timeline-tip">
-                        可拖动地图底部时间轴，{{ props.mode === 'vehicle' ? '车辆' : '线路内车辆' }}会同步跳转到对应时刻
+                        可拖动地图底部时间轴，
+                        {{
+                            props.mode === 'vehicle'
+                                ? '车辆'
+                                : props.mode === 'route'
+                                    ? '线路内车辆'
+                                    : '全网车辆'
+                        }}会同步跳转到对应时刻
                     </p>
                 </div>
             </section>
@@ -827,7 +1010,7 @@ watch(
 
 .trajectory-panel__mode-switch {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(3, 1fr);
     gap: 8px;
     padding: 12px 16px 0;
 }

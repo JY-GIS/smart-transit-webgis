@@ -57,6 +57,9 @@ public class VehicleSimulationTask {
 
     private static final double DISTANCE_EPSILON_METERS = 1e-6;
 
+    // 历史数据每小时清理一次
+    private static final Duration HISTORY_CLEANUP_INTERVAL = Duration.ofHours(1);
+
     private final VehicleSimulationProperties properties;
 
     private final VehicleSimulationService vehicleSimulationService;
@@ -73,7 +76,7 @@ public class VehicleSimulationTask {
     // 查询当前全部车辆的完整公开快照
     private final VehicleQueryService vehicleQueryService;
 
-    // 筛选并批量保存车辆历史快照
+    // 保存并定期清理车辆历史位置
     private final VehicleHistoryService vehicleHistoryService;
 
     /**
@@ -97,6 +100,9 @@ public class VehicleSimulationTask {
 
     // 下一次允许写入历史记录的墙上时间
     private Instant nextHistorySampleAt;
+
+    // 下一次允许清理过期历史记录的时间
+    private Instant nextHistoryCleanupAt;
 
     /**
      * 周期推进全部配置线路中的模拟车辆。
@@ -209,6 +215,8 @@ public class VehicleSimulationTask {
             recordVehicleHistoryIfDue(now);
         }
 
+        cleanupVehicleHistoryIfDue(now);
+
         /*
          * publishDuration：本轮从收集快照到交给消息系统完成的耗时。
          * publishInterval：两次成功发布完成之间的真实间隔。
@@ -293,6 +301,46 @@ public class VehicleSimulationTask {
 
         } catch (RuntimeException exception) {
             log.error("车辆历史位置采样失败，sampledAt={}", now, exception);
+        }
+    }
+
+    /**
+     * 到达清理时间时，删除超过保留天数的历史位置。
+     */
+    private void cleanupVehicleHistoryIfDue(Instant now) {
+        if (!historyProperties.isEnabled()) {
+            return;
+        }
+
+        if (nextHistoryCleanupAt != null && now.isBefore(nextHistoryCleanupAt)) {
+            return;
+        }
+
+        /*
+         * 先推进下一次清理时间。
+         * 即使本次数据库操作失败，也不会每秒重复执行删除。
+         */
+        nextHistoryCleanupAt = now.plus(HISTORY_CLEANUP_INTERVAL);
+
+        try {
+            int deletedCount = vehicleHistoryService.deleteExpiredHistory(now);
+
+            log.debug(
+                    "车辆历史位置清理完成，cleanedAt={}，deletedCount={}",
+                    now,
+                    deletedCount
+            );
+
+        } catch (RuntimeException exception) {
+            /*
+             * 清理失败不能中断车辆模拟。
+             * 下一次清理时间到达后会再次尝试。
+             */
+            log.error(
+                    "车辆历史位置清理失败，cleanedAt={}",
+                    now,
+                    exception
+            );
         }
     }
 

@@ -25,6 +25,13 @@ public interface VehicleHistoryMapper {
     );
 
     /**
+     * 删除指定时间之前的历史位置。
+     */
+    int deleteBefore(
+            @Param("cutoffTime") Instant cutoffTime
+    );
+
+    /**
      * 查询当前有哪些车辆拥有历史记录。
      * 返回内容包括：
      * - 车辆编号；- 所属线路；- 最早和最晚记录时间；- 历史点数量。
@@ -45,6 +52,14 @@ public interface VehicleHistoryMapper {
      */
     List<RouteVehicleTrajectoryPoint> findRouteTrajectoryPoints(
             @Param("routeId") String routeId,
+            @Param("startTime") Instant startTime,
+            @Param("endTime") Instant endTime
+    );
+
+    /**
+     * 查询全部车辆在指定时间范围内的历史位置。
+     */
+    List<RouteVehicleTrajectoryPoint> findAllTrajectoryPoints(
             @Param("startTime") Instant startTime,
             @Param("endTime") Instant endTime
     );

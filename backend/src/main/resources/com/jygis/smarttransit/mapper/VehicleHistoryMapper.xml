@@ -62,6 +62,13 @@
     </insert>
 
     <!--
+        删除保留时间之外的车辆历史位置。
+    -->
+    <delete id="deleteBefore">
+        delete from public.vehicle_position_history where recorded_at &lt; #{cutoffTime}
+    </delete>
+
+    <!--
         查询拥有历史记录的车辆。
 
         每辆车最终只返回一行：
@@ -182,6 +189,37 @@
         from public.vehicle_position_history
 
         where route_id = #{routeId} and recorded_at &gt;= #{startTime} and recorded_at &lt;= #{endTime}
+
+        order by
+            vehicle_id,
+            recorded_at
+
+    </select>
+
+    <!--
+        查询全部车辆在指定时间范围内的历史位置。
+    -->
+    <select
+            id="findAllTrajectoryPoints"
+            resultType="com.jygis.smarttransit.pojo.RouteVehicleTrajectoryPoint">
+
+        select
+            vehicle_id,
+            recorded_at,
+
+            ST_X(geom) as longitude,
+            ST_Y(geom) as latitude,
+
+            distance_meters,
+            total_distance_meters,
+            route_progress_percent,
+            speed_meters_per_second,
+            motion_status,
+            operational_status
+
+        from public.vehicle_position_history
+
+        where recorded_at &gt;= #{startTime} and recorded_at &lt;= #{endTime}
 
         order by
             vehicle_id,

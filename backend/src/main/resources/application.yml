@@ -31,10 +31,6 @@ transit:
     # 单辆车一次最多查询 120 分钟
     maximum-query-range-minutes: 120
 
-    # 记录 M103 的 3 辆模拟车辆
-    tracked-route-ids:
-      - route_000185
-
   simulation:
     enabled: true
 

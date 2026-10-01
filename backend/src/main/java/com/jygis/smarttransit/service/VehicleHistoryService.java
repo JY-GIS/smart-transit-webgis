@@ -4,6 +4,7 @@ import com.jygis.smarttransit.pojo.VehiclePositionSnapshot;
 import com.jygis.smarttransit.pojo.VehicleHistoryAvailability;
 import com.jygis.smarttransit.pojo.VehicleTrajectory;
 import com.jygis.smarttransit.pojo.RouteTrajectoryReplay;
+import com.jygis.smarttransit.pojo.NetworkTrajectoryReplay;
 
 import java.time.Instant;
 import java.util.List;
@@ -28,6 +29,14 @@ public interface VehicleHistoryService {
     );
 
     /**
+     * 删除超过配置保留天数的历史位置。
+     *
+     * @param now 当前清理时间
+     * @return 实际删除的历史记录数量
+     */
+    int deleteExpiredHistory(Instant now);
+
+    /**
      * 查询当前拥有历史数据、可以进行回放的车辆。
      */
     List<VehicleHistoryAvailability> findAvailability();
@@ -46,6 +55,14 @@ public interface VehicleHistoryService {
      */
     RouteTrajectoryReplay findRouteTrajectories(
             String routeId,
+            Instant startTime,
+            Instant endTime
+    );
+
+    /**
+     * 查询全部车辆的同步回放数据。
+     */
+    NetworkTrajectoryReplay findNetworkTrajectories(
             Instant startTime,
             Instant endTime
     );

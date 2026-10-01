@@ -9,6 +9,8 @@ import com.jygis.smarttransit.pojo.VehicleTrajectory;
 import com.jygis.smarttransit.pojo.VehicleTrajectoryPoint;
 import com.jygis.smarttransit.pojo.RouteTrajectoryReplay;
 import com.jygis.smarttransit.pojo.RouteVehicleTrajectoryPoint;
+import com.jygis.smarttransit.pojo.NetworkTrajectoryReplay;
+import com.jygis.smarttransit.pojo.NetworkVehicleTrajectory;
 import com.jygis.smarttransit.service.VehicleHistoryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -18,7 +20,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -34,7 +35,7 @@ public class VehicleHistoryServiceImpl implements VehicleHistoryService {
     private final VehicleHistoryMapper vehicleHistoryMapper;
 
     /**
-     * 保存当前批次中需要记录的车辆。
+     * 保存当前批次中的全部车辆历史位置。
      */
     @Override
     @Transactional  // 声明事务
@@ -56,23 +57,13 @@ public class VehicleHistoryServiceImpl implements VehicleHistoryService {
         }
 
         /*
-         * Set：这里只关心“某个routeId是否在白名单中”，不关心配置里的原始顺序。
-         * Set.contains通常适合成员判断。
-         */
-        Set<String> trackedRouteIds = Set.copyOf(historyProperties.getTrackedRouteIds());
-
-        /*
-         * 先筛选受监控线路，再转换数据库记录。
+         * findCurrentPositions已经返回当前全部模拟车辆，
+         * 历史采样开启后统一保存整批快照。
          */
         List<VehiclePositionHistoryRecord> records =
                 snapshots
                         .stream()
-                        .filter(snapshot ->
-                                trackedRouteIds.contains(snapshot.routeId())
-                        )
-                        .map(snapshot ->
-                                VehiclePositionHistoryRecord.fromSnapshot(snapshot, sampledAt)
-                        )
+                        .map(snapshot -> VehiclePositionHistoryRecord.fromSnapshot(snapshot, sampledAt))
                         .toList();
 
         if (records.isEmpty()) {
@@ -80,6 +71,19 @@ public class VehicleHistoryServiceImpl implements VehicleHistoryService {
         }
 
         return vehicleHistoryMapper.insertBatch(records);
+    }
+
+    /**
+     * 根据配置的保留天数删除过期历史位置。
+     */
+    @Override
+    @Transactional
+    public int deleteExpiredHistory(Instant now) {
+        Objects.requireNonNull(now, "now 不能为空");
+
+        Instant cutoffTime = now.minus(Duration.ofDays(historyProperties.getRetentionDays()));
+
+        return vehicleHistoryMapper.deleteBefore(cutoffTime);
     }
 
     /**
@@ -221,6 +225,102 @@ public class VehicleHistoryServiceImpl implements VehicleHistoryService {
                 routeInformation.getRouteName(),
                 playbackStartTime,
                 playbackEndTime,
+                trajectories.size(),
+                totalPointCount,
+                trajectories,
+                unavailableVehicleIds
+        );
+    }
+
+    /**
+     * 查询并组装全部车辆的同步回放数据。
+     */
+    @Override
+    public NetworkTrajectoryReplay findNetworkTrajectories(
+            Instant startTime,
+            Instant endTime
+    ) {
+        validateQueryRange(startTime, endTime);
+
+        List<VehicleHistoryAvailability> availableVehicles =
+                vehicleHistoryMapper.findAvailability();
+
+        if (availableVehicles.isEmpty()) {
+            throw new IllegalStateException("当前没有可以回放的历史车辆");
+        }
+
+        Map<String, List<VehicleTrajectoryPoint>>
+                pointsByVehicle = new LinkedHashMap<>();
+
+        for (VehicleHistoryAvailability vehicle : availableVehicles) {
+            pointsByVehicle.put(
+                    vehicle.getVehicleId(),
+                    new ArrayList<>()
+            );
+        }
+
+        List<RouteVehicleTrajectoryPoint> queriedPoints =
+                vehicleHistoryMapper.findAllTrajectoryPoints(startTime, endTime);
+
+        for (RouteVehicleTrajectoryPoint queriedPoint : queriedPoints) {
+            pointsByVehicle
+                    .get(queriedPoint.getVehicleId())
+                    .add(toVehicleTrajectoryPoint(queriedPoint));
+        }
+
+        List<NetworkVehicleTrajectory> trajectories = new ArrayList<>();
+
+        List<String> unavailableVehicleIds = new ArrayList<>();
+
+        for (VehicleHistoryAvailability vehicle : availableVehicles) {
+            String vehicleId = vehicle.getVehicleId();
+
+            List<VehicleTrajectoryPoint> vehiclePoints =
+                    pointsByVehicle.get(vehicleId);
+
+            if (vehiclePoints.size() < 2) {
+                unavailableVehicleIds.add(vehicleId);
+                continue;
+            }
+
+            VehicleTrajectory trajectory =
+                    buildVehicleTrajectory(
+                            vehicleId,
+                            vehiclePoints
+                    );
+
+            trajectories.add(
+                    new NetworkVehicleTrajectory(
+                            vehicle.getRouteId(),
+                            vehicle.getRouteFid(),
+                            vehicle.getRouteName(),
+                            trajectory
+                    )
+            );
+        }
+
+        if (trajectories.isEmpty()) {
+            throw new IllegalStateException("指定时间范围内没有可以回放的全网轨迹");
+        }
+
+        int routeCount =
+                (int) trajectories
+                        .stream()
+                        .map(NetworkVehicleTrajectory::routeId)
+                        .distinct()
+                        .count();
+
+        int totalPointCount =
+                trajectories
+                        .stream()
+                        .map(NetworkVehicleTrajectory::trajectory)
+                        .mapToInt(VehicleTrajectory::pointCount)
+                        .sum();
+
+        return new NetworkTrajectoryReplay(
+                startTime,
+                endTime,
+                routeCount,
                 trajectories.size(),
                 totalPointCount,
                 trajectories,

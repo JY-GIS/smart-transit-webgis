@@ -15,6 +15,22 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+  geoserver:
+    image: docker.osgeo.org/geoserver:2.28.2
+    restart: unless-stopped
+    environment:
+      GEOSERVER_ADMIN_USER: admin
+      GEOSERVER_ADMIN_PASSWORD: ${GEOSERVER_ADMIN_PASSWORD:?Set GEOSERVER_ADMIN_PASSWORD in .env}
+      SKIP_DEMO_DATA: "true"
+      RUN_UNPRIVILEGED: "true"
+    ports:
+      - "127.0.0.1:8081:8080"
+    volumes:
+      - smart_transit_geoserver_data:/opt/geoserver_data
+    depends_on:
+      postgis:
+        condition: service_healthy
 
 volumes:
   smart_transit_postgis_data:
+  smart_transit_geoserver_data:

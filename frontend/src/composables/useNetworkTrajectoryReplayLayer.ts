@@ -296,7 +296,7 @@ export function useNetworkTrajectoryReplayLayer() {
                 backgroundColor: Cesium.Color.fromCssColorString('#0b1728').withAlpha(0.85),
                 backgroundPadding: new Cesium.Cartesian2(8, 5),
                 pixelOffset: new Cesium.Cartesian2(0, -25),
-                distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 8000),
+                distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 3000),
                 disableDepthTestDistance: Number.POSITIVE_INFINITY,
             },
         })

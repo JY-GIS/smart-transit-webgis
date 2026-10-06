@@ -16,6 +16,7 @@ import { useBusStopLayer } from '@/composables/useBusStopLayer'
 import { useCesiumViewer } from '@/composables/useCesiumViewer'
 import { useWhiteModelLayer } from '@/composables/useWhiteModelLayer'
 import { useFutianBoundaryLayer } from '@/composables/useFutianBoundaryLayer'
+import { useCityRoadWmtsLayer } from '@/composables/useCityRoadWmtsLayer'
 import { useNearbyBusStops } from '@/composables/useNearbyBusStops'
 import { useRealtimeVehicles } from '@/composables/useRealtimeVehicles'
 import { useRealtimeVehicleLayer } from '@/composables/useRealtimeVehicleLayer'
@@ -54,6 +55,11 @@ const {
     busRoutesVisible,
     setBusRoutesVisible,
 } = useBusRouteLayer()
+
+const {
+    loadCityRoadWmts,
+    cleanupCityRoadWmts,
+} = useCityRoadWmtsLayer()
 
 // 线路选择 composable 负责 Cesium 选中事件、属性读取、面板状态和高亮恢复。
 const {
@@ -680,7 +686,6 @@ watch(
     },
 )
 
-// 页面挂载后按“Viewer → 白膜 → 行政区 → 公交线路 → 点击交互”的顺序初始化。
 onMounted(async () => { 
     // WebSocket 与 Cesium 图层初始化相互独立
     connectRealtimeVehicles()
@@ -691,6 +696,8 @@ onMounted(async () => {
         viewer = await createViewer(cesiumContainer.value)
 
         updateRealtimeVehicleLayer(viewer, realtimeVehicles.value)
+
+        loadCityRoadWmts(viewer)  // 城市静态路网使用 GeoServer WMTS
 
         await loadWhiteModel(viewer)
 
@@ -719,7 +726,7 @@ onMounted(async () => {
         })
 
     } catch (error) { 
-        console.error('Re:Earth Buildings 初始化失败：', error) 
+        console.error('地图初始化失败：', error) 
     }
 })
 
@@ -744,6 +751,7 @@ onBeforeUnmount(() => {
 
     cleanupFutianBoundary(viewer)
     cleanupWhiteModel(viewer)
+    cleanupCityRoadWmts(viewer)
     destroyViewer()
 
     viewer = undefined

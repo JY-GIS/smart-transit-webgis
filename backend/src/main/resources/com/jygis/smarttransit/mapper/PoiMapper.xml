@@ -43,4 +43,37 @@
         order by distance_meters, p.poi_id
     </select>
 
+    <!--
+        在数据库中完成附近 POI 分类统计。
+        无论范围内是否存在 POI，这条查询都会返回一行结果。
+    -->
+    <select id="summarizeNearby" resultType="com.jygis.smarttransit.pojo.PoiCategorySummary">
+        with query_point as (
+            select
+                ST_SetSRID(
+                    ST_MakePoint(
+                        cast(#{longitude} as double precision),
+                        cast(#{latitude} as double precision)
+                    ),
+                    4326
+                )::geography as point_geog
+        )
+
+        select
+            count(*) as total_count,
+            count(*) filter (where p.poi_type = 'medical') as medical_count,
+            count(*) filter (where p.poi_type = 'education') as education_count,
+            count(*) filter (where p.poi_type = 'shopping') as shopping_count,
+            count(*) filter (where p.poi_type = 'dining') as dining_count,
+            count(*) filter (where p.poi_type = 'leisure') as leisure_count,
+            count(*) filter (where p.poi_type = 'transport') as transport_count
+        from public.pois p
+        cross join query_point
+        where ST_DWithin(
+            p.geom::geography,
+            query_point.point_geog,
+            cast(#{radiusMeters} as double precision)
+        )
+    </select>
+
 </mapper>

@@ -39,7 +39,7 @@ export function useCityRoadWmtsLayer() {
 
         imageryLayer = viewer.imageryLayers.addImageryProvider(provider)
 
-        console.info('城市道路 WMTS 图层加载完成')
+        console.info('城市道路 WMTS 图层已添加')
 
         return imageryLayer
     }

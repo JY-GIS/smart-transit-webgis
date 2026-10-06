@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.jygis.smarttransit.mapper.PoiMapper">
+
+    <!--
+        将前端经纬度转换为 EPSG:4326 空间点，再转换为 geography，
+        保证查询半径和返回距离都使用“米”作为单位。
+    -->
+    <select id="findNearby" resultType="com.jygis.smarttransit.pojo.NearbyPoi">
+        with query_point as (
+            select
+                ST_SetSRID(
+                    ST_MakePoint(
+                        cast(#{longitude} as double precision),
+                        cast(#{latitude} as double precision)
+                    ),
+                    4326
+                )::geography as point_geog
+        )
+
+        select
+            p.poi_id,
+            p.name,
+            p.source_category,
+            p.source_subcategory,
+            p.poi_type,
+            ST_X(p.geom) as longitude,
+            ST_Y(p.geom) as latitude,
+            ST_Distance(
+                p.geom::geography,
+                query_point.point_geog
+            ) as distance_meters
+        from public.pois p
+        cross join query_point
+        where ST_DWithin(
+            p.geom::geography,
+            query_point.point_geog,
+            cast(#{radiusMeters} as double precision)
+        )
+        order by distance_meters, p.poi_id
+    </select>
+
+</mapper>

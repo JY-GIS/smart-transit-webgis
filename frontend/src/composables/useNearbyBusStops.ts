@@ -135,6 +135,16 @@ export function useNearbyBusStops() {
 
         clearLayerEntities()
 
+        // 把emoji绘制成彩色Canvas，再交给Billboard显示
+        const centerIconImage = Cesium.writeTextToCanvas('🚩', {
+            font: '28px sans-serif',
+            padding: 2,
+        })
+        const stopIconImage = Cesium.writeTextToCanvas('🚏', {
+            font: '20px sans-serif',
+            padding: 2,
+        })
+
         const centerPosition = Cesium.Cartesian3.fromDegrees(
             center.longitude,
             center.latitude,
@@ -145,11 +155,10 @@ export function useNearbyBusStops() {
             id: 'nearby-query-center',
             name: '附近公交站查询中心',
             position: centerPosition,
-            point: {
-                pixelSize: 14,
-                color: Cesium.Color.ORANGE,
-                outlineColor: Cesium.Color.WHITE,
-                outlineWidth: 3,
+            billboard: {
+                image: centerIconImage,
+                verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                pixelOffset: new Cesium.Cartesian2(0, -4),
                 heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
                 disableDepthTestDistance: Number.POSITIVE_INFINITY,
             },
@@ -200,11 +209,10 @@ export function useNearbyBusStops() {
                     distanceMeters: stop.distanceMeters,
                 },
                 position: stopPosition,
-                point: {
-                    pixelSize: 18,
-                    color: Cesium.Color.YELLOW,
-                    outlineColor: Cesium.Color.RED,
-                    outlineWidth: 3,
+                billboard: {
+                    image: stopIconImage,
+                    verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                    pixelOffset: new Cesium.Cartesian2(0, -2),
                     heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
                     disableDepthTestDistance: Number.POSITIVE_INFINITY,
                 },

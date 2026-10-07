@@ -16,6 +16,29 @@ export const TRANSIT_CONFIG = {
         maxRadiusMeters: 5000,
     },
 
+    // POI 服务范围分析配置。
+    poiAnalysis: {
+        summaryUrl: '/api/pois/summary',
+
+        // 指定范围内的完整POI点位接口。
+        nearbyUrl: '/api/pois/nearby',
+
+        // 默认分析公交站点周边500米。
+        defaultRadiusMeters: 500,
+
+        // 0米只用于前端清空当前结果，不会请求后端。
+        minRadiusMeters: 0,
+
+        // 与后端PoiController的最大半径保持一致。
+        maxRadiusMeters: 1000,
+
+        // 滑动条每次最小变化1米。
+        radiusStepMeters: 1,
+
+        // 滑动条下方提供常用半径快捷值。
+        radiusPresets: [300, 500, 800],
+    },
+
     // 线路—站点关系数据。
     routeStopsUrl: '/api/route-stops',
 

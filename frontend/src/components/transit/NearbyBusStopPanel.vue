@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import type {
     NearbyBusStopRecord,
     NearbyQueryStatus,
@@ -16,6 +17,11 @@ const props = defineProps<{
 const emit = defineEmits<{
     clear: []
 }>()
+
+const isCollapsed = ref(false)
+function toggleCollapsed() {
+    isCollapsed.value = !isCollapsed.value
+}
 
 function formatDistance(distanceMeters: number): string {
     if (!Number.isFinite(distanceMeters)) {
@@ -35,6 +41,7 @@ function formatDistance(distanceMeters: number): string {
         <aside
             v-if="props.status !== 'idle'"
             class="nearby-panel"
+            :class="{ 'is-collapsed': isCollapsed }"
             @click.stop
         >
             <div class="nearby-panel__header">
@@ -45,61 +52,79 @@ function formatDistance(distanceMeters: number): string {
 
                     <h2 class="nearby-panel__title">
                         {{ props.radiusMeters }} 米范围
+                        <span v-if="props.status === 'success'">
+                            · {{ props.stops.length }} 个站
+                        </span>
                     </h2>
                 </div>
 
-                <button
-                    type="button"
-                    class="nearby-panel__close"
-                    aria-label="清除附近公交站查询"
-                    @click="emit('clear')"
+                <div class="nearby-panel__actions">
+                    <button
+                        type="button"
+                        class="nearby-panel__toggle"
+                        :aria-label="isCollapsed ? '展开附近公交站面板' : '收起附近公交站面板'"
+                        :title="isCollapsed ? '展开' : '收起'"
+                        @click="toggleCollapsed"
+                    >
+                        {{ isCollapsed ? '+' : '−' }}
+                    </button>
+
+                    <button
+                        type="button"
+                        class="nearby-panel__close"
+                        aria-label="清除附近公交站查询"
+                        title="关闭查询"
+                        @click="emit('clear')"
+                    >
+                        ×
+                    </button>
+                </div>
+            </div>
+
+            <div v-show="!isCollapsed" class="nearby-panel__body">
+                <div
+                    v-if="props.status === 'loading'"
+                    class="nearby-panel__message"
                 >
-                    ×
-                </button>
-            </div>
-
-            <div
-                v-if="props.status === 'loading'"
-                class="nearby-panel__message"
-            >
-                正在查询附近公交站……
-            </div>
-
-            <div
-                v-else-if="props.status === 'error'"
-                class="nearby-panel__message nearby-panel__message--error"
-            >
-                {{ props.errorMessage ?? '附近公交站查询失败' }}
-            </div>
-
-            <div
-                v-else-if="props.status === 'empty'"
-                class="nearby-panel__message"
-            >
-                当前范围内没有公交站
-            </div>
-
-            <template v-else-if="props.status === 'success'">
-                <div class="nearby-panel__summary">
-                    共找到 {{ props.stops.length }} 个公交站
+                    正在查询附近公交站……
                 </div>
 
-                <ol class="nearby-panel__list">
-                    <li
-                        v-for="stop in props.stops"
-                        :key="stop.stopId"
-                        class="nearby-panel__item"
-                    >
-                        <span class="nearby-panel__stop-name">
-                            {{ stop.stopName }}
-                        </span>
+                <div
+                    v-else-if="props.status === 'error'"
+                    class="nearby-panel__message nearby-panel__message--error"
+                >
+                    {{ props.errorMessage ?? '附近公交站查询失败' }}
+                </div>
 
-                        <strong class="nearby-panel__distance">
-                            {{ formatDistance(stop.distanceMeters) }}
-                        </strong>
-                    </li>
-                </ol>
-            </template>
+                <div
+                    v-else-if="props.status === 'empty'"
+                    class="nearby-panel__message"
+                >
+                    当前范围内没有公交站
+                </div>
+
+                <template v-else-if="props.status === 'success'">
+                    <div class="nearby-panel__summary">
+                        共找到 {{ props.stops.length }} 个公交站
+                    </div>
+
+                    <ol class="nearby-panel__list">
+                        <li
+                            v-for="stop in props.stops"
+                            :key="stop.stopId"
+                            class="nearby-panel__item"
+                        >
+                            <span class="nearby-panel__stop-name">
+                                {{ stop.stopName }}
+                            </span>
+
+                            <strong class="nearby-panel__distance">
+                                {{ formatDistance(stop.distanceMeters) }}
+                            </strong>
+                        </li>
+                    </ol>
+                </template>
+            </div>
         </aside>
     </transition>
 </template>
@@ -144,18 +169,35 @@ function formatDistance(distanceMeters: number): string {
     line-height: 1.4;
 }
 
+.nearby-panel__actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.nearby-panel__toggle,
 .nearby-panel__close {
     width: 28px;
     height: 28px;
+    padding: 0;
     color: #d7e8f4;
-    font-size: 24px;
-    line-height: 24px;
     cursor: pointer;
     background: transparent;
     border: 0;
     border-radius: 6px;
 }
 
+.nearby-panel__toggle {
+    font-size: 19px;
+    line-height: 28px;
+}
+
+.nearby-panel__close {
+    font-size: 24px;
+    line-height: 24px;
+}
+
+.nearby-panel__toggle:hover,
 .nearby-panel__close:hover {
     color: #ffffff;
     background: rgba(255, 255, 255, 0.12);

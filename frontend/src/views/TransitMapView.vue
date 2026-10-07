@@ -6,10 +6,12 @@ import 'cesium/Build/Cesium/Widgets/widgets.css'
 // 页面组件只负责组装各个图层和交互模块，具体实现放在 composables 中。
 import BusRouteInfoPanel from '@/components/transit/BusRouteInfoPanel.vue'
 import NearbyBusStopPanel from '@/components/transit/NearbyBusStopPanel.vue'
+import PoiAnalysisPanel from '@/components/transit/PoiAnalysisPanel.vue'
 import RealtimeVehicleInfoPanel from '@/components/transit/RealtimeVehicleInfoPanel.vue'
 import RealtimeOperationalAlertPanel from '@/components/transit/RealtimeOperationalAlertPanel.vue'
 import StopArrivalPanel from '@/components/transit/StopArrivalPanel.vue'
 import VehicleTrajectoryPanel from '@/components/transit/VehicleTrajectoryPanel.vue'
+import { TRANSIT_CONFIG } from '@/config/transit.config'
 import { useBusRouteLayer } from '@/composables/useBusRouteLayer'
 import { useBusRouteSelection } from '@/composables/useBusRouteSelection'
 import { useBusStopLayer } from '@/composables/useBusStopLayer'
@@ -18,6 +20,8 @@ import { useWhiteModelLayer } from '@/composables/useWhiteModelLayer'
 import { useFutianBoundaryLayer } from '@/composables/useFutianBoundaryLayer'
 import { useCityRoadWmtsLayer } from '@/composables/useCityRoadWmtsLayer'
 import { useNearbyBusStops } from '@/composables/useNearbyBusStops'
+import { usePoiAnalysis } from '@/composables/usePoiAnalysis'
+import { usePoiPointLayer } from '@/composables/usePoiPointLayer'
 import { useRealtimeVehicles } from '@/composables/useRealtimeVehicles'
 import { useRealtimeVehicleLayer } from '@/composables/useRealtimeVehicleLayer'
 import { useStopArrivals } from '@/composables/useStopArrivals'
@@ -39,7 +43,7 @@ import type { NearbyQueryCenter, OrderedBusStop } from '@/types/busStop'
 const cesiumContainer = ref<HTMLElement | null>(null)
 
 const nearbyQueryEnabled = ref(false)
-
+const selectedPoiRadiusMeters = ref<number>(TRANSIT_CONFIG.poiAnalysis.defaultRadiusMeters)
 const historyModeEnabled = ref(false)
 const historyReplayMode = ref<TrajectoryReplayMode>('vehicle')
 
@@ -83,6 +87,30 @@ const {
     clearNearbyQuery,
     cleanup: cleanupNearbyBusStops,
 } = useNearbyBusStops()
+
+const {
+    summary: poiSummary,
+    nearbyPois,
+    queryCenter: poiQueryCenter,
+    queryStatus: poiAnalysisStatus,
+    errorMessage: poiAnalysisErrorMessage,
+    pointsVisible: poiPointsVisible,
+    typeVisibility: poiTypeVisibility,
+    queryAnalysis: queryPoiAnalysis,
+    setZeroRadius: setPoiZeroRadius,
+    setPointsVisible: setPoiPointsVisible,
+    focusType: focusPoiType,
+    clearAnalysis: clearPoiAnalysis,
+    cleanup: cleanupPoiAnalysis,
+} = usePoiAnalysis()
+
+const {
+    renderPoints: renderPoiPoints,
+    clearPoints: clearPoiPoints,
+    setPointsVisible: setPoiLayerVisible,
+    setTypeVisibility: setPoiLayerTypeVisibility,
+    cleanup: cleanupPoiPointLayer,
+} = usePoiPointLayer()
 
 const {
     arrivalBoard,
@@ -503,7 +531,10 @@ function handleSelectOperationalVehicle(vehicleId: string) {
 
 function handleClearNearbyQuery() {
     nearbyQueryEnabled.value = false
+    selectedPoiRadiusMeters.value = TRANSIT_CONFIG.poiAnalysis.defaultRadiusMeters
     clearNearbyQuery()
+    clearPoiAnalysis()
+    clearPoiPoints()
 }
 
 function toggleNearbyQuery() {
@@ -513,7 +544,45 @@ function toggleNearbyQuery() {
     }
     // 重新进入查询模式前清理旧结果，避免上一次结果残留。
     clearNearbyQuery()
+    clearPoiAnalysis()
     nearbyQueryEnabled.value = true
+}
+
+// 使用当前滑动条半径，同时查询附近公交站和POI分析
+function runNearbyAnalysis(center: NearbyQueryCenter) {
+    const currentViewer = viewer
+
+    if (!currentViewer || currentViewer.isDestroyed()) {
+        return
+    }
+
+    const radiusMeters = selectedPoiRadiusMeters.value
+
+    if (radiusMeters === 0) {
+        clearNearbyQuery()
+        setPoiZeroRadius(center)
+        clearPoiPoints()
+        return
+    }
+
+    void queryNearby(currentViewer, center, radiusMeters)
+    void queryPoiAnalysis(center, radiusMeters)
+}
+
+// 拖动滑动条时只更新界面显示的半径
+function handlePoiRadiusInput(radiusMeters: number) {
+    selectedPoiRadiusMeters.value = radiusMeters
+}
+
+// 松开滑动条或点击预设值后，围绕原查询中心重新查询
+function handlePoiRadiusChange(radiusMeters: number) {
+    selectedPoiRadiusMeters.value = radiusMeters
+
+    if (!poiQueryCenter.value) {
+        return
+    }
+
+    runNearbyAnalysis(poiQueryCenter.value)
 }
 
 function getClickCenter(clickPosition: Cesium.Cartesian2): NearbyQueryCenter | null { 
@@ -565,10 +634,11 @@ function handleNearbyMapClick(clickPosition: Cesium.Cartesian2) {
 
     if (!center) {
         clearNearbyQuery()
+        clearPoiAnalysis()
         return
     }
 
-    void queryNearby(currentViewer, center)
+    runNearbyAnalysis(center)
 }
 
 function toggleBusRoutes() {
@@ -582,6 +652,28 @@ function toggleWhiteModel() {
 function toRouteId(fid: number): string {
     return `route_${String(fid).padStart(6, '0')}`
 }
+
+watch(nearbyPois, (pois) => {
+    const currentViewer = viewer
+
+    if (!currentViewer || currentViewer.isDestroyed()) {
+        return
+    }
+
+    if (pois.length === 0) {
+        clearPoiPoints()
+        return
+    }
+
+    renderPoiPoints(currentViewer, pois)
+})
+
+watch(poiPointsVisible, (visible) => {
+    setPoiLayerVisible(visible)
+})
+watch(poiTypeVisibility, (visibility) => {
+    setPoiLayerTypeVisibility(visibility)
+})
 
 watch(
     selectedRouteStop, (stop) => {
@@ -745,6 +837,8 @@ onBeforeUnmount(() => {
     cleanupRouteSelection()
     cleanupStopArrivals()
     cleanupNearbyBusStops(viewer)
+    cleanupPoiAnalysis()
+    cleanupPoiPointLayer(viewer)
     cleanupBusStopLayer(viewer)
     cleanupRealtimeVehicleLayer(viewer)
     routeEntitiesByFid.clear()
@@ -834,6 +928,19 @@ onBeforeUnmount(() => {
             <RealtimeOperationalAlertPanel
                 :vehicles="realtimeVehicles"
                 @select-vehicle="handleSelectOperationalVehicle"
+            />
+            <PoiAnalysisPanel
+                :summary="poiSummary"
+                :status="poiAnalysisStatus"
+                :error-message="poiAnalysisErrorMessage"
+                :radius-meters="selectedPoiRadiusMeters"
+                :points-visible="poiPointsVisible"
+                :type-visibility="poiTypeVisibility"
+                @clear="handleClearNearbyQuery"
+                @radius-input="handlePoiRadiusInput"
+                @radius-change="handlePoiRadiusChange"
+                @points-visible-change="setPoiPointsVisible"
+                @focus-type="focusPoiType"
             />
             <NearbyBusStopPanel
                 :stops="nearbyStops"

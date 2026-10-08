@@ -23,7 +23,7 @@ import { useNearbyBusStops } from '@/composables/useNearbyBusStops'
 import { usePoiAnalysis } from '@/composables/usePoiAnalysis'
 import { usePoiPointLayer } from '@/composables/usePoiPointLayer'
 import { useRealtimeVehicles } from '@/composables/useRealtimeVehicles'
-import { useRealtimeVehicleLayer } from '@/composables/useRealtimeVehicleLayer'
+import { useRealtimeVehiclePointLayer } from '@/composables/useRealtimeVehiclePointLayer'
 import { useRealtimeVehicleModelLayer } from '@/composables/useRealtimeVehicleModelLayer'
 import { useStopArrivals } from '@/composables/useStopArrivals'
 import type {
@@ -153,11 +153,11 @@ const selectedRealtimeVehicle = computed(() => {
 })
 
 const {
-    getVehicleEntity: getRealtimeVehicleEntity,
-    updateVehicles: updateRealtimeVehicleLayer,
-    setVehiclesVisible: setRealtimeVehiclesVisible,
-    cleanup: cleanupRealtimeVehicleLayer,
-} = useRealtimeVehicleLayer()
+    getVehiclePosition: getRealtimeVehiclePointPosition,
+    updateVehicles: updateRealtimeVehiclePointLayer,
+    setVehiclesVisible: setRealtimeVehiclePointsVisible,
+    cleanup: cleanupRealtimeVehiclePointLayer,
+} = useRealtimeVehiclePointLayer()
 
 const {
     getVehicleEntity: getRealtimeVehicleModelEntity,
@@ -281,9 +281,9 @@ const {
 } = useFutianBoundaryLayer()
 
 // ===========================【函数】===========================
-// 根据当前渲染模式控制 Point 和 Model 图层显隐
+// 根据当前渲染模式控制Primitive点和三维模型
 function syncRealtimeVehicleLayerVisibility(visible: boolean) {
-    setRealtimeVehiclesVisible(visible && realtimeVehicleRenderMode.value === 'point')
+    setRealtimeVehiclePointsVisible(visible && realtimeVehicleRenderMode.value === 'point')
     setRealtimeVehicleModelsVisible(visible && realtimeVehicleRenderMode.value === 'model')
 }
 
@@ -296,16 +296,16 @@ function updateActiveRealtimeVehicleLayer(
         return
     }
 
-    updateRealtimeVehicleLayer(currentViewer, snapshots)
+    updateRealtimeVehiclePointLayer(currentViewer, snapshots)
 }
 
 // 根据当前渲染模式取得车辆对应的 Cesium Entity
 function getActiveRealtimeVehicleEntity(vehicleId: string): Cesium.Entity | undefined {
     if (realtimeVehicleRenderMode.value === 'model') {
-        return getRealtimeVehicleModelEntity(vehicleId)
+        return undefined
     }
 
-    return getRealtimeVehicleEntity(vehicleId)
+    return getRealtimeVehicleModelEntity(vehicleId)
 }
 
 // 在 Point 和 Model 两种实时车辆渲染方式之间切换
@@ -556,8 +556,8 @@ function handleNetworkTrackingChange(vehicleId: string | null) {
     )
 }
 
-// 处理异常播报面板发出的车辆选择请求
-function handleSelectOperationalVehicle(vehicleId: string) {
+// 从运营异常面板选择并定位车辆。
+function handleSelectOperationalVehicle(vehicleId: string,) {
     const currentViewer = viewer
 
     if (!currentViewer || currentViewer.isDestroyed()) {
@@ -566,7 +566,7 @@ function handleSelectOperationalVehicle(vehicleId: string) {
 
     const vehicle = realtimeVehicles.value.find( (item) => item.vehicleId === vehicleId )
 
-    if (!vehicle)  return
+    if (!vehicle) return
 
     selectRealtimeVehicle(
         vehicle.vehicleId,
@@ -577,12 +577,34 @@ function handleSelectOperationalVehicle(vehicleId: string) {
 
     const vehicleEntity = getActiveRealtimeVehicleEntity(vehicleId)
 
-    if (!vehicleEntity) return
+    if (vehicleEntity) {
+        currentViewer.selectedEntity = vehicleEntity
 
-    currentViewer.selectedEntity = vehicleEntity
+        void currentViewer.flyTo(
+            vehicleEntity,
+            {
+                duration: 1.2,
+                offset: new Cesium.HeadingPitchRange(
+                    Cesium.Math.toRadians(0),
+                    Cesium.Math.toRadians(-65),
+                    1000,
+                ),
+            },
+        )
 
-    void currentViewer.flyTo(
-        vehicleEntity,
+        return
+    }
+
+    const pointPosition = getRealtimeVehiclePointPosition(vehicleId)
+
+    if (!pointPosition) {
+        return
+    }
+
+    currentViewer.selectedEntity = undefined
+
+    void currentViewer.camera.flyToBoundingSphere(
+        new Cesium.BoundingSphere(pointPosition, 1),
         {
             duration: 1.2,
             offset: new Cesium.HeadingPitchRange(
@@ -899,14 +921,14 @@ onBeforeUnmount(() => {
     cleanupRouteReplayLayer(viewer)
     cleanupVehicleNetworkReplayQuery()
     cleanupNetworkReplayLayer(viewer)
-    
+
     cleanupRouteSelection()
     cleanupStopArrivals()
     cleanupNearbyBusStops(viewer)
     cleanupPoiAnalysis()
     cleanupPoiPointLayer(viewer)
     cleanupBusStopLayer(viewer)
-    cleanupRealtimeVehicleLayer(viewer)
+    cleanupRealtimeVehiclePointLayer(viewer)
     cleanupRealtimeVehicleModelLayer(viewer)
     routeEntitiesByFid.clear()
 

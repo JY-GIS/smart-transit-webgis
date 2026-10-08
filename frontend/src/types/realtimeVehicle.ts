@@ -86,12 +86,17 @@ export interface RealtimeVehiclePositionSnapshot {
 }
 
 /**
- * 挂载到 Cesium 车辆 Entity 上的业务属性。
+ * 挂载到实时车辆可视对象上的拾取属性。
  */
-export interface RealtimeVehicleEntityProperties {
+export interface RealtimeVehiclePickProperties {
     entityType: 'realtime-vehicle'
 
     vehicleId: string
 
     routeFid: number
 }
+
+/**
+ * 兼容现有 Entity 车辆图层的旧类型名称。
+ */
+export type RealtimeVehicleEntityProperties = RealtimeVehiclePickProperties

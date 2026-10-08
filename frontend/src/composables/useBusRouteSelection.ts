@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 import * as Cesium from 'cesium'
 import type { BusRouteProperties } from '@/types/busRoute'
-import type { RealtimeVehicleEntityProperties } from '@/types/realtimeVehicle'
+import type { RealtimeVehiclePickProperties } from '@/types/realtimeVehicle'
 import type { RouteBusStopEntityProperties } from '@/types/busStop'
 import { createTransitPolylineHighlightMaterial, TRANSIT_POLYLINE_HIGHLIGHT_WIDTH } from '@/utils/transitPolylineHighlight'
 import { readRouteBusStopProperties } from './useBusStopLayer'
@@ -22,11 +22,21 @@ type MapClickHandler = (
     position: Cesium.Cartesian2,
 ) => void
 
-// 读取实时车辆 Entity 上的业务元数据
-function readRealtimeVehicleProperties(entity: Cesium.Entity, time: Cesium.JulianDate): RealtimeVehicleEntityProperties | null {
-    const values = entity.properties?.getValue(time) as
-        | Record<string, unknown>
-        | undefined
+// 从Cesium拾取结果中读取实时车辆业务信息
+function readRealtimeVehicleProperties(pickedObject: unknown, time: Cesium.JulianDate): RealtimeVehiclePickProperties | null {
+    if (!pickedObject || typeof pickedObject !== 'object') {
+        return null
+    }
+
+    const candidate = (pickedObject as { id?: unknown }).id
+
+    let values: Record<string, unknown> | undefined
+
+    if (candidate instanceof Cesium.Entity) {
+        values = candidate.properties?.getValue(time) as Record<string, unknown> | undefined
+    } else if (candidate && typeof candidate === 'object') {
+        values = candidate as Record<string, unknown>
+    }
 
     if (!values || values.entityType !== 'realtime-vehicle') {
         return null
@@ -43,6 +53,32 @@ function readRealtimeVehicleProperties(entity: Cesium.Entity, time: Cesium.Julia
         entityType: 'realtime-vehicle',
         vehicleId,
         routeFid,
+    }
+}
+
+// 收集Cesium拾取结果，并按照id去重（scene.pick和drillPick可能返回同一个对象）
+function appendPickedObject(pickedObjects: unknown[], pickedObject: unknown,) {
+    if (!pickedObject || typeof pickedObject !== 'object') {
+        return
+    }
+
+    const candidate = (pickedObject as { id?: unknown }).id
+
+    if (candidate === undefined) {
+        return
+    }
+
+    const alreadyExists =
+        pickedObjects.some((item) => {
+            if (!item || typeof item !== 'object') {
+                return false
+            }
+
+            return ((item as { id?: unknown }).id === candidate)
+        })
+
+    if (!alreadyExists) {
+        pickedObjects.push(pickedObject)
     }
 }
 
@@ -324,49 +360,40 @@ export function useBusRouteSelection() {
         ) => {
             const currentTime = viewer.clock.currentTime
 
-            const pickedEntities: Cesium.Entity[] = []
+            const pickedObjects: unknown[] = [] // pickedObjects保存全部Cesium拾取结果
+            const pickedEntities: Cesium.Entity[] = [] // pickedEntities只保存其中的Entity
 
-            // scene.pick 获取点击位置最上层的对象
-            appendPickedEntity(pickedEntities, viewer.scene.pick(click.position))
+            const topPickedObject = viewer.scene.pick(click.position)
 
-            const topEntity = pickedEntities[0]
+            appendPickedObject(pickedObjects, topPickedObject)
 
-            const topBusProperties = topEntity
-                ? readRealtimeVehicleProperties(
-                    topEntity,
-                    currentTime,
-                )
-                : null
+            appendPickedEntity(pickedEntities, topPickedObject)
 
-            // 如果最上层不是车辆，再检查点击位置下的全部对象
-            if (!topBusProperties) {
+            const topVehicleProperties = readRealtimeVehicleProperties(topPickedObject, currentTime)
+
+            if (!topVehicleProperties) {
                 const drilledObjects = viewer.scene.drillPick(click.position)
 
                 for (const pickedObject of drilledObjects) {
+                    appendPickedObject(pickedObjects, pickedObject)
                     appendPickedEntity(pickedEntities, pickedObject)
                 }
             }
 
-            // 车辆优先级最高
-            const busEntity = pickedEntities.find(
-                (entity) => readRealtimeVehicleProperties(
-                    entity,
-                    currentTime,
-                ) !== null
-            )
-
-            if (busEntity) {
-                const busProperties = readRealtimeVehicleProperties(
-                    busEntity,
-                    currentTime,
+            const busPickedObject =
+                pickedObjects.find(
+                    (pickedObject) => readRealtimeVehicleProperties(pickedObject, currentTime) !== null,
                 )
+
+            if (busPickedObject) {
+                const busProperties = readRealtimeVehicleProperties(busPickedObject, currentTime)
 
                 if (!busProperties) {
                     clearRouteSelection()
                     return
                 }
 
-                viewer.selectedEntity = busEntity
+                viewer.selectedEntity = getPickedEntity(busPickedObject)
 
                 selectRealtimeVehicle(
                     busProperties.vehicleId,

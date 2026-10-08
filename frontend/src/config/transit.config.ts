@@ -90,6 +90,34 @@ export const TRANSIT_CONFIG = {
 
         // 两次服务端位置快照之间的客户端插值时间。
         interpolationDurationMilliseconds: 1000,
+
+        // 实时车辆三维模型配置。
+        model: {
+            uri: '/models/city_bus.glb',
+
+            // 模型原始尺寸的缩放倍数，后续根据实际画面调整。
+            scale: 0.01,
+
+            // 模型距离较远时仍至少保持一定的屏幕像素尺寸。
+            minimumPixelSize: 0,
+
+            // 限制 minimumPixelSize 可以把模型放大的最大倍数。
+            maximumScale: 0.01,
+
+            // 模型相对地面的高度，车轮陷入地面时再向上调整。
+            heightOffsetMeters: 0,
+
+            // 模型车头朝向
+            headingOffsetDegrees: 90,
+
+            // 把模型原点移动到车底中心
+            originCorrection: {
+                nodeName: 'cityBus',
+                x: -2661.124,
+                y: -7.355,
+                z: -290.282,
+            },
+        },
     },
 
 } as const

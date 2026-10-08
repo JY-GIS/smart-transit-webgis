@@ -1,4 +1,11 @@
 /**
+ * 实时车辆在地图上的渲染方式。
+ */
+export type RealtimeVehicleRenderMode =
+    | 'point'
+    | 'model'
+
+/**
  * 后端车辆实时连接状态。
  */
 export type RealtimeVehicleConnectionStatus =

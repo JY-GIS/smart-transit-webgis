@@ -24,6 +24,7 @@ import { usePoiAnalysis } from '@/composables/usePoiAnalysis'
 import { usePoiPointLayer } from '@/composables/usePoiPointLayer'
 import { useRealtimeVehicles } from '@/composables/useRealtimeVehicles'
 import { useRealtimeVehicleLayer } from '@/composables/useRealtimeVehicleLayer'
+import { useRealtimeVehicleModelLayer } from '@/composables/useRealtimeVehicleModelLayer'
 import { useStopArrivals } from '@/composables/useStopArrivals'
 import type {
     NetworkTrajectoryQuery,
@@ -39,6 +40,7 @@ import { useNetworkTrajectoryReplay } from '@/composables/useNetworkTrajectoryRe
 import { useNetworkTrajectoryReplayLayer } from '@/composables/useNetworkTrajectoryReplayLayer'
 
 import type { NearbyQueryCenter, OrderedBusStop } from '@/types/busStop'
+import type { RealtimeVehiclePositionSnapshot, RealtimeVehicleRenderMode } from '@/types/realtimeVehicle'
 
 const cesiumContainer = ref<HTMLElement | null>(null)
 
@@ -46,6 +48,7 @@ const nearbyQueryEnabled = ref(false)
 const selectedPoiRadiusMeters = ref<number>(TRANSIT_CONFIG.poiAnalysis.defaultRadiusMeters)
 const historyModeEnabled = ref(false)
 const historyReplayMode = ref<TrajectoryReplayMode>('vehicle')
+const realtimeVehicleRenderMode = ref<RealtimeVehicleRenderMode>('point')
 
 const selectedRouteStops = ref<OrderedBusStop[]>([])
 
@@ -155,6 +158,13 @@ const {
     setVehiclesVisible: setRealtimeVehiclesVisible,
     cleanup: cleanupRealtimeVehicleLayer,
 } = useRealtimeVehicleLayer()
+
+const {
+    getVehicleEntity: getRealtimeVehicleModelEntity,
+    updateVehicles: updateRealtimeVehicleModelLayer,
+    setVehiclesVisible: setRealtimeVehicleModelsVisible,
+    cleanup: cleanupRealtimeVehicleModelLayer,
+} = useRealtimeVehicleModelLayer()
 
 const {
     availableVehicles: historyAvailableVehicles,
@@ -271,6 +281,61 @@ const {
 } = useFutianBoundaryLayer()
 
 // ===========================【函数】===========================
+// 根据当前渲染模式控制 Point 和 Model 图层显隐
+function syncRealtimeVehicleLayerVisibility(visible: boolean) {
+    setRealtimeVehiclesVisible(visible && realtimeVehicleRenderMode.value === 'point')
+    setRealtimeVehicleModelsVisible(visible && realtimeVehicleRenderMode.value === 'model')
+}
+
+function updateActiveRealtimeVehicleLayer(
+    currentViewer: Cesium.Viewer,
+    snapshots: RealtimeVehiclePositionSnapshot[],
+) {
+    if (realtimeVehicleRenderMode.value === 'model') {
+        updateRealtimeVehicleModelLayer(currentViewer, snapshots)
+        return
+    }
+
+    updateRealtimeVehicleLayer(currentViewer, snapshots)
+}
+
+// 根据当前渲染模式取得车辆对应的 Cesium Entity
+function getActiveRealtimeVehicleEntity(vehicleId: string): Cesium.Entity | undefined {
+    if (realtimeVehicleRenderMode.value === 'model') {
+        return getRealtimeVehicleModelEntity(vehicleId)
+    }
+
+    return getRealtimeVehicleEntity(vehicleId)
+}
+
+// 在 Point 和 Model 两种实时车辆渲染方式之间切换
+function toggleRealtimeVehicleRenderMode() {
+    const nextMode:
+        RealtimeVehicleRenderMode =
+        realtimeVehicleRenderMode.value === 'point'
+            ? 'model'
+            : 'point'
+
+    realtimeVehicleRenderMode.value = nextMode
+
+    syncRealtimeVehicleLayerVisibility(!historyModeEnabled.value)
+
+    const currentViewer = viewer
+
+    if (!currentViewer || currentViewer.isDestroyed()) {
+        return
+    }
+
+    updateActiveRealtimeVehicleLayer(currentViewer, realtimeVehicles.value)
+
+    const vehicleId = selectedVehicleId.value
+
+    if (vehicleId) {
+        currentViewer.selectedEntity = getActiveRealtimeVehicleEntity(vehicleId)
+    }
+
+    currentViewer.scene.requestRender()
+}
 
 function handleCloseRoutePanel() {
     closeRoutePanel(viewer)
@@ -312,8 +377,8 @@ function openHistoryMode() {
     handleCloseStopArrivalPanel()
     handleClearNearbyQuery()
 
-    // 隐藏实时车辆，但不关闭WebSocket
-    setRealtimeVehiclesVisible(false)
+    // 隐藏两种实时车辆图层，但不关闭 WebSocket。
+    syncRealtimeVehicleLayerVisibility(false)
 
     clearVehicleTrajectory()
     clearTrajectoryLayer()
@@ -339,7 +404,7 @@ function closeHistoryMode() {
     cleanupVehicleRouteReplayQuery()
     handleCloseRoutePanel()
 
-    setRealtimeVehiclesVisible(true)
+    syncRealtimeVehicleLayerVisibility(true)
 
     historyModeEnabled.value = false
 }
@@ -510,7 +575,7 @@ function handleSelectOperationalVehicle(vehicleId: string) {
         currentViewer.clock.currentTime,
     )
 
-    const vehicleEntity = getRealtimeVehicleEntity(vehicleId)
+    const vehicleEntity = getActiveRealtimeVehicleEntity(vehicleId)
 
     if (!vehicleEntity) return
 
@@ -740,7 +805,7 @@ watch(realtimeVehicles, (snapshots) => {
         return
     }
 
-    updateRealtimeVehicleLayer(currentViewer, snapshots)
+    updateActiveRealtimeVehicleLayer(currentViewer, snapshots)
 })
 
 // 查询成功后将轨迹加载到Cesium
@@ -787,7 +852,9 @@ onMounted(async () => {
     try {
         viewer = await createViewer(cesiumContainer.value)
 
-        updateRealtimeVehicleLayer(viewer, realtimeVehicles.value)
+        updateActiveRealtimeVehicleLayer(viewer, realtimeVehicles.value)
+
+        syncRealtimeVehicleLayerVisibility(true)
 
         loadCityRoadWmts(viewer)  // 城市静态路网使用 GeoServer WMTS
 
@@ -829,11 +896,10 @@ onBeforeUnmount(() => {
     cleanupVehicleTrajectoryQuery()
     cleanupVehicleTrajectoryLayer(viewer)
     cleanupVehicleRouteReplayQuery()
-    cleanupNetworkReplayLayer(viewer)
-    cleanupVehicleNetworkReplayQuery()
-    cleanupNetworkReplayLayer(viewer)
-    cleanupVehicleNetworkReplayQuery()
     cleanupRouteReplayLayer(viewer)
+    cleanupVehicleNetworkReplayQuery()
+    cleanupNetworkReplayLayer(viewer)
+    
     cleanupRouteSelection()
     cleanupStopArrivals()
     cleanupNearbyBusStops(viewer)
@@ -841,6 +907,7 @@ onBeforeUnmount(() => {
     cleanupPoiPointLayer(viewer)
     cleanupBusStopLayer(viewer)
     cleanupRealtimeVehicleLayer(viewer)
+    cleanupRealtimeVehicleModelLayer(viewer)
     routeEntitiesByFid.clear()
 
     cleanupFutianBoundary(viewer)
@@ -875,6 +942,17 @@ onBeforeUnmount(() => {
             >
                 <span class="layer-control-dot" aria-hidden="true"></span>
                 {{ whiteModelVisible ? '隐藏城市白膜' : '显示城市白膜' }}
+            </button>
+            <button
+                v-if="!historyModeEnabled"
+                class="layer-control-button"
+                :class="{ 'is-active': realtimeVehicleRenderMode === 'model' }"
+                type="button"
+                :aria-pressed=" realtimeVehicleRenderMode === 'model'"
+                @click="toggleRealtimeVehicleRenderMode"
+            >
+                <span class="layer-control-dot" aria-hidden="true" ></span>
+                {{ realtimeVehicleRenderMode === 'point' ? '显示3D车辆' : '显示点车辆' }}
             </button>
             <button
                 class="layer-control-button"

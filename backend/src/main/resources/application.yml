@@ -15,6 +15,10 @@ mybatis:
   configuration:
     map-underscore-to-camel-case: true
 
+# 全部模拟线路共用的车辆数量
+transit-simulation-defaults:
+  vehicle-count: 3
+
 # 后端车辆模拟配置
 transit:
   # 车辆历史轨迹配置
@@ -25,8 +29,8 @@ transit:
     # 每辆受监控车辆每 5 秒保存一个历史位置点
     sample-interval-seconds: 5
 
-    # 自动保留最近 3 天历史数据
-    retention-days: 3
+    # 自动保留最近 1 天历史数据
+    retention-days: 1
 
     # 单辆车一次最多查询 120 分钟
     maximum-query-range-minutes: 120
@@ -64,316 +68,1828 @@ transit:
     # 在普通停靠 5 秒之外额外停靠 300 秒
     extra-dwell-duration-seconds: 300
 
-    # 区域级模拟：52 条线路，每条线路自动生成 3 辆车
+    # 区域级模拟：304 条线路，车辆数由公共配置统一控制
     routes:
       # M103
       - route-id: route_000185
         vehicle-id-prefix: simulated-bus-m103
-        vehicle-count: 3
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
         speed-meters-per-second: 12
 
       # M120
       - route-id: route_000193
         vehicle-id-prefix: simulated-bus-m120
-        vehicle-count: 3
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
         speed-meters-per-second: 12
 
       # 215 路环线
       - route-id: route_000025
         vehicle-id-prefix: simulated-bus-215
-        vehicle-count: 3
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
         speed-meters-per-second: 12
 
       # 216 路：华富路始发站 → 福田农批市场
       - route-id: route_000027
         vehicle-id-prefix: simulated-bus-216a
-        vehicle-count: 3
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
         speed-meters-per-second: 12
 
       # 216 路：福田农批市场 → 华富路始发站
       - route-id: route_000028
         vehicle-id-prefix: simulated-bus-216b
-        vehicle-count: 3
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
         speed-meters-per-second: 12
 
       # 44 路：上梅林 → 石厦南
       - route-id: route_000090
         vehicle-id-prefix: simulated-bus-44a
-        vehicle-count: 3
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
         speed-meters-per-second: 12
 
       # 44 路：石厦南 → 上梅林
       - route-id: route_000091
         vehicle-id-prefix: simulated-bus-44b
-        vehicle-count: 3
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
         speed-meters-per-second: 12
 
       # 71 路：公交大厦 → 东海城市广场
       - route-id: route_000116
         vehicle-id-prefix: simulated-bus-71a
-        vehicle-count: 3
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
         speed-meters-per-second: 12
 
       # 71 路：东海城市广场 → 公交大厦
       - route-id: route_000117
         vehicle-id-prefix: simulated-bus-71b
-        vehicle-count: 3
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
         speed-meters-per-second: 12
 
       # B601
       - route-id: route_000131
         vehicle-id-prefix: simulated-bus-b601
-        vehicle-count: 3
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
         speed-meters-per-second: 12
 
       # B611：莲塘尾小区 → 东海城市广场公交首末站
       - route-id: route_000132
         vehicle-id-prefix: simulated-bus-b611a
-        vehicle-count: 3
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
         speed-meters-per-second: 12
 
       # B611：东海城市广场公交首末站 → 莲塘尾小区
       - route-id: route_000133
         vehicle-id-prefix: simulated-bus-b611b
-        vehicle-count: 3
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
         speed-meters-per-second: 12
 
       # B612 环线
       - route-id: route_000134
         vehicle-id-prefix: simulated-bus-b612
-        vehicle-count: 3
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
         speed-meters-per-second: 12
 
       # B618 环线
       - route-id: route_000135
         vehicle-id-prefix: simulated-bus-b618
-        vehicle-count: 3
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
         speed-meters-per-second: 12
 
       # B650 环线
       - route-id: route_000136
         vehicle-id-prefix: simulated-bus-b650
-        vehicle-count: 3
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
         speed-meters-per-second: 12
 
       # B651：沙尾 → 长富金茂大厦
       - route-id: route_000137
         vehicle-id-prefix: simulated-bus-b651a
-        vehicle-count: 3
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
         speed-meters-per-second: 12
 
       # B651：长富金茂大厦 → 沙尾
       - route-id: route_000138
         vehicle-id-prefix: simulated-bus-b651b
-        vehicle-count: 3
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
         speed-meters-per-second: 12
 
       # B666：梅林文体中心 → 天健天骄南苑公交首末站
       - route-id: route_000139
         vehicle-id-prefix: simulated-bus-b666a
-        vehicle-count: 3
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
         speed-meters-per-second: 12
 
       # B666：天健天骄南苑公交首末站 → 梅林文体中心
       - route-id: route_000140
         vehicle-id-prefix: simulated-bus-b666b
-        vehicle-count: 3
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
         speed-meters-per-second: 12
 
       # B709 环线
       - route-id: route_000141
         vehicle-id-prefix: simulated-bus-b709
-        vehicle-count: 3
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
         speed-meters-per-second: 12
 
       # B905 环线
       - route-id: route_000144
         vehicle-id-prefix: simulated-bus-b905
-        vehicle-count: 3
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
         speed-meters-per-second: 12
 
       # B907 环线
       - route-id: route_000145
         vehicle-id-prefix: simulated-bus-b907
-        vehicle-count: 3
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
         speed-meters-per-second: 12
 
       # B930 环线
       - route-id: route_000146
         vehicle-id-prefix: simulated-bus-b930
-        vehicle-count: 3
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
         speed-meters-per-second: 12
 
       # B955 环线
       - route-id: route_000147
         vehicle-id-prefix: simulated-bus-b955
-        vehicle-count: 3
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
         speed-meters-per-second: 12
 
       # B962 环线
       - route-id: route_000148
         vehicle-id-prefix: simulated-bus-b962
-        vehicle-count: 3
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
         speed-meters-per-second: 12
 
       # C22 环线
       - route-id: route_000149
         vehicle-id-prefix: simulated-bus-c22
-        vehicle-count: 3
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
         speed-meters-per-second: 12
 
       # C6 环线
       - route-id: route_000150
         vehicle-id-prefix: simulated-bus-c6
-        vehicle-count: 3
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
         speed-meters-per-second: 12
 
       # C7：新阁小区 → 青年学院
       - route-id: route_000152
         vehicle-id-prefix: simulated-bus-c7
-        vehicle-count: 3
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
         speed-meters-per-second: 12
 
       # F571：深科技城 → 北大医院
       - route-id: route_000178
         vehicle-id-prefix: simulated-bus-f571a
-        vehicle-count: 3
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
         speed-meters-per-second: 12
 
       # F571：北大医院 → 深科技城
       - route-id: route_000179
         vehicle-id-prefix: simulated-bus-f571b
-        vehicle-count: 3
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
         speed-meters-per-second: 12
 
       # F572：市二医院 → 深科技城
       - route-id: route_000180
         vehicle-id-prefix: simulated-bus-f572a
-        vehicle-count: 3
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
         speed-meters-per-second: 12
 
       # F572：深科技城 → 市二医院
       - route-id: route_000181
         vehicle-id-prefix: simulated-bus-f572b
-        vehicle-count: 3
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
         speed-meters-per-second: 12
 
       # M120 区间2：下沙总站 → 福保桂花苑南
       - route-id: route_000194
         vehicle-id-prefix: simulated-bus-m120-section2
-        vehicle-count: 3
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
         speed-meters-per-second: 12
 
       # M120 区间3：福保桂花苑南 → 下沙总站
       - route-id: route_000195
         vehicle-id-prefix: simulated-bus-m120-section3
-        vehicle-count: 3
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
         speed-meters-per-second: 12
 
       # M126 环线
       - route-id: route_000196
         vehicle-id-prefix: simulated-bus-m126
-        vehicle-count: 3
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
         speed-meters-per-second: 12
 
       # M148 环线
       - route-id: route_000205
         vehicle-id-prefix: simulated-bus-m148
-        vehicle-count: 3
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
         speed-meters-per-second: 12
 
       # M168：福田口岸公交总站 → 下沙总站
       - route-id: route_000208
         vehicle-id-prefix: simulated-bus-m168a
-        vehicle-count: 3
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
         speed-meters-per-second: 12
 
       # M168：下沙小学 → 福田口岸公交总站
       - route-id: route_000209
         vehicle-id-prefix: simulated-bus-m168b
-        vehicle-count: 3
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
         speed-meters-per-second: 12
 
       # M169：皇岗口岸 → 紫薇阁总站
       - route-id: route_000210
         vehicle-id-prefix: simulated-bus-m169a
-        vehicle-count: 3
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
         speed-meters-per-second: 12
 
       # M169：紫薇阁总站 → 皇岗口岸
       - route-id: route_000211
         vehicle-id-prefix: simulated-bus-m169b
-        vehicle-count: 3
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
         speed-meters-per-second: 12
 
       # M390：石厦南总站 → 颂德花园公交总站
       - route-id: route_000260
         vehicle-id-prefix: simulated-bus-m390a
-        vehicle-count: 3
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
         speed-meters-per-second: 12
 
       # M390：颂德花园公交总站 → 石厦南总站
       - route-id: route_000261
         vehicle-id-prefix: simulated-bus-m390b
-        vehicle-count: 3
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
         speed-meters-per-second: 12
 
       # M499：梅林一村总站 → 福田口岸公交总站
       - route-id: route_000298
         vehicle-id-prefix: simulated-bus-m499a
-        vehicle-count: 3
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
         speed-meters-per-second: 12
 
       # M499：福田口岸公交总站 → 梅林一村总站
       - route-id: route_000299
         vehicle-id-prefix: simulated-bus-m499b
-        vehicle-count: 3
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
         speed-meters-per-second: 12
 
       # M576 环线
       - route-id: route_000316
         vehicle-id-prefix: simulated-bus-m576
-        vehicle-count: 3
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
         speed-meters-per-second: 12
 
       # M581 环线
       - route-id: route_000317
         vehicle-id-prefix: simulated-bus-m581
-        vehicle-count: 3
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
         speed-meters-per-second: 12
 
       # N68 环线
       - route-id: route_000329
         vehicle-id-prefix: simulated-bus-n68
-        vehicle-count: 3
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
         speed-meters-per-second: 12
 
       # 福田K5 环线
       - route-id: route_000498
         vehicle-id-prefix: simulated-bus-futian-k5
-        vehicle-count: 3
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
         speed-meters-per-second: 12
 
       # 福田欢乐购A线：福田口岸公交总站 → 市眼科医院
       - route-id: route_000499
         vehicle-id-prefix: simulated-bus-shopping-a1
-        vehicle-count: 3
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
         speed-meters-per-second: 12
 
       # 福田欢乐购A线：市眼科医院 → 福田口岸公交总站
       - route-id: route_000500
         vehicle-id-prefix: simulated-bus-shopping-a2
-        vehicle-count: 3
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
         speed-meters-per-second: 12
 
       # 福田欢乐购B线
       - route-id: route_000501
         vehicle-id-prefix: simulated-bus-shopping-b
-        vehicle-count: 3
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
         speed-meters-per-second: 12
 
       # 莲花山公园巴士1 环线
       - route-id: route_000602
         vehicle-id-prefix: simulated-bus-lianhuashan-1
-        vehicle-count: 3
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000005
+      - route-id: route_000005
+        vehicle-id-prefix: simulated-bus-r000005
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000006
+      - route-id: route_000006
+        vehicle-id-prefix: simulated-bus-r000006
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000007
+      - route-id: route_000007
+        vehicle-id-prefix: simulated-bus-r000007
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000008
+      - route-id: route_000008
+        vehicle-id-prefix: simulated-bus-r000008
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000009
+      - route-id: route_000009
+        vehicle-id-prefix: simulated-bus-r000009
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000010
+      - route-id: route_000010
+        vehicle-id-prefix: simulated-bus-r000010
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000011
+      - route-id: route_000011
+        vehicle-id-prefix: simulated-bus-r000011
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000013
+      - route-id: route_000013
+        vehicle-id-prefix: simulated-bus-r000013
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000014
+      - route-id: route_000014
+        vehicle-id-prefix: simulated-bus-r000014
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000015
+      - route-id: route_000015
+        vehicle-id-prefix: simulated-bus-r000015
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000016
+      - route-id: route_000016
+        vehicle-id-prefix: simulated-bus-r000016
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000017
+      - route-id: route_000017
+        vehicle-id-prefix: simulated-bus-r000017
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000018
+      - route-id: route_000018
+        vehicle-id-prefix: simulated-bus-r000018
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000020
+      - route-id: route_000020
+        vehicle-id-prefix: simulated-bus-r000020
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000022
+      - route-id: route_000022
+        vehicle-id-prefix: simulated-bus-r000022
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000023
+      - route-id: route_000023
+        vehicle-id-prefix: simulated-bus-r000023
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000031
+      - route-id: route_000031
+        vehicle-id-prefix: simulated-bus-r000031
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000032
+      - route-id: route_000032
+        vehicle-id-prefix: simulated-bus-r000032
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000033
+      - route-id: route_000033
+        vehicle-id-prefix: simulated-bus-r000033
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000035
+      - route-id: route_000035
+        vehicle-id-prefix: simulated-bus-r000035
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000036
+      - route-id: route_000036
+        vehicle-id-prefix: simulated-bus-r000036
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000037
+      - route-id: route_000037
+        vehicle-id-prefix: simulated-bus-r000037
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000038
+      - route-id: route_000038
+        vehicle-id-prefix: simulated-bus-r000038
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000039
+      - route-id: route_000039
+        vehicle-id-prefix: simulated-bus-r000039
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000040
+      - route-id: route_000040
+        vehicle-id-prefix: simulated-bus-r000040
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000041
+      - route-id: route_000041
+        vehicle-id-prefix: simulated-bus-r000041
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000044
+      - route-id: route_000044
+        vehicle-id-prefix: simulated-bus-r000044
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000047
+      - route-id: route_000047
+        vehicle-id-prefix: simulated-bus-r000047
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000048
+      - route-id: route_000048
+        vehicle-id-prefix: simulated-bus-r000048
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000049
+      - route-id: route_000049
+        vehicle-id-prefix: simulated-bus-r000049
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000051
+      - route-id: route_000051
+        vehicle-id-prefix: simulated-bus-r000051
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000052
+      - route-id: route_000052
+        vehicle-id-prefix: simulated-bus-r000052
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000056
+      - route-id: route_000056
+        vehicle-id-prefix: simulated-bus-r000056
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000057
+      - route-id: route_000057
+        vehicle-id-prefix: simulated-bus-r000057
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000058
+      - route-id: route_000058
+        vehicle-id-prefix: simulated-bus-r000058
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000064
+      - route-id: route_000064
+        vehicle-id-prefix: simulated-bus-r000064
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000065
+      - route-id: route_000065
+        vehicle-id-prefix: simulated-bus-r000065
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000066
+      - route-id: route_000066
+        vehicle-id-prefix: simulated-bus-r000066
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000070
+      - route-id: route_000070
+        vehicle-id-prefix: simulated-bus-r000070
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000075
+      - route-id: route_000075
+        vehicle-id-prefix: simulated-bus-r000075
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000076
+      - route-id: route_000076
+        vehicle-id-prefix: simulated-bus-r000076
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000083
+      - route-id: route_000083
+        vehicle-id-prefix: simulated-bus-r000083
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000087
+      - route-id: route_000087
+        vehicle-id-prefix: simulated-bus-r000087
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000088
+      - route-id: route_000088
+        vehicle-id-prefix: simulated-bus-r000088
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000089
+      - route-id: route_000089
+        vehicle-id-prefix: simulated-bus-r000089
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000096
+      - route-id: route_000096
+        vehicle-id-prefix: simulated-bus-r000096
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000107
+      - route-id: route_000107
+        vehicle-id-prefix: simulated-bus-r000107
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000111
+      - route-id: route_000111
+        vehicle-id-prefix: simulated-bus-r000111
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000114
+      - route-id: route_000114
+        vehicle-id-prefix: simulated-bus-r000114
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000115
+      - route-id: route_000115
+        vehicle-id-prefix: simulated-bus-r000115
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000118
+      - route-id: route_000118
+        vehicle-id-prefix: simulated-bus-r000118
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000119
+      - route-id: route_000119
+        vehicle-id-prefix: simulated-bus-r000119
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000121
+      - route-id: route_000121
+        vehicle-id-prefix: simulated-bus-r000121
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000122
+      - route-id: route_000122
+        vehicle-id-prefix: simulated-bus-r000122
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000123
+      - route-id: route_000123
+        vehicle-id-prefix: simulated-bus-r000123
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000126
+      - route-id: route_000126
+        vehicle-id-prefix: simulated-bus-r000126
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000127
+      - route-id: route_000127
+        vehicle-id-prefix: simulated-bus-r000127
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000128
+      - route-id: route_000128
+        vehicle-id-prefix: simulated-bus-r000128
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000154
+      - route-id: route_000154
+        vehicle-id-prefix: simulated-bus-r000154
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000158
+      - route-id: route_000158
+        vehicle-id-prefix: simulated-bus-r000158
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000159
+      - route-id: route_000159
+        vehicle-id-prefix: simulated-bus-r000159
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000161
+      - route-id: route_000161
+        vehicle-id-prefix: simulated-bus-r000161
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000163
+      - route-id: route_000163
+        vehicle-id-prefix: simulated-bus-r000163
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000167
+      - route-id: route_000167
+        vehicle-id-prefix: simulated-bus-r000167
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000169
+      - route-id: route_000169
+        vehicle-id-prefix: simulated-bus-r000169
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000171
+      - route-id: route_000171
+        vehicle-id-prefix: simulated-bus-r000171
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000172
+      - route-id: route_000172
+        vehicle-id-prefix: simulated-bus-r000172
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000182
+      - route-id: route_000182
+        vehicle-id-prefix: simulated-bus-r000182
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000183
+      - route-id: route_000183
+        vehicle-id-prefix: simulated-bus-r000183
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000186
+      - route-id: route_000186
+        vehicle-id-prefix: simulated-bus-r000186
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000187
+      - route-id: route_000187
+        vehicle-id-prefix: simulated-bus-r000187
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000192
+      - route-id: route_000192
+        vehicle-id-prefix: simulated-bus-r000192
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000198
+      - route-id: route_000198
+        vehicle-id-prefix: simulated-bus-r000198
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000199
+      - route-id: route_000199
+        vehicle-id-prefix: simulated-bus-r000199
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000203
+      - route-id: route_000203
+        vehicle-id-prefix: simulated-bus-r000203
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000212
+      - route-id: route_000212
+        vehicle-id-prefix: simulated-bus-r000212
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000213
+      - route-id: route_000213
+        vehicle-id-prefix: simulated-bus-r000213
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000214
+      - route-id: route_000214
+        vehicle-id-prefix: simulated-bus-r000214
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000215
+      - route-id: route_000215
+        vehicle-id-prefix: simulated-bus-r000215
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000216
+      - route-id: route_000216
+        vehicle-id-prefix: simulated-bus-r000216
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000217
+      - route-id: route_000217
+        vehicle-id-prefix: simulated-bus-r000217
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000219
+      - route-id: route_000219
+        vehicle-id-prefix: simulated-bus-r000219
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000220
+      - route-id: route_000220
+        vehicle-id-prefix: simulated-bus-r000220
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000221
+      - route-id: route_000221
+        vehicle-id-prefix: simulated-bus-r000221
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000222
+      - route-id: route_000222
+        vehicle-id-prefix: simulated-bus-r000222
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000223
+      - route-id: route_000223
+        vehicle-id-prefix: simulated-bus-r000223
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000225
+      - route-id: route_000225
+        vehicle-id-prefix: simulated-bus-r000225
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000226
+      - route-id: route_000226
+        vehicle-id-prefix: simulated-bus-r000226
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000228
+      - route-id: route_000228
+        vehicle-id-prefix: simulated-bus-r000228
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000231
+      - route-id: route_000231
+        vehicle-id-prefix: simulated-bus-r000231
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000232
+      - route-id: route_000232
+        vehicle-id-prefix: simulated-bus-r000232
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000235
+      - route-id: route_000235
+        vehicle-id-prefix: simulated-bus-r000235
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000244
+      - route-id: route_000244
+        vehicle-id-prefix: simulated-bus-r000244
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000246
+      - route-id: route_000246
+        vehicle-id-prefix: simulated-bus-r000246
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000247
+      - route-id: route_000247
+        vehicle-id-prefix: simulated-bus-r000247
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000249
+      - route-id: route_000249
+        vehicle-id-prefix: simulated-bus-r000249
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000252
+      - route-id: route_000252
+        vehicle-id-prefix: simulated-bus-r000252
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000254
+      - route-id: route_000254
+        vehicle-id-prefix: simulated-bus-r000254
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000256
+      - route-id: route_000256
+        vehicle-id-prefix: simulated-bus-r000256
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000257
+      - route-id: route_000257
+        vehicle-id-prefix: simulated-bus-r000257
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000258
+      - route-id: route_000258
+        vehicle-id-prefix: simulated-bus-r000258
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000259
+      - route-id: route_000259
+        vehicle-id-prefix: simulated-bus-r000259
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000262
+      - route-id: route_000262
+        vehicle-id-prefix: simulated-bus-r000262
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000263
+      - route-id: route_000263
+        vehicle-id-prefix: simulated-bus-r000263
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000267
+      - route-id: route_000267
+        vehicle-id-prefix: simulated-bus-r000267
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000268
+      - route-id: route_000268
+        vehicle-id-prefix: simulated-bus-r000268
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000270
+      - route-id: route_000270
+        vehicle-id-prefix: simulated-bus-r000270
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000271
+      - route-id: route_000271
+        vehicle-id-prefix: simulated-bus-r000271
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000272
+      - route-id: route_000272
+        vehicle-id-prefix: simulated-bus-r000272
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000274
+      - route-id: route_000274
+        vehicle-id-prefix: simulated-bus-r000274
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000275
+      - route-id: route_000275
+        vehicle-id-prefix: simulated-bus-r000275
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000281
+      - route-id: route_000281
+        vehicle-id-prefix: simulated-bus-r000281
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000283
+      - route-id: route_000283
+        vehicle-id-prefix: simulated-bus-r000283
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000285
+      - route-id: route_000285
+        vehicle-id-prefix: simulated-bus-r000285
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000286
+      - route-id: route_000286
+        vehicle-id-prefix: simulated-bus-r000286
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000288
+      - route-id: route_000288
+        vehicle-id-prefix: simulated-bus-r000288
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000289
+      - route-id: route_000289
+        vehicle-id-prefix: simulated-bus-r000289
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000290
+      - route-id: route_000290
+        vehicle-id-prefix: simulated-bus-r000290
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000291
+      - route-id: route_000291
+        vehicle-id-prefix: simulated-bus-r000291
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000296
+      - route-id: route_000296
+        vehicle-id-prefix: simulated-bus-r000296
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000297
+      - route-id: route_000297
+        vehicle-id-prefix: simulated-bus-r000297
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000300
+      - route-id: route_000300
+        vehicle-id-prefix: simulated-bus-r000300
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000306
+      - route-id: route_000306
+        vehicle-id-prefix: simulated-bus-r000306
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000308
+      - route-id: route_000308
+        vehicle-id-prefix: simulated-bus-r000308
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000310
+      - route-id: route_000310
+        vehicle-id-prefix: simulated-bus-r000310
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000311
+      - route-id: route_000311
+        vehicle-id-prefix: simulated-bus-r000311
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000312
+      - route-id: route_000312
+        vehicle-id-prefix: simulated-bus-r000312
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000313
+      - route-id: route_000313
+        vehicle-id-prefix: simulated-bus-r000313
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000314
+      - route-id: route_000314
+        vehicle-id-prefix: simulated-bus-r000314
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000315
+      - route-id: route_000315
+        vehicle-id-prefix: simulated-bus-r000315
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000319
+      - route-id: route_000319
+        vehicle-id-prefix: simulated-bus-r000319
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000320
+      - route-id: route_000320
+        vehicle-id-prefix: simulated-bus-r000320
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000323
+      - route-id: route_000323
+        vehicle-id-prefix: simulated-bus-r000323
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000325
+      - route-id: route_000325
+        vehicle-id-prefix: simulated-bus-r000325
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000328
+      - route-id: route_000328
+        vehicle-id-prefix: simulated-bus-r000328
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000333
+      - route-id: route_000333
+        vehicle-id-prefix: simulated-bus-r000333
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000334
+      - route-id: route_000334
+        vehicle-id-prefix: simulated-bus-r000334
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000338
+      - route-id: route_000338
+        vehicle-id-prefix: simulated-bus-r000338
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000341
+      - route-id: route_000341
+        vehicle-id-prefix: simulated-bus-r000341
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000345
+      - route-id: route_000345
+        vehicle-id-prefix: simulated-bus-r000345
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000347
+      - route-id: route_000347
+        vehicle-id-prefix: simulated-bus-r000347
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000349
+      - route-id: route_000349
+        vehicle-id-prefix: simulated-bus-r000349
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000350
+      - route-id: route_000350
+        vehicle-id-prefix: simulated-bus-r000350
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000351
+      - route-id: route_000351
+        vehicle-id-prefix: simulated-bus-r000351
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000352
+      - route-id: route_000352
+        vehicle-id-prefix: simulated-bus-r000352
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000357
+      - route-id: route_000357
+        vehicle-id-prefix: simulated-bus-r000357
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000359
+      - route-id: route_000359
+        vehicle-id-prefix: simulated-bus-r000359
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000362
+      - route-id: route_000362
+        vehicle-id-prefix: simulated-bus-r000362
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000370
+      - route-id: route_000370
+        vehicle-id-prefix: simulated-bus-r000370
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000371
+      - route-id: route_000371
+        vehicle-id-prefix: simulated-bus-r000371
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000372
+      - route-id: route_000372
+        vehicle-id-prefix: simulated-bus-r000372
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000374
+      - route-id: route_000374
+        vehicle-id-prefix: simulated-bus-r000374
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000375
+      - route-id: route_000375
+        vehicle-id-prefix: simulated-bus-r000375
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000377
+      - route-id: route_000377
+        vehicle-id-prefix: simulated-bus-r000377
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000378
+      - route-id: route_000378
+        vehicle-id-prefix: simulated-bus-r000378
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000380
+      - route-id: route_000380
+        vehicle-id-prefix: simulated-bus-r000380
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000383
+      - route-id: route_000383
+        vehicle-id-prefix: simulated-bus-r000383
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000386
+      - route-id: route_000386
+        vehicle-id-prefix: simulated-bus-r000386
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000392
+      - route-id: route_000392
+        vehicle-id-prefix: simulated-bus-r000392
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000394
+      - route-id: route_000394
+        vehicle-id-prefix: simulated-bus-r000394
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000396
+      - route-id: route_000396
+        vehicle-id-prefix: simulated-bus-r000396
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000400
+      - route-id: route_000400
+        vehicle-id-prefix: simulated-bus-r000400
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000401
+      - route-id: route_000401
+        vehicle-id-prefix: simulated-bus-r000401
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000402
+      - route-id: route_000402
+        vehicle-id-prefix: simulated-bus-r000402
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000404
+      - route-id: route_000404
+        vehicle-id-prefix: simulated-bus-r000404
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000414
+      - route-id: route_000414
+        vehicle-id-prefix: simulated-bus-r000414
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000415
+      - route-id: route_000415
+        vehicle-id-prefix: simulated-bus-r000415
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000416
+      - route-id: route_000416
+        vehicle-id-prefix: simulated-bus-r000416
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000420
+      - route-id: route_000420
+        vehicle-id-prefix: simulated-bus-r000420
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000421
+      - route-id: route_000421
+        vehicle-id-prefix: simulated-bus-r000421
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000423
+      - route-id: route_000423
+        vehicle-id-prefix: simulated-bus-r000423
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000428
+      - route-id: route_000428
+        vehicle-id-prefix: simulated-bus-r000428
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000429
+      - route-id: route_000429
+        vehicle-id-prefix: simulated-bus-r000429
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000430
+      - route-id: route_000430
+        vehicle-id-prefix: simulated-bus-r000430
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000435
+      - route-id: route_000435
+        vehicle-id-prefix: simulated-bus-r000435
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000441
+      - route-id: route_000441
+        vehicle-id-prefix: simulated-bus-r000441
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000443
+      - route-id: route_000443
+        vehicle-id-prefix: simulated-bus-r000443
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000446
+      - route-id: route_000446
+        vehicle-id-prefix: simulated-bus-r000446
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000447
+      - route-id: route_000447
+        vehicle-id-prefix: simulated-bus-r000447
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000448
+      - route-id: route_000448
+        vehicle-id-prefix: simulated-bus-r000448
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000449
+      - route-id: route_000449
+        vehicle-id-prefix: simulated-bus-r000449
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000450
+      - route-id: route_000450
+        vehicle-id-prefix: simulated-bus-r000450
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000451
+      - route-id: route_000451
+        vehicle-id-prefix: simulated-bus-r000451
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000454
+      - route-id: route_000454
+        vehicle-id-prefix: simulated-bus-r000454
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000455
+      - route-id: route_000455
+        vehicle-id-prefix: simulated-bus-r000455
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000457
+      - route-id: route_000457
+        vehicle-id-prefix: simulated-bus-r000457
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000458
+      - route-id: route_000458
+        vehicle-id-prefix: simulated-bus-r000458
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000459
+      - route-id: route_000459
+        vehicle-id-prefix: simulated-bus-r000459
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000471
+      - route-id: route_000471
+        vehicle-id-prefix: simulated-bus-r000471
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000472
+      - route-id: route_000472
+        vehicle-id-prefix: simulated-bus-r000472
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000474
+      - route-id: route_000474
+        vehicle-id-prefix: simulated-bus-r000474
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000475
+      - route-id: route_000475
+        vehicle-id-prefix: simulated-bus-r000475
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000476
+      - route-id: route_000476
+        vehicle-id-prefix: simulated-bus-r000476
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000477
+      - route-id: route_000477
+        vehicle-id-prefix: simulated-bus-r000477
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000478
+      - route-id: route_000478
+        vehicle-id-prefix: simulated-bus-r000478
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000483
+      - route-id: route_000483
+        vehicle-id-prefix: simulated-bus-r000483
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000484
+      - route-id: route_000484
+        vehicle-id-prefix: simulated-bus-r000484
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000485
+      - route-id: route_000485
+        vehicle-id-prefix: simulated-bus-r000485
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000486
+      - route-id: route_000486
+        vehicle-id-prefix: simulated-bus-r000486
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000487
+      - route-id: route_000487
+        vehicle-id-prefix: simulated-bus-r000487
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000488
+      - route-id: route_000488
+        vehicle-id-prefix: simulated-bus-r000488
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000489
+      - route-id: route_000489
+        vehicle-id-prefix: simulated-bus-r000489
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000490
+      - route-id: route_000490
+        vehicle-id-prefix: simulated-bus-r000490
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000491
+      - route-id: route_000491
+        vehicle-id-prefix: simulated-bus-r000491
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000492
+      - route-id: route_000492
+        vehicle-id-prefix: simulated-bus-r000492
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000494
+      - route-id: route_000494
+        vehicle-id-prefix: simulated-bus-r000494
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000495
+      - route-id: route_000495
+        vehicle-id-prefix: simulated-bus-r000495
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000502
+      - route-id: route_000502
+        vehicle-id-prefix: simulated-bus-r000502
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000503
+      - route-id: route_000503
+        vehicle-id-prefix: simulated-bus-r000503
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000504
+      - route-id: route_000504
+        vehicle-id-prefix: simulated-bus-r000504
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000505
+      - route-id: route_000505
+        vehicle-id-prefix: simulated-bus-r000505
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000506
+      - route-id: route_000506
+        vehicle-id-prefix: simulated-bus-r000506
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000507
+      - route-id: route_000507
+        vehicle-id-prefix: simulated-bus-r000507
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000508
+      - route-id: route_000508
+        vehicle-id-prefix: simulated-bus-r000508
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000509
+      - route-id: route_000509
+        vehicle-id-prefix: simulated-bus-r000509
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000511
+      - route-id: route_000511
+        vehicle-id-prefix: simulated-bus-r000511
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000512
+      - route-id: route_000512
+        vehicle-id-prefix: simulated-bus-r000512
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000513
+      - route-id: route_000513
+        vehicle-id-prefix: simulated-bus-r000513
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000515
+      - route-id: route_000515
+        vehicle-id-prefix: simulated-bus-r000515
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000517
+      - route-id: route_000517
+        vehicle-id-prefix: simulated-bus-r000517
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000518
+      - route-id: route_000518
+        vehicle-id-prefix: simulated-bus-r000518
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000519
+      - route-id: route_000519
+        vehicle-id-prefix: simulated-bus-r000519
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000521
+      - route-id: route_000521
+        vehicle-id-prefix: simulated-bus-r000521
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000523
+      - route-id: route_000523
+        vehicle-id-prefix: simulated-bus-r000523
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000524
+      - route-id: route_000524
+        vehicle-id-prefix: simulated-bus-r000524
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000525
+      - route-id: route_000525
+        vehicle-id-prefix: simulated-bus-r000525
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000526
+      - route-id: route_000526
+        vehicle-id-prefix: simulated-bus-r000526
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000527
+      - route-id: route_000527
+        vehicle-id-prefix: simulated-bus-r000527
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000528
+      - route-id: route_000528
+        vehicle-id-prefix: simulated-bus-r000528
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000529
+      - route-id: route_000529
+        vehicle-id-prefix: simulated-bus-r000529
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000531
+      - route-id: route_000531
+        vehicle-id-prefix: simulated-bus-r000531
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000533
+      - route-id: route_000533
+        vehicle-id-prefix: simulated-bus-r000533
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000535
+      - route-id: route_000535
+        vehicle-id-prefix: simulated-bus-r000535
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000539
+      - route-id: route_000539
+        vehicle-id-prefix: simulated-bus-r000539
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000542
+      - route-id: route_000542
+        vehicle-id-prefix: simulated-bus-r000542
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000543
+      - route-id: route_000543
+        vehicle-id-prefix: simulated-bus-r000543
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000544
+      - route-id: route_000544
+        vehicle-id-prefix: simulated-bus-r000544
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000546
+      - route-id: route_000546
+        vehicle-id-prefix: simulated-bus-r000546
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000548
+      - route-id: route_000548
+        vehicle-id-prefix: simulated-bus-r000548
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000552
+      - route-id: route_000552
+        vehicle-id-prefix: simulated-bus-r000552
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000553
+      - route-id: route_000553
+        vehicle-id-prefix: simulated-bus-r000553
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000554
+      - route-id: route_000554
+        vehicle-id-prefix: simulated-bus-r000554
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000557
+      - route-id: route_000557
+        vehicle-id-prefix: simulated-bus-r000557
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000558
+      - route-id: route_000558
+        vehicle-id-prefix: simulated-bus-r000558
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000560
+      - route-id: route_000560
+        vehicle-id-prefix: simulated-bus-r000560
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000561
+      - route-id: route_000561
+        vehicle-id-prefix: simulated-bus-r000561
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000562
+      - route-id: route_000562
+        vehicle-id-prefix: simulated-bus-r000562
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000569
+      - route-id: route_000569
+        vehicle-id-prefix: simulated-bus-r000569
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000573
+      - route-id: route_000573
+        vehicle-id-prefix: simulated-bus-r000573
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000574
+      - route-id: route_000574
+        vehicle-id-prefix: simulated-bus-r000574
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000576
+      - route-id: route_000576
+        vehicle-id-prefix: simulated-bus-r000576
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
+        speed-meters-per-second: 12
+
+      # 自动扩展线路：route_000578
+      - route-id: route_000578
+        vehicle-id-prefix: simulated-bus-r000578
+        vehicle-count: ${transit-simulation-defaults.vehicle-count}
         speed-meters-per-second: 12

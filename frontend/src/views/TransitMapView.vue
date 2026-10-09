@@ -31,6 +31,7 @@ import { useRealtimeVehicleGridAggregation } from '@/composables/useRealtimeVehi
 import { useRealtimeVehicleGridLayer } from '@/composables/useRealtimeVehicleGridLayer'
 import { useRealtimeVehicleViewportCulling } from '@/composables/useRealtimeVehicleViewportCulling'
 import { useStopArrivals } from '@/composables/useStopArrivals'
+import { useMapDisplay } from '@/composables/useMapDisplay'
 import type {
     NetworkTrajectoryQuery,
     RouteTrajectoryQuery,
@@ -309,6 +310,14 @@ const {
     createViewer,
     destroyViewer,
 } = useCesiumViewer()
+
+const {
+    activeBaseMap,
+    sceneDimension,
+    initializeBaseMap,
+    toggleBaseMap,
+    toggleSceneDimension,
+} = useMapDisplay()
 
 const {
     loadWhiteModel,
@@ -871,6 +880,26 @@ function toggleWhiteModel() {
     setWhiteModelVisible(!whiteModelVisible.value)
 }
 
+async function handleToggleBaseMap() {
+    const currentViewer = viewer
+
+    if (!currentViewer || currentViewer.isDestroyed()) {
+        return
+    }
+
+    await toggleBaseMap(currentViewer)
+}
+
+function handleToggleSceneDimension() {
+    const currentViewer = viewer
+
+    if (!currentViewer || currentViewer.isDestroyed()) {
+        return
+    }
+
+    toggleSceneDimension(currentViewer)
+}
+
 function toRouteId(fid: number): string {
     return `route_${String(fid).padStart(6, '0')}`
 }
@@ -1025,6 +1054,8 @@ onMounted(async () => {
     try {
         viewer = await createViewer(cesiumContainer.value)
 
+        await initializeBaseMap(viewer)
+
         updateActiveRealtimeVehicleLayer(viewer, realtimeVehicles.value)
 
         syncRealtimeVehicleLayerVisibility(true)
@@ -1166,6 +1197,38 @@ onBeforeUnmount(() => {
                         ? '结束附近站点查询'
                         : '开始附近站点查询'
                 }}
+            </button>
+        </div>
+
+        <div class="map-view-controls" aria-label="地图视图控制">
+            <button
+                class="map-tool-button"
+                type="button"
+                :title="activeBaseMap === 'satellite' ? '切换到OSM道路图' : '切换到卫星影像'"
+                :aria-label="activeBaseMap === 'satellite' ? '切换到OSM道路图' : '切换到卫星影像'"
+                @click="handleToggleBaseMap"
+            >
+                <svg class="map-tool-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="m12 3 9 5-9 5-9-5 9-5Z" />
+                    <path d="m3 12 9 5 9-5" />
+                    <path d="m3 16 9 5 9-5" />
+                </svg>
+
+                <span class="map-tool-label">
+                    {{ activeBaseMap === 'satellite' ? 'OSM' : '卫星' }}
+                </span>
+            </button>
+
+            <button
+                class="map-tool-button"
+                type="button"
+                :title="sceneDimension === '3d' ? '切换到二维地图' : '切换到三维地图'"
+                :aria-label="sceneDimension === '3d' ? '切换到二维地图' : '切换到三维地图'"
+                @click="handleToggleSceneDimension"
+            >
+                <span class="map-tool-dimension">
+                    {{ sceneDimension === '3d' ? '2D' : '3D' }}
+                </span>
             </button>
         </div>
 
@@ -1320,6 +1383,65 @@ onBeforeUnmount(() => {
     background: #51d6ff;
     box-shadow: 0 0 8px rgba(81, 214, 255, 0.85);
 }
+.map-view-controls {
+    position: absolute;
+    z-index: 10;
+    top: 64px;
+    right: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.map-tool-button {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    width: 52px;
+    height: 52px;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 6px;
+    color: #e9f5ff;
+    background: rgba(18, 32, 48, 0.88);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.24);
+    cursor: pointer;
+    font: inherit;
+    transition: background-color 160ms ease, border-color 160ms ease;
+}
+
+.map-tool-button:hover {
+    border-color: rgba(87, 220, 255, 0.85);
+    background: rgba(29, 51, 72, 0.96);
+}
+
+.map-tool-button:focus-visible {
+    outline: 2px solid #51d6ff;
+    outline-offset: 2px;
+}
+
+.map-tool-icon {
+    width: 21px;
+    height: 21px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.map-tool-label {
+    font-size: 11px;
+    line-height: 1;
+}
+
+.map-tool-dimension {
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+}
 
 @media (max-width: 640px) {
     .layer-controls {
@@ -1328,6 +1450,12 @@ onBeforeUnmount(() => {
         left: 12px;
         flex-direction: column;
         align-items: flex-start;
+    }
+
+    .map-view-controls {
+        top: auto;
+        right: 12px;
+        bottom: 72px;
     }
 }
 </style>

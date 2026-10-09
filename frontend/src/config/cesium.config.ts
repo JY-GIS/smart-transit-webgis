@@ -6,11 +6,25 @@ export const CESIUM_CONFIG = {
         requestVertexNormals: true,
     },
 
+    // 底图服务地址
+    baseMaps: {
+        defaultType: 'satellite',
+        osmUrl: 'https://tile.openstreetmap.org/',
+        satelliteUrl: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer',
+    },
+
     // Viewer 基础选项：业务使用自定义线路信息面板，因此关闭默认 InfoBox。
     viewer: {
         infoBox: false,
         selectionIndicator: false,
-        shouldAnimate: true
+        shouldAnimate: true,
+
+        // 关闭 Cesium 自带控件，后续使用项目自己的中文切换按钮。
+        baseLayerPicker: false,
+        sceneModePicker: false,
+
+        // 默认底图
+        baseLayer: false,
     },
 
     // 开发调试开关，发布前可改为 false。

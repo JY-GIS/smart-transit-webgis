@@ -12,14 +12,10 @@ import {
     TRANSIT_GROUND_ROUTE_OUTLINE_WIDTH,
 } from '@/utils/transitPolylineHighlight'
 
-// 被选中站点高亮前的样式快照
 type RouteStopStyleSnapshot = {
     entity: Cesium.Entity
-    color: Cesium.Property | undefined
-    pixelSize: Cesium.Property | undefined
-    outlineColor: Cesium.Property | undefined
-    outlineWidth: Cesium.Property | undefined
-    disableDepthTestDistance: Cesium.Property | undefined
+    silhouetteColor: Cesium.Property | undefined
+    silhouetteSize: Cesium.Property | undefined
 }
 
 // 通过回调复用已有点击事件，避免重复注册
@@ -231,29 +227,18 @@ export function useBusRouteSelection() {
     }
 
     /**
- * 恢复上一个选中站点的原始样式。
- */
+     * 恢复上一个选中站牌的原始描边样式。
+     */
     function clearRouteStopHighlight() {
         const snapshot = highlightedRouteStopStyle
 
-        if (!snapshot) {
-            return
-        }
+        if (!snapshot) return
 
-        const point = snapshot.entity.point
+        const model = snapshot.entity.model
 
-        if (point) {
-            point.color = snapshot.color
-            point.pixelSize = snapshot.pixelSize
-
-            point.outlineColor =
-                snapshot.outlineColor
-
-            point.outlineWidth =
-                snapshot.outlineWidth
-
-            point.disableDepthTestDistance =
-                snapshot.disableDepthTestDistance
+        if (model) {
+            model.silhouetteColor = snapshot.silhouetteColor
+            model.silhouetteSize = snapshot.silhouetteSize
         }
 
         highlightedRouteStopStyle = undefined
@@ -268,34 +253,22 @@ export function useBusRouteSelection() {
     }
 
     /**
-     * 高亮用户点击的线路站点。
+     * 使用金色轮廓高亮用户点击的三维站牌。
      */
     function highlightRouteStop(entity: Cesium.Entity) {
         clearRouteStopHighlight()
 
-        const point = entity.point
+        const model = entity.model
+        if (!model) return
 
-        if (!point) return
-
-        /*
-         * 先保存原样式，再覆盖为选中样式。
-         * 如果不保存，切换站点后无法恢复原来的紫色。
-         */
         highlightedRouteStopStyle = {
             entity,
-            color: point.color,
-            pixelSize: point.pixelSize,
-            outlineColor: point.outlineColor,
-            outlineWidth: point.outlineWidth,
-            disableDepthTestDistance: point.disableDepthTestDistance,
+            silhouetteColor: model.silhouetteColor,
+            silhouetteSize: model.silhouetteSize,
         }
 
-        // 当前选中样式不需要时间动画，因此 ConstantProperty 比 CallbackProperty 更合适
-        point.color = new Cesium.ConstantProperty(Cesium.Color.WHITE)
-        point.outlineColor = new Cesium.ConstantProperty(Cesium.Color.GOLD)
-        point.outlineWidth = new Cesium.ConstantProperty(3)
-
-        point.disableDepthTestDistance = new Cesium.ConstantProperty(Number.POSITIVE_INFINITY)
+        model.silhouetteColor = new Cesium.ConstantProperty(Cesium.Color.GOLD)
+        model.silhouetteSize = new Cesium.ConstantProperty(3)
     }
 
     function clearRouteSelection() {

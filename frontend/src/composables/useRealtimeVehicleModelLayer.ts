@@ -67,6 +67,21 @@ export function useRealtimeVehicleModelLayer() {
         return vehicleModelDataSource
     }
 
+    /**
+     * 将实时车辆线路编号和车辆编号整理成地图标签文本。
+     */
+    function formatVehicleLabel(snapshot: RealtimeVehiclePositionSnapshot): string {
+        const vehicleId = snapshot.vehicleId
+            .replace(/^simulated-bus-/i, '')
+            .toUpperCase()
+
+        const routeId = snapshot.routeId
+            .replace(/^route_000/i, '')
+            .toUpperCase()
+
+        return `${routeId}路 · ${vehicleId}`
+    }
+
     function createModelPosition(snapshot: RealtimeVehiclePositionSnapshot): Cesium.Cartesian3 {
         return Cesium.Cartesian3.fromDegrees(
             snapshot.longitude,
@@ -252,6 +267,22 @@ export function useRealtimeVehicleModelLayer() {
                             ),
                         ),
                 },
+            },
+            label: {
+                text: formatVehicleLabel(snapshot),
+                font: '13px sans-serif',
+                style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                fillColor: Cesium.Color.WHITE,
+                outlineColor: Cesium.Color.BLACK,
+                outlineWidth: 1,
+                showBackground: true,
+                backgroundColor: Cesium.Color.fromCssColorString('#0b1728').withAlpha(0.85),
+                backgroundPadding: new Cesium.Cartesian2(8, 5),
+                pixelOffset: new Cesium.Cartesian2(0, -35),
+                verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                heightReference: Cesium.HeightReference.RELATIVE_TO_GROUND,
+                distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 1000),
+                disableDepthTestDistance: Number.POSITIVE_INFINITY,
             },
         })
 

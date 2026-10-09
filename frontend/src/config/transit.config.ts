@@ -77,6 +77,14 @@ export const TRANSIT_CONFIG = {
         clampToGround: false,
     },
 
+    // 公交站牌三维模型配置。
+    busStopModel: {
+        uri: '/models/bus_sign.glb',
+        scale: 0.25,
+        minimumPixelSize: 28,
+        maximumScale: 92,
+    },
+
     // 后端实时车辆 STOMP 配置
     realtimeVehicles: {
         // WebSocket 最初建立连接时使用的握手路径。

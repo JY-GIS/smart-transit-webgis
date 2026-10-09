@@ -108,6 +108,9 @@ export const TRANSIT_CONFIG = {
             // 每个地理网格的实际边长。
             aggregationGridSizeMeters: 1000,
 
+            // 在真实视野四周额外保留15%的车辆。
+            viewportPaddingRatio: 0.15,
+
             // 网格颜色使用固定车辆数量分级，便于比较不同时刻的真实密度。
             aggregationStyle: {
                 mediumVehicleCount: 10,

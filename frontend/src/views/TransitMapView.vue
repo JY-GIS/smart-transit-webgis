@@ -28,6 +28,7 @@ import { useRealtimeVehicleModelLayer } from '@/composables/useRealtimeVehicleMo
 import { useRealtimeVehicleLod } from '@/composables/useRealtimeVehicleLod'
 import { useRealtimeVehicleGridAggregation } from '@/composables/useRealtimeVehicleGridAggregation'
 import { useRealtimeVehicleGridLayer } from '@/composables/useRealtimeVehicleGridLayer'
+import { useRealtimeVehicleViewportCulling } from '@/composables/useRealtimeVehicleViewportCulling'
 import { useStopArrivals } from '@/composables/useStopArrivals'
 import type {
     NetworkTrajectoryQuery,
@@ -189,6 +190,10 @@ const {
 } = useRealtimeVehicleGridLayer()
 
 const {
+    filterVehiclesInView,
+} = useRealtimeVehicleViewportCulling()
+
+const {
     availableVehicles: historyAvailableVehicles,
     availabilityStatus: historyAvailabilityStatus,
     availabilityErrorMessage: historyAvailabilityErrorMessage,
@@ -344,12 +349,14 @@ function updateActiveRealtimeVehicleLayer(
         return
     }
 
-    clearRealtimeVehicleGridCells()
+        clearRealtimeVehicleGridCells()
+
+    const visibleSnapshots = filterVehiclesInView(currentViewer, snapshots, selectedVehicleId.value)
 
     const {
         pointSnapshots,
         modelSnapshots,
-    } = groupVehiclesByDistance(currentViewer, snapshots)
+    } = groupVehiclesByDistance(currentViewer, visibleSnapshots)
 
     updateRealtimeVehiclePointLayer(currentViewer, pointSnapshots)
     updateRealtimeVehicleModelLayer(currentViewer, modelSnapshots)
@@ -671,10 +678,7 @@ function handleSelectOperationalVehicle(vehicleId: string,) {
     }
 
     const pointPosition = getRealtimeVehiclePointPosition(vehicleId)
-
-    if (!pointPosition) {
-        return
-    }
+        ?? Cesium.Cartesian3.fromDegrees(vehicle.longitude, vehicle.latitude)
 
     currentViewer.selectedEntity = undefined
 

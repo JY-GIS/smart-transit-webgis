@@ -3,9 +3,14 @@ import * as Cesium from 'cesium'
 import type { BusRouteProperties } from '@/types/busRoute'
 import type { RealtimeVehiclePickProperties } from '@/types/realtimeVehicle'
 import type { RouteBusStopEntityProperties } from '@/types/busStop'
-import { createTransitPolylineHighlightMaterial, TRANSIT_POLYLINE_HIGHLIGHT_WIDTH } from '@/utils/transitPolylineHighlight'
 import { readRouteBusStopProperties } from './useBusStopLayer'
 import { readBusRouteProperties } from './useBusRouteLayer'
+import {
+    TRANSIT_GROUND_ROUTE_CORE_COLOR,
+    TRANSIT_GROUND_ROUTE_CORE_WIDTH,
+    TRANSIT_GROUND_ROUTE_OUTLINE_COLOR,
+    TRANSIT_GROUND_ROUTE_OUTLINE_WIDTH,
+} from '@/utils/transitPolylineHighlight'
 
 // 被选中站点高亮前的样式快照
 type RouteStopStyleSnapshot = {
@@ -182,10 +187,6 @@ export function useBusRouteSelection() {
         // 一个 fid 可能对应多个线段，因此需要把全部片段都复制到高亮图层。
         const sourceEntities = routeEntitiesByFid.get(fid) ?? []
 
-        const highlightMaterial = createTransitPolylineHighlightMaterial(1, 0.35)
-
-        const depthFailHighlightMaterial = createTransitPolylineHighlightMaterial(0.65, 0.25)
-
         for (const sourceEntity of sourceEntities) {
             const sourcePolyline = sourceEntity.polyline
 
@@ -200,15 +201,28 @@ export function useBusRouteSelection() {
             }
 
             highlightDataSource.entities.add({
-                id: `bus-route-highlight:${sourceEntity.id}`,
-                name: `选中公交线路 ${fid}`,
+                id: `bus-route-highlight-outline:${sourceEntity.id}`,
+                name: `选中公交线路轮廓 ${fid}`,
                 polyline: {
                     positions,
-                    width: TRANSIT_POLYLINE_HIGHLIGHT_WIDTH,
-                    material: highlightMaterial,
-                    depthFailMaterial: depthFailHighlightMaterial,
-                    clampToGround: sourcePolyline.clampToGround,
-                    classificationType: sourcePolyline.classificationType,
+                    width: TRANSIT_GROUND_ROUTE_OUTLINE_WIDTH,
+                    material: TRANSIT_GROUND_ROUTE_OUTLINE_COLOR,
+                    clampToGround: true,
+                    classificationType: Cesium.ClassificationType.TERRAIN,
+                    zIndex: 10,
+                },
+            })
+
+            highlightDataSource.entities.add({
+                id: `bus-route-highlight-core:${sourceEntity.id}`,
+                name: `选中公交线路主体 ${fid}`,
+                polyline: {
+                    positions,
+                    width: TRANSIT_GROUND_ROUTE_CORE_WIDTH,
+                    material: TRANSIT_GROUND_ROUTE_CORE_COLOR,
+                    clampToGround: true,
+                    classificationType: Cesium.ClassificationType.TERRAIN,
+                    zIndex: 11,
                 },
             })
         }

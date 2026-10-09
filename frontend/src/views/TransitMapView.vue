@@ -8,6 +8,7 @@ import BusRouteInfoPanel from '@/components/transit/BusRouteInfoPanel.vue'
 import NearbyBusStopPanel from '@/components/transit/NearbyBusStopPanel.vue'
 import PoiAnalysisPanel from '@/components/transit/PoiAnalysisPanel.vue'
 import RealtimeVehicleInfoPanel from '@/components/transit/RealtimeVehicleInfoPanel.vue'
+import RealtimeVehicleTrackingPanel from '@/components/transit/RealtimeVehicleTrackingPanel.vue'
 import RealtimeOperationalAlertPanel from '@/components/transit/RealtimeOperationalAlertPanel.vue'
 import StopArrivalPanel from '@/components/transit/StopArrivalPanel.vue'
 import VehicleTrajectoryPanel from '@/components/transit/VehicleTrajectoryPanel.vue'
@@ -42,6 +43,7 @@ import { useRouteTrajectoryReplay } from '@/composables/useRouteTrajectoryReplay
 import { useRouteTrajectoryReplayLayer } from '@/composables/useRouteTrajectoryReplayLayer'
 import { useNetworkTrajectoryReplay } from '@/composables/useNetworkTrajectoryReplay'
 import { useNetworkTrajectoryReplayLayer } from '@/composables/useNetworkTrajectoryReplayLayer'
+import { useRealtimeVehicleRoaming } from '@/composables/useRealtimeVehicleRoaming'
 
 import type { NearbyQueryCenter, OrderedBusStop } from '@/types/busStop'
 import type { RealtimeVehiclePositionSnapshot, RealtimeVehicleRenderMode } from '@/types/realtimeVehicle'
@@ -53,7 +55,6 @@ const selectedPoiRadiusMeters = ref<number>(TRANSIT_CONFIG.poiAnalysis.defaultRa
 const historyModeEnabled = ref(false)
 const historyReplayMode = ref<TrajectoryReplayMode>('vehicle')
 const realtimeVehicleRenderMode = ref<RealtimeVehicleRenderMode>('auto')
-
 const selectedRouteStops = ref<OrderedBusStop[]>([])
 
 // viewer 属于当前页面实例，页面卸载时必须销毁，避免 WebGL 资源泄漏。
@@ -165,10 +166,24 @@ const {
 
 const {
     getVehicleEntity: getRealtimeVehicleModelEntity,
+    getVehiclePosition: getRealtimeVehicleModelPosition,
     updateVehicles: updateRealtimeVehicleModelLayer,
     setVehiclesVisible: setRealtimeVehicleModelsVisible,
     cleanup: cleanupRealtimeVehicleModelLayer,
 } = useRealtimeVehicleModelLayer()
+
+const {
+    roamingModeEnabled: realtimeRoamingModeEnabled,
+    trackedVehicleId: trackedRealtimeVehicleId,
+    openRoamingMode,
+    trackVehicle: trackRealtimeVehicle,
+    updateVehicles: updateRealtimeVehicleRoamingVehicles,
+    closeRoamingMode,
+    cleanup: cleanupRealtimeVehicleRoaming,
+} = useRealtimeVehicleRoaming({
+    getPointPosition: getRealtimeVehiclePointPosition,
+    getModelPosition: getRealtimeVehicleModelPosition,
+})
 
 const {
     groupVehiclesByDistance,
@@ -419,6 +434,45 @@ function getRealtimeVehicleRenderModeText(): string {
     return '车辆显示：全部模型'
 }
 
+// 开始漫游当前选中的实时车辆
+function handleStartSelectedVehicleRoaming() {
+    const currentViewer = viewer
+    const vehicleId = selectedVehicleId.value
+
+    if (!currentViewer || currentViewer.isDestroyed() || !vehicleId) {
+        return
+    }
+
+    trackRealtimeVehicle(currentViewer, vehicleId)
+}
+
+// 进入公交轨迹漫游选车模式
+function openRealtimeRoamingMode() {
+    if (historyModeEnabled.value) {
+        closeHistoryMode()
+    }
+
+    handleClearNearbyQuery()
+    openRoamingMode()
+
+    if (selectedVehicleId.value) {
+        handleStartSelectedVehicleRoaming()
+    }
+}
+
+function closeRealtimeRoamingMode() {
+    closeRoamingMode(viewer)
+}
+
+function toggleRealtimeRoamingMode() {
+    if (realtimeRoamingModeEnabled.value) {
+        closeRealtimeRoamingMode()
+        return
+    }
+
+    openRealtimeRoamingMode()
+}
+
 function handleCloseRoutePanel() {
     closeRoutePanel(viewer)
 }
@@ -451,6 +505,8 @@ function handleRetryStopArrivals() {
 
 // 进入历史轨迹模式
 function openHistoryMode() {
+    closeRealtimeRoamingMode()
+
     historyModeEnabled.value = true
     historyReplayMode.value = 'vehicle'
 
@@ -899,6 +955,8 @@ watch(selectedRoute, (route) => {
 })
 
 watch(realtimeVehicles, (snapshots) => {
+    updateRealtimeVehicleRoamingVehicles(snapshots)
+
     const currentViewer = viewer
 
     // Viewer 尚未创建时先保留数据，暂不绘制
@@ -907,6 +965,20 @@ watch(realtimeVehicles, (snapshots) => {
     }
 
     updateActiveRealtimeVehicleLayer(currentViewer, snapshots)
+})
+
+watch(selectedVehicleId, (vehicleId) => {
+    if (!realtimeRoamingModeEnabled.value || !vehicleId) {
+        return
+    }
+
+    const currentViewer = viewer
+
+    if (!currentViewer || currentViewer.isDestroyed()) {
+        return
+    }
+
+    trackRealtimeVehicle(currentViewer, vehicleId)
 })
 
 // 查询成功后将轨迹加载到Cesium
@@ -994,6 +1066,8 @@ onMounted(async () => {
 onBeforeUnmount(() => { 
     void disconnectRealtimeVehicles()
 
+    cleanupRealtimeVehicleRoaming(viewer)
+
     cleanupVehicleTrajectoryQuery()
     cleanupVehicleTrajectoryLayer(viewer)
     cleanupVehicleRouteReplayQuery()
@@ -1070,6 +1144,17 @@ onBeforeUnmount(() => {
             </button>
             <button
                 class="layer-control-button"
+                :class="{ 'is-active': realtimeRoamingModeEnabled }"
+                type="button"
+                :aria-pressed="realtimeRoamingModeEnabled"
+                @click="toggleRealtimeRoamingMode"
+            >
+                <span class="layer-control-dot" aria-hidden="true"></span>
+
+                {{ realtimeRoamingModeEnabled ? '退出公交漫游' : '公交轨迹漫游' }}
+            </button>
+            <button
+                class="layer-control-button"
                 :class="{ 'is-active': nearbyQueryEnabled }"
                 type="button"
                 :aria-pressed="nearbyQueryEnabled"
@@ -1102,6 +1187,13 @@ onBeforeUnmount(() => {
                 @select-vehicle="handleSelectOperationalVehicle"
             />
             
+            <RealtimeVehicleTrackingPanel
+                v-if="selectedRealtimeVehicle"
+                :vehicle-id="selectedRealtimeVehicle.vehicleId"
+                :tracking="trackedRealtimeVehicleId === selectedRealtimeVehicle.vehicleId"
+                @start-tracking="handleStartSelectedVehicleRoaming"
+            />
+
             <RealtimeVehicleInfoPanel
                 :vehicle="selectedRealtimeVehicle"
                 :route="selectedRoute"

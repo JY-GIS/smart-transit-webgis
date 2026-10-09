@@ -381,6 +381,17 @@ export function useRealtimeVehicleModelLayer() {
         return vehicleModels.get(vehicleId)?.entity
     }
 
+    // 返回指定车辆模型当前实际显示的位置
+    function getVehiclePosition(vehicleId: string): Cesium.Cartesian3 | undefined {
+        const visual = vehicleModels.get(vehicleId)
+
+        if (!visual) {
+            return undefined
+        }
+
+        return Cesium.Cartesian3.clone(visual.displayedPosition)
+    }
+
     function setVehiclesVisible(visible: boolean) {
         modelsVisible = visible
 
@@ -409,6 +420,7 @@ export function useRealtimeVehicleModelLayer() {
 
     return {
         getVehicleEntity,
+        getVehiclePosition,
         updateVehicles,
         setVehiclesVisible,
         cleanup,

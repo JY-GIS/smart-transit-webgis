@@ -1443,6 +1443,14 @@ onBeforeUnmount(() => {
     letter-spacing: 0.04em;
 }
 
+.cesium-container :deep(.cesium-performanceDisplay-defaultContainer) {
+    top: 184px;
+    right: 20px;
+    left: auto;
+    bottom: auto;
+    z-index: 10;
+}
+
 @media (max-width: 640px) {
     .layer-controls {
         top: 12px;
@@ -1456,6 +1464,12 @@ onBeforeUnmount(() => {
         top: auto;
         right: 12px;
         bottom: 72px;
+    }
+    
+    .cesium-container :deep(.cesium-performanceDisplay-defaultContainer) {
+        top: 12px;
+        right: 12px;
+        bottom: auto;
     }
 }
 </style>

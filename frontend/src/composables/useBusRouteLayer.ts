@@ -46,7 +46,7 @@ export function readBusRouteProperties(
 export function useBusRouteLayer() {
     // 一个 fid 可能对应多个线段 Entity，保留数组可以兼容原始 MultiLineString。
     const routeEntitiesByFid = new Map<number, Cesium.Entity[]>()
-    const busRoutesVisible = ref(true)
+    const busRoutesVisible = ref(false)
     let dataSource: Cesium.GeoJsonDataSource | undefined
 
     function indexRouteEntities(

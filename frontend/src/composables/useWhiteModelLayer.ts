@@ -6,7 +6,7 @@ import { CESIUM_CONFIG } from '@/config/cesium.config'
 export function useWhiteModelLayer() {
     // 保存 tileset 及事件移除函数，支持重复调用和页面卸载清理。
     let tileset: Cesium.Cesium3DTileset | undefined
-    const whiteModelVisible = ref(true)
+    const whiteModelVisible = ref(false)
 
     let removeAllTilesLoadedListener:
         | (() => void)

@@ -98,6 +98,31 @@ export const TRANSIT_CONFIG = {
 
             // 模型离开1000米范围后切换回点。
             modelExitDistanceMeters: 1000,
+
+            // 相机达到3500米后进入远景网格聚合。
+            aggregationEnterHeightMeters: 3500,
+
+            // 相机降到2500米后退出远景网格聚合。
+            aggregationExitHeightMeters: 2500,
+
+            // 每个地理网格的实际边长。
+            aggregationGridSizeMeters: 1000,
+
+            // 网格颜色使用固定车辆数量分级，便于比较不同时刻的真实密度。
+            aggregationStyle: {
+                mediumVehicleCount: 10,
+                busyVehicleCount: 25,
+                highVehicleCount: 50,
+                criticalVehicleCount: 80,
+
+                lowColor: '#22c55e',
+                mediumColor: '#14b8a6',
+                busyColor: '#eab308',
+                highColor: '#f97316',
+                criticalColor: '#ef4444',
+
+                fillAlpha: 0.42,
+            },
         },
 
         // 实时车辆三维模型配置。

@@ -26,6 +26,8 @@ import { useRealtimeVehicles } from '@/composables/useRealtimeVehicles'
 import { useRealtimeVehiclePointLayer } from '@/composables/useRealtimeVehiclePointLayer'
 import { useRealtimeVehicleModelLayer } from '@/composables/useRealtimeVehicleModelLayer'
 import { useRealtimeVehicleLod } from '@/composables/useRealtimeVehicleLod'
+import { useRealtimeVehicleGridAggregation } from '@/composables/useRealtimeVehicleGridAggregation'
+import { useRealtimeVehicleGridLayer } from '@/composables/useRealtimeVehicleGridLayer'
 import { useStopArrivals } from '@/composables/useStopArrivals'
 import type {
     NetworkTrajectoryQuery,
@@ -174,6 +176,19 @@ const {
 } = useRealtimeVehicleLod()
 
 const {
+    resolveAggregationActive,
+    aggregateVehicles,
+    cleanup: cleanupRealtimeVehicleGridAggregation,
+} = useRealtimeVehicleGridAggregation()
+
+const {
+    renderGridCells: renderRealtimeVehicleGridCells,
+    clearGridCells: clearRealtimeVehicleGridCells,
+    setGridsVisible: setRealtimeVehicleGridsVisible,
+    cleanup: cleanupRealtimeVehicleGridLayer,
+} = useRealtimeVehicleGridLayer()
+
+const {
     availableVehicles: historyAvailableVehicles,
     availabilityStatus: historyAvailabilityStatus,
     availabilityErrorMessage: historyAvailabilityErrorMessage,
@@ -288,11 +303,12 @@ const {
 } = useFutianBoundaryLayer()
 
 // ===========================【函数】===========================
-// 根据整体渲染模式控制点图层和模型图层
+// 根据整体模式控制聚合网格、车辆点和车辆模型
 function syncRealtimeVehicleLayerVisibility(visible: boolean) {
     const renderMode = realtimeVehicleRenderMode.value
     setRealtimeVehiclePointsVisible(visible && renderMode !== 'model')
     setRealtimeVehicleModelsVisible(visible && renderMode !== 'point')
+    setRealtimeVehicleGridsVisible(visible && renderMode === 'auto')
 }
 
 // 根据整体模式更新当前车辆图层
@@ -303,16 +319,32 @@ function updateActiveRealtimeVehicleLayer(
     const renderMode = realtimeVehicleRenderMode.value
 
     if (renderMode === 'point') {
+        clearRealtimeVehicleGridCells()
         updateRealtimeVehiclePointLayer(currentViewer, snapshots)
         updateRealtimeVehicleModelLayer(currentViewer, [])
         return
     }
 
     if (renderMode === 'model') {
+        clearRealtimeVehicleGridCells()
         updateRealtimeVehiclePointLayer(currentViewer, [])
         updateRealtimeVehicleModelLayer(currentViewer, snapshots)
         return
     }
+
+    const aggregationActive = resolveAggregationActive(currentViewer)
+
+    if (aggregationActive) {
+        const gridCells = aggregateVehicles(snapshots)
+
+        renderRealtimeVehicleGridCells(currentViewer, gridCells)
+        updateRealtimeVehiclePointLayer(currentViewer, [])
+        updateRealtimeVehicleModelLayer(currentViewer, [])
+
+        return
+    }
+
+    clearRealtimeVehicleGridCells()
 
     const {
         pointSnapshots,
@@ -974,6 +1006,8 @@ onBeforeUnmount(() => {
     cleanupRealtimeVehiclePointLayer(viewer)
     cleanupRealtimeVehicleModelLayer(viewer)
     cleanupRealtimeVehicleLod()
+    cleanupRealtimeVehicleGridAggregation()
+    cleanupRealtimeVehicleGridLayer(viewer)
     routeEntitiesByFid.clear()
 
     cleanupFutianBoundary(viewer)

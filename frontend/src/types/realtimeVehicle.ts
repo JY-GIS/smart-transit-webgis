@@ -14,6 +14,25 @@ export type RealtimeVehicleLodRepresentation =
     | 'model'
 
 /**
+ * 一个实时车辆地理聚合网格。
+ */
+export interface RealtimeVehicleGridCell {
+    // 网格身份
+    gridKey: string
+    column: number
+    row: number
+
+    vehicleCount: number
+
+    westLongitude: number
+    southLatitude: number
+    eastLongitude: number
+    northLatitude: number
+    centerLongitude: number
+    centerLatitude: number
+}
+
+/**
  * 后端车辆实时连接状态。
  */
 export type RealtimeVehicleConnectionStatus =

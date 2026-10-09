@@ -91,6 +91,15 @@ export const TRANSIT_CONFIG = {
         // 两次服务端位置快照之间的客户端插值时间。
         interpolationDurationMilliseconds: 1000,
 
+        // 自动LOD根据相机到单辆车的距离选择点或模型。
+        lod: {
+            // 点车辆进入800米范围后切换成模型。
+            modelEnterDistanceMeters: 800,
+
+            // 模型离开1000米范围后切换回点。
+            modelExitDistanceMeters: 1000,
+        },
+
         // 实时车辆三维模型配置。
         model: {
             uri: '/models/city_bus.glb',

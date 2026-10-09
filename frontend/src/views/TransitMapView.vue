@@ -25,6 +25,7 @@ import { usePoiPointLayer } from '@/composables/usePoiPointLayer'
 import { useRealtimeVehicles } from '@/composables/useRealtimeVehicles'
 import { useRealtimeVehiclePointLayer } from '@/composables/useRealtimeVehiclePointLayer'
 import { useRealtimeVehicleModelLayer } from '@/composables/useRealtimeVehicleModelLayer'
+import { useRealtimeVehicleLod } from '@/composables/useRealtimeVehicleLod'
 import { useStopArrivals } from '@/composables/useStopArrivals'
 import type {
     NetworkTrajectoryQuery,
@@ -48,7 +49,7 @@ const nearbyQueryEnabled = ref(false)
 const selectedPoiRadiusMeters = ref<number>(TRANSIT_CONFIG.poiAnalysis.defaultRadiusMeters)
 const historyModeEnabled = ref(false)
 const historyReplayMode = ref<TrajectoryReplayMode>('vehicle')
-const realtimeVehicleRenderMode = ref<RealtimeVehicleRenderMode>('point')
+const realtimeVehicleRenderMode = ref<RealtimeVehicleRenderMode>('auto')
 
 const selectedRouteStops = ref<OrderedBusStop[]>([])
 
@@ -167,6 +168,12 @@ const {
 } = useRealtimeVehicleModelLayer()
 
 const {
+    groupVehiclesByDistance,
+    getVehicleRepresentation,
+    cleanup: cleanupRealtimeVehicleLod,
+} = useRealtimeVehicleLod()
+
+const {
     availableVehicles: historyAvailableVehicles,
     availabilityStatus: historyAvailabilityStatus,
     availabilityErrorMessage: historyAvailabilityErrorMessage,
@@ -281,42 +288,65 @@ const {
 } = useFutianBoundaryLayer()
 
 // ===========================【函数】===========================
-// 根据当前渲染模式控制Primitive点和三维模型
+// 根据整体渲染模式控制点图层和模型图层
 function syncRealtimeVehicleLayerVisibility(visible: boolean) {
-    setRealtimeVehiclePointsVisible(visible && realtimeVehicleRenderMode.value === 'point')
-    setRealtimeVehicleModelsVisible(visible && realtimeVehicleRenderMode.value === 'model')
+    const renderMode = realtimeVehicleRenderMode.value
+    setRealtimeVehiclePointsVisible(visible && renderMode !== 'model')
+    setRealtimeVehicleModelsVisible(visible && renderMode !== 'point')
 }
 
+// 根据整体模式更新当前车辆图层
 function updateActiveRealtimeVehicleLayer(
     currentViewer: Cesium.Viewer,
     snapshots: RealtimeVehiclePositionSnapshot[],
 ) {
-    if (realtimeVehicleRenderMode.value === 'model') {
+    const renderMode = realtimeVehicleRenderMode.value
+
+    if (renderMode === 'point') {
+        updateRealtimeVehiclePointLayer(currentViewer, snapshots)
+        updateRealtimeVehicleModelLayer(currentViewer, [])
+        return
+    }
+
+    if (renderMode === 'model') {
+        updateRealtimeVehiclePointLayer(currentViewer, [])
         updateRealtimeVehicleModelLayer(currentViewer, snapshots)
         return
     }
 
-    updateRealtimeVehiclePointLayer(currentViewer, snapshots)
+    const {
+        pointSnapshots,
+        modelSnapshots,
+    } = groupVehiclesByDistance(currentViewer, snapshots)
+
+    updateRealtimeVehiclePointLayer(currentViewer, pointSnapshots)
+    updateRealtimeVehicleModelLayer(currentViewer, modelSnapshots)
 }
 
-// 根据当前渲染模式取得车辆对应的 Cesium Entity
+// 只有当前使用模型表现的车辆才存在可供Cesium跟踪的Entity
 function getActiveRealtimeVehicleEntity(vehicleId: string): Cesium.Entity | undefined {
-    if (realtimeVehicleRenderMode.value === 'model') {
-        return undefined
+    const renderMode = realtimeVehicleRenderMode.value
+
+    if (renderMode === 'model') {
+        return getRealtimeVehicleModelEntity(vehicleId)
     }
 
-    return getRealtimeVehicleModelEntity(vehicleId)
+    if (renderMode === 'auto' && getVehicleRepresentation(vehicleId) === 'model') {
+        return getRealtimeVehicleModelEntity(vehicleId)
+    }
+
+    return undefined
 }
 
-// 在 Point 和 Model 两种实时车辆渲染方式之间切换
+// 按自动、点、模型的顺序切换测试模式
 function toggleRealtimeVehicleRenderMode() {
-    const nextMode:
-        RealtimeVehicleRenderMode =
-        realtimeVehicleRenderMode.value === 'point'
-            ? 'model'
-            : 'point'
-
-    realtimeVehicleRenderMode.value = nextMode
+    if (realtimeVehicleRenderMode.value === 'auto') {
+        realtimeVehicleRenderMode.value = 'point'
+    } else if (realtimeVehicleRenderMode.value === 'point') {
+        realtimeVehicleRenderMode.value = 'model'
+    } else {
+        realtimeVehicleRenderMode.value = 'auto'
+    }
 
     syncRealtimeVehicleLayerVisibility(!historyModeEnabled.value)
 
@@ -335,6 +365,19 @@ function toggleRealtimeVehicleRenderMode() {
     }
 
     currentViewer.scene.requestRender()
+}
+
+// 返回当前车辆显示模式的按钮文本
+function getRealtimeVehicleRenderModeText(): string {
+    if (realtimeVehicleRenderMode.value === 'auto') {
+        return '车辆显示：自动LOD'
+    }
+
+    if (realtimeVehicleRenderMode.value === 'point') {
+        return '车辆显示：全部点'
+    }
+
+    return '车辆显示：全部模型'
 }
 
 function handleCloseRoutePanel() {
@@ -930,6 +973,7 @@ onBeforeUnmount(() => {
     cleanupBusStopLayer(viewer)
     cleanupRealtimeVehiclePointLayer(viewer)
     cleanupRealtimeVehicleModelLayer(viewer)
+    cleanupRealtimeVehicleLod()
     routeEntitiesByFid.clear()
 
     cleanupFutianBoundary(viewer)
@@ -968,13 +1012,13 @@ onBeforeUnmount(() => {
             <button
                 v-if="!historyModeEnabled"
                 class="layer-control-button"
-                :class="{ 'is-active': realtimeVehicleRenderMode === 'model' }"
+                :class="{ 'is-active': realtimeVehicleRenderMode === 'auto' }"
                 type="button"
-                :aria-pressed=" realtimeVehicleRenderMode === 'model'"
+                :aria-pressed="realtimeVehicleRenderMode === 'auto'"
                 @click="toggleRealtimeVehicleRenderMode"
             >
-                <span class="layer-control-dot" aria-hidden="true" ></span>
-                {{ realtimeVehicleRenderMode === 'point' ? '显示3D车辆' : '显示点车辆' }}
+                <span class="layer-control-dot" aria-hidden="true"></span>
+                {{ getRealtimeVehicleRenderModeText() }}
             </button>
             <button
                 class="layer-control-button"

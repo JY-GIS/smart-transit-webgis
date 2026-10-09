@@ -4,6 +4,14 @@
 export type RealtimeVehicleRenderMode =
     | 'point'
     | 'model'
+    | 'auto'
+
+/**
+ * 自动LOD模式下一辆车当前采用的表现形式。
+ */
+export type RealtimeVehicleLodRepresentation =
+    | 'point'
+    | 'model'
 
 /**
  * 后端车辆实时连接状态。

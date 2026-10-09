@@ -88,13 +88,13 @@ public class VehicleSimulationTask {
 
     /**
      * 已完成的 tick 数量，只用于控制指标日志频率。
-     * fixedDelay 默认串行执行，因此这里不需要 AtomicLong。
+     * 同一个周期任务不会并发执行自身，因此这里不需要 AtomicLong。
      */
     private long completedTickCount;
 
     /**
-     * 上一次成功完成 WebSocket发布的单调时间。
-     *（ 当前任务使用fixedDelay，所以配置的1000ms只是“上一轮结束后等待多久”，不能代表两批消息真实相隔1000ms ）
+     * 上一次成功完成 WebSocket 发布的单调时间。
+     * fixedRate 控制的是任务开始节拍，实际发布完成时间仍会受到本轮计算耗时影响，因此继续记录真实发布间隔。
      */
     private long previousPublishCompletedAtNanos;
 
@@ -114,10 +114,10 @@ public class VehicleSimulationTask {
      * 5. 全部线路处理完成后统一发布快照。
      */
     @Scheduled(
-            // 首次执行的延迟时间
+            // 第一次启动车辆模拟前等待一个周期
             initialDelayString = "${transit.simulation.tick-interval-milliseconds}",
-            // 两次执行之间的固定延迟
-            fixedDelayString = "${transit.simulation.tick-interval-milliseconds}"
+            // 相邻两次任务开始时间的目标间隔
+            fixedRateString = "${transit.simulation.tick-interval-milliseconds}"
     )
     public void tick() {
         if (!properties.isEnabled()) {

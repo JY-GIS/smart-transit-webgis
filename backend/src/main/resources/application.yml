@@ -38,7 +38,7 @@ transit:
   simulation:
     enabled: true
 
-    # 每次任务完成后等待 1000 毫秒再执行下一次
+    # 相邻两次车辆模拟任务开始时间的目标间隔
     tick-interval-milliseconds: 1000
 
     # 车辆到站后停留 5 秒

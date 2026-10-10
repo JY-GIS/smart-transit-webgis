@@ -185,12 +185,11 @@ function handlePointsVisibleChange(event: Event) {
     width: 300px;
     max-width: calc(100% - 48px);
     overflow: hidden;
-    color: #f4f8ff;
-    background: rgba(13, 25, 42, 0.94);
-    border: 1px solid rgba(167, 139, 250, 0.58);
+    color: var(--transit-panel-text);
+    background: var(--transit-panel-bg);
+    border: 1px solid var(--transit-panel-border);
     border-radius: 12px;
-    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.38);
-    backdrop-filter: blur(12px);
+    box-shadow: var(--transit-panel-shadow);
 }
 
 .poi-panel__header {
@@ -198,18 +197,18 @@ function handlePointsVisibleChange(event: Event) {
     align-items: flex-start;
     justify-content: space-between;
     padding: 14px 16px 10px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    border-bottom: 1px solid var(--transit-panel-divider);
 }
 
 .poi-panel__label {
-    color: #c4b5fd;
+    color: #7c3aed;
     font-size: 13px;
     letter-spacing: 0.08em;
 }
 
 .poi-panel__title {
     margin: 5px 0 0;
-    color: #ffffff;
+    color: var(--transit-panel-text);
     font-size: 18px;
     line-height: 1.4;
 }
@@ -225,7 +224,7 @@ function handlePointsVisibleChange(event: Event) {
     width: 28px;
     height: 28px;
     padding: 0;
-    color: #d7e8f4;
+    color: var(--transit-panel-muted);
     cursor: pointer;
     background: transparent;
     border: 0;
@@ -244,8 +243,8 @@ function handlePointsVisibleChange(event: Event) {
 
 .poi-panel__toggle:hover,
 .poi-panel__close:hover {
-    color: #ffffff;
-    background: rgba(255, 255, 255, 0.12);
+    color: #7c3aed;
+    background: #f5f3ff;
 }
 
 .poi-panel__body {
@@ -255,7 +254,7 @@ function handlePointsVisibleChange(event: Event) {
 
 .poi-panel__radius {
     padding: 14px 16px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    border-bottom: 1px solid var(--transit-panel-divider);
 }
 
 .poi-panel__radius-header {
@@ -263,12 +262,12 @@ function handlePointsVisibleChange(event: Event) {
     align-items: center;
     justify-content: space-between;
     margin-bottom: 10px;
-    color: #bcd0df;
+    color: var(--transit-panel-muted);
     font-size: 13px;
 }
 
 .poi-panel__radius-header strong {
-    color: #ffffff;
+    color: var(--transit-panel-text);
     font-size: 14px;
 }
 
@@ -282,7 +281,7 @@ function handlePointsVisibleChange(event: Event) {
     display: flex;
     justify-content: space-between;
     margin-top: 2px;
-    color: #8296a8;
+    color: var(--transit-panel-faint);
     font-size: 11px;
 }
 
@@ -295,20 +294,20 @@ function handlePointsVisibleChange(event: Event) {
 
 .poi-panel__preset {
     padding: 6px 4px;
-    color: #cbd8e3;
+    color: var(--transit-panel-muted);
     font: inherit;
     font-size: 12px;
     cursor: pointer;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: var(--transit-panel-soft);
+    border: 1px solid var(--transit-panel-divider);
     border-radius: 6px;
 }
 
 .poi-panel__preset:hover,
 .poi-panel__preset.is-active {
-    color: #ffffff;
-    background: rgba(167, 139, 250, 0.24);
-    border-color: rgba(167, 139, 250, 0.72);
+    color: #6d28d9;
+    background: #ede9fe;
+    border-color: #a78bfa;
 }
 
 .poi-panel__visibility {
@@ -316,10 +315,10 @@ function handlePointsVisibleChange(event: Event) {
     align-items: center;
     gap: 8px;
     padding: 11px 16px;
-    color: #d6e4ef;
+    color: var(--transit-panel-text);
     font-size: 13px;
     cursor: pointer;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    border-bottom: 1px solid var(--transit-panel-divider);
 }
 
 .poi-panel__visibility input {
@@ -332,12 +331,12 @@ function handlePointsVisibleChange(event: Event) {
 
 .poi-panel__message {
     padding: 16px;
-    color: #bcd0df;
+    color: var(--transit-panel-muted);
     font-size: 14px;
 }
 
 .poi-panel__message--error {
-    color: #ffaaa0;
+    color: var(--transit-panel-danger);
 }
 
 .poi-panel__chart {

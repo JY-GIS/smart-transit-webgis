@@ -959,12 +959,11 @@ watch(
     max-width: calc(100% - 48px);
     max-height: calc(100% - 250px);
     overflow-y: auto;
-    color: #f4f8ff;
-    background: rgba(13, 25, 42, 0.96);
-    border: 1px solid rgba(81, 214, 255, 0.58);
+    color: var(--transit-panel-text);
+    background: var(--transit-panel-bg);
+    border: 1px solid var(--transit-panel-border);
     border-radius: 12px;
-    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.4);
-    backdrop-filter: blur(12px);
+    box-shadow: var(--transit-panel-shadow);
 }
 
 .trajectory-panel__header {
@@ -975,26 +974,26 @@ watch(
     align-items: flex-start;
     justify-content: space-between;
     padding: 14px 16px 10px;
-    background: rgba(13, 25, 42, 0.98);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.98);
+    border-bottom: 1px solid var(--transit-panel-divider);
 }
 
 .trajectory-panel__label {
-    color: #72d8ff;
+    color: var(--transit-panel-primary);
     font-size: 13px;
     letter-spacing: 0.08em;
 }
 
 .trajectory-panel__title {
     margin: 5px 0 0;
-    color: #ffffff;
+    color: var(--transit-panel-text);
     font-size: 18px;
 }
 
 .trajectory-panel__close {
     width: 28px;
     height: 28px;
-    color: #d7e8f4;
+    color: var(--transit-panel-muted);
     font-size: 24px;
     line-height: 24px;
     cursor: pointer;
@@ -1004,8 +1003,8 @@ watch(
 }
 
 .trajectory-panel__close:hover {
-    color: #ffffff;
-    background: rgba(255, 255, 255, 0.12);
+    color: var(--transit-panel-primary);
+    background: var(--transit-panel-primary-soft);
 }
 
 .trajectory-panel__mode-switch {
@@ -1017,17 +1016,17 @@ watch(
 
 .trajectory-panel__mode-switch button {
     padding: 8px 10px;
-    color: #a9bdcc;
+    color: var(--transit-panel-muted);
     cursor: pointer;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: var(--transit-panel-soft);
+    border: 1px solid var(--transit-panel-divider);
     border-radius: 6px;
 }
 
 .trajectory-panel__mode-switch button.is-active {
-    color: #ffffff;
-    background: rgba(81, 214, 255, 0.2);
-    border-color: #51d6ff;
+    color: var(--transit-panel-primary);
+    background: var(--transit-panel-primary-soft);
+    border-color: #93c5fd;
 }
 
 .trajectory-panel__message {
@@ -1035,22 +1034,22 @@ watch(
     flex-direction: column;
     gap: 10px;
     padding: 16px;
-    color: #bcd0df;
+    color: var(--transit-panel-muted);
     font-size: 14px;
 }
 
 .trajectory-panel__message--error,
 .trajectory-panel__error {
-    color: #ffaaa0;
+    color: var(--transit-panel-danger);
 }
 
 .trajectory-panel__retry {
     align-self: flex-start;
     padding: 7px 12px;
-    color: #e8f8ff;
+    color: var(--transit-panel-primary);
     cursor: pointer;
-    background: rgba(81, 214, 255, 0.14);
-    border: 1px solid rgba(81, 214, 255, 0.5);
+    background: var(--transit-panel-primary-soft);
+    border: 1px solid #93c5fd;
     border-radius: 6px;
 }
 
@@ -1069,7 +1068,7 @@ watch(
 
 .trajectory-panel__field-label,
 .trajectory-panel__presets legend {
-    color: #bcd0df;
+    color: var(--transit-panel-muted);
     font-size: 13px;
 }
 
@@ -1077,15 +1076,16 @@ watch(
     width: 100%;
     box-sizing: border-box;
     padding: 9px 10px;
-    color: #f4f8ff;
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: var(--transit-panel-text);
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
     border-radius: 6px;
     font: inherit;
 }
 
 .trajectory-panel__control:focus {
-    border-color: #51d6ff;
+    border-color: var(--transit-panel-primary);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
     outline: none;
 }
 
@@ -1094,14 +1094,14 @@ watch(
     flex-direction: column;
     gap: 4px;
     padding: 10px;
-    color: #bcd0df;
-    background: rgba(81, 214, 255, 0.08);
+    color: var(--transit-panel-muted);
+    background: var(--transit-panel-primary-soft);
     border-radius: 7px;
     font-size: 12px;
 }
 
 .trajectory-panel__availability strong {
-    color: #ffffff;
+    color: var(--transit-panel-text);
     font-weight: 500;
 }
 
@@ -1121,17 +1121,17 @@ watch(
 
 .trajectory-panel__preset {
     padding: 7px 10px;
-    color: #c7d7e4;
+    color: var(--transit-panel-muted);
     cursor: pointer;
-    background: rgba(255, 255, 255, 0.07);
-    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: var(--transit-panel-soft);
+    border: 1px solid var(--transit-panel-divider);
     border-radius: 6px;
 }
 
 .trajectory-panel__preset.is-active {
-    color: #ffffff;
-    background: rgba(81, 214, 255, 0.2);
-    border-color: #51d6ff;
+    color: var(--transit-panel-primary);
+    background: var(--transit-panel-primary-soft);
+    border-color: #93c5fd;
 }
 
 .trajectory-panel__time-grid {
@@ -1147,10 +1147,10 @@ watch(
 
 .trajectory-panel__submit {
     padding: 10px 14px;
-    color: #052235;
+    color: #ffffff;
     font-weight: 600;
     cursor: pointer;
-    background: #51d6ff;
+    background: var(--transit-panel-primary);
     border: 0;
     border-radius: 7px;
 }
@@ -1166,7 +1166,7 @@ watch(
 
 .trajectory-panel__summary h3 {
     margin: 0 0 10px;
-    color: #ffffff;
+    color: var(--transit-panel-text);
     font-size: 15px;
 }
 
@@ -1179,18 +1179,18 @@ watch(
 
 .trajectory-panel__metrics div {
     padding: 9px 10px;
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--transit-panel-soft);
     border-radius: 7px;
 }
 
 .trajectory-panel__metrics dt {
-    color: #94aabd;
+    color: var(--transit-panel-muted);
     font-size: 12px;
 }
 
 .trajectory-panel__metrics dd {
     margin: 4px 0 0;
-    color: #ffffff;
+    color: var(--transit-panel-text);
     font-size: 14px;
 }
 
@@ -1199,7 +1199,7 @@ watch(
     flex-wrap: wrap;
     gap: 8px 14px;
     margin-top: 12px;
-    color: #c5d6e3;
+    color: var(--transit-panel-muted);
     font-size: 12px;
 }
 
@@ -1212,7 +1212,7 @@ watch(
 .trajectory-panel__status-dot {
     width: 9px;
     height: 9px;
-    border: 2px solid rgba(255, 255, 255, 0.82);
+    border: 2px solid #ffffff;
     border-radius: 50%;
 }
 
@@ -1235,7 +1235,7 @@ watch(
     gap: 12px;
     margin-top: 14px;
     padding-top: 14px;
-    border-top: 1px solid rgba(255, 255, 255, 0.12);
+    border-top: 1px solid var(--transit-panel-divider);
 }
 
 .trajectory-panel__playback-buttons {
@@ -1248,18 +1248,18 @@ watch(
 .trajectory-panel__secondary-button,
 .trajectory-panel__speed-button {
     padding: 8px 10px;
-    color: #eaf8ff;
+    color: var(--transit-panel-text);
     cursor: pointer;
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: var(--transit-panel-soft);
+    border: 1px solid var(--transit-panel-divider);
     border-radius: 6px;
 }
 
 .trajectory-panel__play-button {
-    color: #052235;
+    color: #ffffff;
     font-weight: 600;
-    background: #51d6ff;
-    border-color: #51d6ff;
+    background: var(--transit-panel-primary);
+    border-color: var(--transit-panel-primary);
 }
 
 .trajectory-panel__speed-controls {
@@ -1274,21 +1274,21 @@ watch(
 .trajectory-panel__speed-controls legend {
     width: 100%;
     margin-bottom: 5px;
-    color: #94aabd;
+    color: var(--transit-panel-muted);
     font-size: 12px;
 }
 
 .trajectory-panel__speed-button.is-active {
-    color: #ffffff;
-    background: rgba(81, 214, 255, 0.2);
-    border-color: #51d6ff;
+    color: var(--transit-panel-primary);
+    background: var(--transit-panel-primary-soft);
+    border-color: #93c5fd;
 }
 
 .trajectory-panel__tracking {
     display: flex;
     align-items: center;
     gap: 8px;
-    color: #c5d6e3;
+    color: var(--transit-panel-muted);
     font-size: 13px;
     cursor: pointer;
 }
@@ -1299,7 +1299,7 @@ watch(
 
 .trajectory-panel__timeline-tip {
     margin: 0;
-    color: #8198aa;
+    color: var(--transit-panel-faint);
     font-size: 12px;
     line-height: 1.5;
 }

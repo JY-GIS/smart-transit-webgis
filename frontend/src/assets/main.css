@@ -6,3 +6,21 @@ body,
     margin: 0;
     padding: 0;
 }
+
+:root {
+    --transit-panel-bg: rgba(255, 255, 255, 0.96);
+    --transit-panel-bg-solid: #ffffff;
+    --transit-panel-soft: #f8fafc;
+    --transit-panel-border: rgba(148, 163, 184, 0.55);
+    --transit-panel-divider: #e2e8f0;
+    --transit-panel-text: #172033;
+    --transit-panel-muted: #64748b;
+    --transit-panel-faint: #94a3b8;
+    --transit-panel-primary: #2563eb;
+    --transit-panel-primary-soft: #eff6ff;
+    --transit-panel-success: #14b8a6;
+    --transit-panel-warning: #f59e0b;
+    --transit-panel-warning-soft: #fff7ed;
+    --transit-panel-danger: #dc2626;
+    --transit-panel-shadow: 0 12px 32px rgba(15, 23, 42, 0.2);
+}

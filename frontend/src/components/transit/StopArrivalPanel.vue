@@ -254,12 +254,11 @@ function formatGeneratedAt(generatedAt: string,): string {
     max-height: min(535px, calc(100% - 140px));
     overflow-x: hidden;
     overflow-y: auto;
-    color: #1f2937;
-    background: rgba(255, 255, 255, 0.95);
-    border: 1px solid rgba(148, 163, 184, 0.55);
+    color: var(--transit-panel-text);
+    background: var(--transit-panel-bg);
+    border: 1px solid var(--transit-panel-border);
     border-radius: 12px;
-    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.22);
-    backdrop-filter: blur(10px);
+    box-shadow: var(--transit-panel-shadow);
 }
 
 .arrival-panel__header {

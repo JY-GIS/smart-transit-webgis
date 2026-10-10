@@ -57,6 +57,7 @@ const historyModeEnabled = ref(false)
 const historyReplayMode = ref<TrajectoryReplayMode>('vehicle')
 const realtimeVehicleRenderMode = ref<RealtimeVehicleRenderMode>('auto')
 const selectedRouteStops = ref<OrderedBusStop[]>([])
+const terrainEnabled = ref(true)
 
 // viewer 属于当前页面实例，页面卸载时必须销毁，避免 WebGL 资源泄漏。
 let viewer: Cesium.Viewer | undefined
@@ -157,6 +158,17 @@ const selectedRealtimeVehicle = computed(() => {
         ) ?? null
     )
 })
+
+// 右侧工作台只在有明确任务或选中对象时占用页面宽度。
+const rightWorkbenchVisible = computed(() => (
+    historyModeEnabled.value ||
+    nearbyQueryEnabled.value ||
+    queryStatus.value !== 'idle' ||
+    poiAnalysisStatus.value !== 'idle' ||
+    Boolean(selectedRoute.value) ||
+    Boolean(selectedRouteStop.value) ||
+    Boolean(selectedRealtimeVehicle.value)
+))
 
 const {
     getVehiclePosition: getRealtimeVehiclePointPosition,
@@ -339,6 +351,7 @@ const activeTrajectoryPlaybackSpeed = computed(() => {
 const {
     createViewer,
     destroyViewer,
+    setTerrainEnabled,
 } = useCesiumViewer()
 
 const {
@@ -937,6 +950,17 @@ function handleToggleSceneDimension() {
     toggleSceneDimension(currentViewer)
 }
 
+function handleToggleTerrain() {
+    const currentViewer = viewer
+
+    if (!currentViewer || currentViewer.isDestroyed()) {
+        return
+    }
+
+    terrainEnabled.value = !terrainEnabled.value
+    setTerrainEnabled(currentViewer, terrainEnabled.value)
+}
+
 function toRouteId(fid: number): string {
     return `route_${String(fid).padStart(6, '0')}`
 }
@@ -1166,40 +1190,73 @@ onBeforeUnmount(() => {
 
 </script>
 
-<template> 
-    <div ref="cesiumContainer" class="cesium-container">
-        <div class="layer-controls" aria-label="图层控制">
-            <button
-                class="layer-control-button"
-                :class="{ 'is-active': busRoutesVisible }"
-                type="button"
-                :aria-pressed="busRoutesVisible"
-                @click="toggleBusRoutes"
-            >
-                <span class="layer-control-dot" aria-hidden="true"></span>
-                {{ busRoutesVisible ? '隐藏公交线路' : '显示公交线路' }}
-            </button>
-            <button
-                class="layer-control-button"
-                :class="{ 'is-active': whiteModelVisible }"
-                type="button"
-                :aria-pressed="whiteModelVisible"
-                @click="toggleWhiteModel"
-            >
-                <span class="layer-control-dot" aria-hidden="true"></span>
-                {{ whiteModelVisible ? '隐藏城市白膜' : '显示城市白膜' }}
-            </button>
-            <button
-                v-if="!historyModeEnabled"
-                class="layer-control-button"
-                :class="{ 'is-active': realtimeVehicleRenderMode === 'auto' }"
-                type="button"
-                :aria-pressed="realtimeVehicleRenderMode === 'auto'"
-                @click="toggleRealtimeVehicleRenderMode"
-            >
-                <span class="layer-control-dot" aria-hidden="true"></span>
-                {{ getRealtimeVehicleRenderModeText() }}
-            </button>
+<template>
+    <div class="transit-shell" :class="{ 'is-history-mode': historyModeEnabled }">
+        <header class="transit-header">
+            <div class="transit-brand" aria-label="深圳智慧公交">
+                <span class="transit-brand__mark" aria-hidden="true">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M6.5 4.5h11l1.5 3v9.25a1.25 1.25 0 0 1-1.25 1.25H6.25A1.25 1.25 0 0 1 5 16.75V7.5l1.5-3Z" />
+                        <path d="M5 8h14M8 18v2M16 18v2M8.25 14.5h.01M15.75 14.5h.01" />
+                    </svg>
+                </span>
+
+                <div>
+                    <strong>深圳市福田区智慧公交</strong>
+                    <span>Smart Transit WebGIS</span>
+                </div>
+            </div>
+
+            <div class="map-view-controls" aria-label="地图视图控制">
+                <button
+                    class="map-tool-button map-tool-button--basemap is-active"
+                    type="button"
+                    :title="activeBaseMap === 'satellite' ? '切换到 OSM 道路图' : '切换到卫星影像'"
+                    :aria-label="activeBaseMap === 'satellite' ? '切换到 OSM 道路图' : '切换到卫星影像'"
+                    @click="handleToggleBaseMap"
+                >
+                    <svg class="map-tool-icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="m12 3 9 5-9 5-9-5 9-5Z" />
+                        <path d="m3 12 9 5 9-5" />
+                        <path d="m3 16 9 5 9-5" />
+                    </svg>
+                    <span class="map-tool-label">
+                        {{ activeBaseMap === 'satellite' ? '卫星' : 'OSM' }}
+                    </span>
+                </button>
+
+                <button
+                    class="map-tool-button map-tool-button--dimension is-active"
+                    type="button"
+                    :title="sceneDimension === '3d' ? '切换到二维地图' : '切换到三维地图'"
+                    :aria-label="sceneDimension === '3d' ? '切换到二维地图' : '切换到三维地图'"
+                    @click="handleToggleSceneDimension"
+                >
+                    {{ sceneDimension === '3d' ? '3D' : '2D' }}
+                </button>
+
+                <button
+                    class="map-tool-button map-tool-button--terrain"
+                    :class="{ 'is-active': terrainEnabled }"
+                    type="button"
+                    :aria-pressed="terrainEnabled"
+                    :title="terrainEnabled ? '关闭地形' : '开启地形'"
+                    :aria-label="terrainEnabled ? '关闭地形' : '开启地形'"
+                    @click="handleToggleTerrain"
+                >
+                    <svg class="map-tool-icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="m3 19 6.2-10 3.2 4.5L15.2 10 21 19H3Z" />
+                        <path d="m7.4 12 1.8 1.7 1.4-1.3" />
+                    </svg>
+                    <span class="map-tool-label">
+                        {{ terrainEnabled ? '地形' : '平面' }}
+                    </span>
+                </button>
+            </div>
+        </header>
+
+        <div class="transit-workspace" :class="{ 'has-right-workbench': rightWorkbenchVisible }">
+            <nav class="layer-controls" aria-label="公交地图功能">
             <button
                 class="layer-control-button"
                 :class="{ 'is-active': historyModeEnabled }"
@@ -1207,9 +1264,16 @@ onBeforeUnmount(() => {
                 :aria-pressed="historyModeEnabled"
                 @click="toggleHistoryMode"
             >
-                <span class="layer-control-dot" aria-hidden="true"></span>
-                {{ historyModeEnabled ? '退出历史回放' : '历史轨迹回放' }}
+                <svg class="layer-control-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M4 12a8 8 0 1 0 2.34-5.66L4 8.68" />
+                    <path d="M4 4v4.68h4.68M12 7v5l3 2" />
+                </svg>
+                <span class="layer-control-copy">
+                    <strong>历史回放</strong>
+                    <small>{{ historyModeEnabled ? '回放模式已开启' : '车辆轨迹查询' }}</small>
+                </span>
             </button>
+
             <button
                 class="layer-control-button"
                 :class="{ 'is-active': realtimeRoamingModeEnabled }"
@@ -1217,10 +1281,18 @@ onBeforeUnmount(() => {
                 :aria-pressed="realtimeRoamingModeEnabled"
                 @click="toggleRealtimeRoamingMode"
             >
-                <span class="layer-control-dot" aria-hidden="true"></span>
-
-                {{ realtimeRoamingModeEnabled ? '退出公交漫游' : '公交轨迹漫游' }}
+                <svg class="layer-control-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M5 18c3.2-5.8 5.8-3.2 8.4-8.5C14.8 6.7 16.7 5 20 5" />
+                    <circle cx="5" cy="18" r="2" />
+                    <circle cx="20" cy="5" r="2" />
+                    <path d="m14.5 17 2.5 2.5L21 15" />
+                </svg>
+                <span class="layer-control-copy">
+                    <strong>公交漫游</strong>
+                    <small>{{ realtimeRoamingModeEnabled ? '车辆跟随中' : '实时车辆跟随' }}</small>
+                </span>
             </button>
+
             <button
                 class="layer-control-button"
                 :class="{ 'is-active': nearbyQueryEnabled }"
@@ -1228,48 +1300,95 @@ onBeforeUnmount(() => {
                 :aria-pressed="nearbyQueryEnabled"
                 @click="toggleNearbyQuery"
             >
-                <span class="layer-control-dot" aria-hidden="true"></span>
-                {{
-                    nearbyQueryEnabled
-                        ? '结束附近站点查询'
-                        : '开始附近站点查询'
-                }}
-            </button>
-        </div>
-
-        <div class="map-view-controls" aria-label="地图视图控制">
-            <button
-                class="map-tool-button"
-                type="button"
-                :title="activeBaseMap === 'satellite' ? '切换到OSM道路图' : '切换到卫星影像'"
-                :aria-label="activeBaseMap === 'satellite' ? '切换到OSM道路图' : '切换到卫星影像'"
-                @click="handleToggleBaseMap"
-            >
-                <svg class="map-tool-icon" viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="m12 3 9 5-9 5-9-5 9-5Z" />
-                    <path d="m3 12 9 5 9-5" />
-                    <path d="m3 16 9 5 9-5" />
+                <svg class="layer-control-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z" />
+                    <circle cx="12" cy="10" r="2.5" />
                 </svg>
-
-                <span class="map-tool-label">
-                    {{ activeBaseMap === 'satellite' ? 'OSM' : '卫星' }}
+                <span class="layer-control-copy">
+                    <strong>附近站点</strong>
+                    <small>{{ nearbyQueryEnabled ? '点击地图选点' : '空间范围查询' }}</small>
                 </span>
             </button>
 
             <button
-                class="map-tool-button"
+                class="layer-control-button"
+                :class="{ 'is-active': busRoutesVisible }"
                 type="button"
-                :title="sceneDimension === '3d' ? '切换到二维地图' : '切换到三维地图'"
-                :aria-label="sceneDimension === '3d' ? '切换到二维地图' : '切换到三维地图'"
-                @click="handleToggleSceneDimension"
+                :aria-pressed="busRoutesVisible"
+                @click="toggleBusRoutes"
             >
-                <span class="map-tool-dimension">
-                    {{ sceneDimension === '3d' ? '2D' : '3D' }}
+                <svg class="layer-control-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <rect x="4" y="5" width="16" height="13" rx="3" />
+                    <path d="M7 9h10M8 18v2M16 18v2M8 14h.01M16 14h.01" />
+                </svg>
+                <span class="layer-control-copy">
+                    <strong>公交线路</strong>
+                    <small>{{ busRoutesVisible ? '线路图层已显示' : '线路图层已隐藏' }}</small>
                 </span>
             </button>
-        </div>
 
-        <template v-if="!historyModeEnabled">
+            <button
+                class="layer-control-button"
+                :class="{ 'is-active': whiteModelVisible }"
+                type="button"
+                :aria-pressed="whiteModelVisible"
+                @click="toggleWhiteModel"
+            >
+                <svg class="layer-control-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M4 20V8l5-3v15M9 20V4l6-2v18M15 20V8l5 3v9M2 20h20" />
+                    <path d="M6.5 10h.01M6.5 13h.01M12 7h.01M12 11h.01M18 13h.01" />
+                </svg>
+                <span class="layer-control-copy">
+                    <strong>城市白膜</strong>
+                    <small>{{ whiteModelVisible ? '建筑模型已显示' : '建筑模型已隐藏' }}</small>
+                </span>
+            </button>
+
+            <button
+                class="layer-control-button"
+                :class="{ 'is-active': realtimeVehicleRenderMode === 'auto' }"
+                type="button"
+                :aria-pressed="realtimeVehicleRenderMode === 'auto'"
+                :disabled="historyModeEnabled"
+                @click="toggleRealtimeVehicleRenderMode"
+            >
+                <svg class="layer-control-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="m12 3 8 4-8 4-8-4 8-4Z" />
+                    <path d="m4 11 8 4 8-4M4 15l8 4 8-4" />
+                </svg>
+                <span class="layer-control-copy">
+                    <strong>车辆 LOD</strong>
+                    <small>{{ getRealtimeVehicleRenderModeText().replace('车辆显示：', '') }}</small>
+                </span>
+            </button>
+            </nav>
+
+            <main class="map-stage">
+                <div ref="cesiumContainer" class="cesium-container"></div>
+
+                <RealtimeRouteProgressPanel
+                    v-if="realtimeRoamingModeEnabled && trackedRealtimeVehicle && !selectedRouteStop"
+                    :vehicle="trackedRealtimeVehicle"
+                    :route="trackedRealtimeRoute"
+                    :stops="trackedRealtimeRouteStops"
+                />
+            </main>
+
+            <aside
+                v-if="rightWorkbenchVisible"
+                class="right-workbench"
+                aria-label="公交业务工作台"
+            >
+                <div
+                    v-if="nearbyQueryEnabled && queryStatus === 'idle'"
+                    class="right-workbench__empty"
+                >
+                    <span class="right-workbench__empty-icon" aria-hidden="true">⌖</span>
+                    <strong>附近站点查询</strong>
+                    <p>请点击地图选择查询位置</p>
+                </div>
+
+                <template v-if="!historyModeEnabled">
             <!-- 信息面板覆盖在 Cesium 容器上方，不参与 Cesium Entity 绘制。 -->
             <BusRouteInfoPanel :route="selectedRealtimeVehicle || selectedRouteStop ? null : selectedRoute"
                 @close="handleCloseRoutePanel"
@@ -1287,13 +1406,6 @@ onBeforeUnmount(() => {
                 @select-vehicle="handleSelectOperationalVehicle"
             />
             
-            <RealtimeRouteProgressPanel
-                v-if="realtimeRoamingModeEnabled && trackedRealtimeVehicle && !selectedRouteStop"
-                :vehicle="trackedRealtimeVehicle"
-                :route="trackedRealtimeRoute"
-                :stops="trackedRealtimeRouteStops"
-            />
-
             <RealtimeVehicleInfoPanel
                 :vehicle="selectedRealtimeVehicle"
                 :route="selectedRoute"
@@ -1302,10 +1414,6 @@ onBeforeUnmount(() => {
                 @close="handleExitRealtimeVehicle"
             />
 
-            <RealtimeOperationalAlertPanel
-                :vehicles="realtimeVehicles"
-                @select-vehicle="handleSelectOperationalVehicle"
-            />
             <PoiAnalysisPanel
                 :summary="poiSummary"
                 :status="poiAnalysisStatus"
@@ -1326,8 +1434,8 @@ onBeforeUnmount(() => {
                 :radius-meters="queryRadiusMeters"
                 @clear="handleClearNearbyQuery"
             />
-        </template>
-        <VehicleTrajectoryPanel
+                </template>
+                <VehicleTrajectoryPanel
             v-if="historyModeEnabled"
             :mode="historyReplayMode"
             :vehicles="historyAvailableVehicles"
@@ -1363,74 +1471,299 @@ onBeforeUnmount(() => {
             @change-camera-tracking="setVehicleTrajectoryCameraTracking"
             @change-route-tracking="setTrackedRouteVehicle"
             @change-network-tracking="handleNetworkTrackingChange"
+                />
+            </aside>
+        </div>
+
+        <RealtimeOperationalAlertPanel
+            v-if="!historyModeEnabled"
+            :vehicles="realtimeVehicles"
+            @select-vehicle="handleSelectOperationalVehicle"
         />
+
     </div>
 </template>
 
 <style scoped>
-.cesium-container {
+.transit-shell {
     position: relative;
+    display: flex;
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    flex-direction: column;
+    overflow: hidden;
+    color: var(--transit-panel-text);
+    background: #f2f5fa;
+    font-family: Inter, "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+.transit-header {
+    position: relative;
+    z-index: 30;
+    display: flex;
+    height: 76px;
+    flex: 0 0 76px;
+    align-items: center;
+    justify-content: space-between;
+    margin: 8px 10px 8px;
+    padding: 0 18px 0 26px;
+    background: rgba(255, 255, 255, 0.97);
+    border: 1px solid rgba(219, 228, 240, 0.9);
+    border-radius: 14px;
+    box-shadow: 0 5px 18px rgba(37, 64, 109, 0.08);
+}
+
+.transit-brand {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 14px;
+}
+
+.transit-brand__mark {
+    display: grid;
+    width: 44px;
+    height: 44px;
+    flex: 0 0 44px;
+    place-items: center;
+    color: #2478ed;
+    background: #eef6ff;
+    border-radius: 12px;
+}
+
+.transit-brand__mark svg {
+    width: 45px;
+    height: 45px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.9;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.transit-brand strong,
+.transit-brand span {
+    display: block;
+}
+
+.transit-brand strong {
+    color: #13223a;
+    font-size: 24px;
+    line-height: 1.2;
+    letter-spacing: 0.03em;
+}
+
+.transit-brand span {
+    margin-top: 3px;
+    color: #8492a8;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.transit-workspace {
+    display: flex;
+    min-width: 0;
+    min-height: 0;
+    flex: 1 1 auto;
+    gap: 8px;
+    padding: 0 10px 10px;
+}
+
+.right-workbench {
+    position: relative;
+    z-index: 20;
+    --workbench-width: clamp(340px, 29vw, 330px);
+    width: var(--workbench-width);
+    flex: 0 0 var(--workbench-width);
+    min-width: 0;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    background: rgba(255, 255, 255, 0.98);
+    border: 1px solid #dbe4f0;
+    border-radius: 14px;
+    box-shadow: 0 6px 22px rgba(28, 51, 86, 0.08);
+    scrollbar-color: #cbd5e1 transparent;
+    scrollbar-width: thin;
+}
+/* 公交线路详情 */
+.right-workbench:has(.route-panel) {
+    --workbench-width: 310px;
+}
+
+/* 实时车辆详情 */
+.right-workbench:has(.vehicle-panel) {
+    --workbench-width: 300px;
+}
+
+/* 站点到站信息 */
+.right-workbench:has(.arrival-panel) {
+    --workbench-width: 400px;
+}
+
+/* 附近站点 */
+.right-workbench:has(.nearby-panel) {
+    --workbench-width: 300px;
+}
+
+/* POI 服务分析 */
+.right-workbench:has(.poi-panel) {
+    --workbench-width: 360px;
+}
+
+/* 历史轨迹回放 */
+.right-workbench:has(.trajectory-panel) {
+    --workbench-width: 360px;
+}
+
+.right-workbench__empty {
+    display: flex;
+    min-height: 260px;
+    align-items: center;
+    justify-content: center;
+    padding: 30px;
+    color: var(--transit-panel-muted);
+    text-align: center;
+    flex-direction: column;
+}
+
+.right-workbench__empty-icon {
+    display: grid;
+    width: 48px;
+    height: 48px;
+    place-items: center;
+    margin-bottom: 14px;
+    color: var(--transit-panel-primary);
+    background: var(--transit-panel-primary-soft);
+    border-radius: 50%;
+    font-size: 28px;
+}
+
+.right-workbench__empty strong {
+    color: var(--transit-panel-text);
+    font-size: 17px;
+}
+
+.right-workbench__empty p {
+    margin: 8px 0 0;
+    font-size: 13px;
+}
+
+.map-stage {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+    background: #dbe4ee;
+    border: 1px solid #dbe4f0;
+    border-radius: 14px;
+    box-shadow: 0 6px 22px rgba(28, 51, 86, 0.1);
+}
+
+.cesium-container {
+    position: absolute;
+    inset: 0;
     width: 100%;
     height: 100%;
 }
 
 .layer-controls {
-    position: absolute;
-    z-index: 10;
-    top: 20px;
-    left: 20px;
     display: flex;
-    gap: 10px;
-    pointer-events: none;
+    width: 165px;
+    flex: 0 0 165px;
+    flex-direction: column;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.97);
+    border: 1px solid #dbe4f0;
+    border-radius: 14px;
+    box-shadow: 0 6px 22px rgba(28, 51, 86, 0.08);
 }
 
 .layer-control-button {
-    display: inline-flex;
+    position: relative;
+    display: flex;
+    width: 100%;
+    min-height: 74px;
     align-items: center;
-    gap: 8px;
-    min-width: 138px;
-    padding: 10px 14px;
-    border: 1px solid rgba(255, 255, 255, 0.35);
-    border-radius: 6px;
-    color: #e9f5ff;
-    background: rgba(18, 32, 48, 0.86);
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.24);
+    gap: 13px;
+    padding: 12px 16px;
+    color: #53647c;
+    background: transparent;
+    border: 0;
+    border-bottom: 1px solid #edf1f6;
     cursor: pointer;
     font: inherit;
-    font-size: 14px;
-    line-height: 1.2;
-    pointer-events: auto;
-    transition: background-color 160ms ease, border-color 160ms ease;
+    text-align: left;
+    transition: color 160ms ease, background-color 160ms ease;
 }
 
 .layer-control-button:hover {
-    border-color: rgba(255, 255, 255, 0.7);
-    background: rgba(29, 51, 72, 0.94);
+    color: #246fde;
+    background: #f5f9ff;
 }
 
 .layer-control-button.is-active {
-    border-color: rgba(87, 220, 255, 0.75);
+    color: #1670ed;
+    background: #eef6ff;
 }
 
-.layer-control-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: #7d8b96;
-}
-
-.layer-control-button.is-active .layer-control-dot {
-    background: #51d6ff;
-    box-shadow: 0 0 8px rgba(81, 214, 255, 0.85);
-}
-.map-view-controls {
+.layer-control-button.is-active::before {
     position: absolute;
-    z-index: 10;
-    top: 64px;
-    right: 20px;
+    inset: 0 auto 0 0;
+    width: 4px;
+    content: "";
+    background: #2478ed;
+    border-radius: 0 4px 4px 0;
+}
+
+.layer-control-button:disabled {
+    opacity: 0.48;
+    cursor: not-allowed;
+}
+
+.layer-control-icon {
+    width: 25px;
+    height: 25px;
+    flex: 0 0 25px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.layer-control-copy {
+    min-width: 0;
+}
+
+.layer-control-copy strong,
+.layer-control-copy small {
+    display: block;
+}
+
+.layer-control-copy strong {
+    font-size: 15px;
+    line-height: 1.3;
+}
+
+.layer-control-copy small {
+    margin-top: 4px;
+    overflow: hidden;
+    color: #93a0b2;
+    font-size: 11px;
+    line-height: 1.25;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.map-view-controls {
     display: flex;
-    flex-direction: column;
-    gap: 8px;
+    align-items: stretch;
+    gap: 10px;
+    margin-right: 100px;
 }
 
 .map-tool-button {
@@ -1439,26 +1772,39 @@ onBeforeUnmount(() => {
     align-items: center;
     justify-content: center;
     gap: 2px;
-    width: 52px;
-    height: 52px;
+    width: 58px;
+    height: 48px;
     padding: 0;
-    border: 1px solid rgba(255, 255, 255, 0.35);
+    border: 1px solid var(--transit-panel-border);
     border-radius: 6px;
-    color: #e9f5ff;
-    background: rgba(18, 32, 48, 0.88);
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.24);
+    color: var(--transit-panel-text);
+    background: var(--transit-panel-bg);
+    box-shadow: none;
     cursor: pointer;
     font: inherit;
     transition: background-color 160ms ease, border-color 160ms ease;
 }
 
+.map-tool-button.is-active {
+    color: #185fc7;
+    background: #f7fbff;
+    border-color: #a9c9f8;
+    box-shadow: inset 0 -3px 0 #2478ed;
+}
+
+.map-tool-button--dimension {
+    font-size: 16px;
+    font-weight: 750;
+}
+
 .map-tool-button:hover {
-    border-color: rgba(87, 220, 255, 0.85);
-    background: rgba(29, 51, 72, 0.96);
+    color: var(--transit-panel-primary);
+    border-color: #93c5fd;
+    background: var(--transit-panel-primary-soft);
 }
 
 .map-tool-button:focus-visible {
-    outline: 2px solid #51d6ff;
+    outline: 2px solid var(--transit-panel-primary);
     outline-offset: 2px;
 }
 
@@ -1477,39 +1823,227 @@ onBeforeUnmount(() => {
     line-height: 1;
 }
 
-.map-tool-dimension {
-    font-size: 16px;
-    font-weight: 700;
-    letter-spacing: 0.04em;
-}
-
 .cesium-container :deep(.cesium-performanceDisplay-defaultContainer) {
-    top: 184px;
-    right: 20px;
+    position: fixed;
+    top: 23px;
+    right: 26px;
     left: auto;
     bottom: auto;
-    z-index: 10;
+    z-index: 50;
 }
 
-@media (max-width: 640px) {
+.cesium-container :deep(.cesium-viewer-toolbar) {
+    display: none;
+}
+
+.cesium-container :deep(.cesium-viewer-animationContainer),
+.cesium-container :deep(.cesium-viewer-timelineContainer) {
+    display: none;
+}
+
+.transit-shell.is-history-mode .cesium-container :deep(.cesium-viewer-animationContainer),
+.transit-shell.is-history-mode .cesium-container :deep(.cesium-viewer-timelineContainer) {
+    display: block;
+}
+
+.cesium-container :deep(.cesium-viewer-bottom),
+.cesium-container :deep(.cesium-widget-credits) {
+    display: none !important;
+}
+
+.cesium-container :deep(.cesium-viewer-fullscreenContainer) {
+    right: 8px;
+    bottom: 8px;
+}
+
+.right-workbench :deep(.route-panel),
+.right-workbench :deep(.vehicle-panel),
+.right-workbench :deep(.arrival-panel),
+.right-workbench :deep(.nearby-panel),
+.right-workbench :deep(.trajectory-panel),
+.right-workbench :deep(.poi-panel) {
+    position: relative;
+    inset: auto;
+    width: 100%;
+    max-width: none;
+    max-height: none;
+    color: var(--transit-panel-text);
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.right-workbench :deep(.poi-panel) {
+    border-bottom: 1px solid var(--transit-panel-divider);
+}
+
+.transit-shell :deep(.operational-alert-panel) {
+    position: fixed;
+    z-index: 90;
+    right: 14px;
+    bottom: 14px;
+}
+
+/* 公交漫游底部站序面板位置：right / bottom / left 控制地图内三侧留白。 */
+.map-stage :deep(.realtime-route-progress) {
+    position: absolute;
+    z-index: 80;
+    right: 14px;
+    bottom: 14px;
+    left: 14px;
+}
+
+@media (max-width: 960px) {
+    .transit-header {
+        padding-left: 18px;
+    }
+
+    .transit-brand strong {
+        font-size: 20px;
+    }
+
+    .transit-brand span,
+    .layer-control-copy small {
+        display: none;
+    }
+
     .layer-controls {
-        top: 12px;
-        right: 12px;
-        left: 12px;
+        width: 76px;
+        flex-basis: 76px;
+    }
+
+    .layer-control-button {
+        min-height: 70px;
+        justify-content: center;
+        padding: 10px 6px;
+        gap: 5px;
         flex-direction: column;
-        align-items: flex-start;
+        text-align: center;
+    }
+
+    .layer-control-copy strong {
+        font-size: 12px;
     }
 
     .map-view-controls {
-        top: auto;
-        right: 12px;
-        bottom: 72px;
+        margin-right: 94px;
     }
-    
+}
+
+@media (max-width: 680px) {
+    .transit-header {
+        height: 62px;
+        flex-basis: 62px;
+        margin: 6px;
+        padding: 0 10px 0 12px;
+    }
+
+    .transit-brand__mark {
+        width: 36px;
+        height: 36px;
+        flex-basis: 36px;
+    }
+
+    .transit-brand__mark svg {
+        width: 24px;
+        height: 24px;
+    }
+
+    .transit-brand strong {
+        font-size: 16px;
+    }
+
+    .transit-workspace {
+        display: block;
+        padding: 0 6px 72px;
+    }
+
+    .map-stage {
+        width: 100%;
+        height: 100%;
+    }
+
+    .layer-controls {
+        position: fixed;
+        z-index: 60;
+        right: 6px;
+        bottom: 6px;
+        left: 6px;
+        display: grid;
+        width: auto;
+        height: 60px;
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        border-radius: 12px;
+    }
+
+    .layer-control-button {
+        min-height: 0;
+        height: 58px;
+        border-right: 1px solid #edf1f6;
+        border-bottom: 0;
+    }
+
+    .layer-control-button.is-active::before {
+        inset: auto 8px 0;
+        width: auto;
+        height: 3px;
+        border-radius: 3px 3px 0 0;
+    }
+
+    .layer-control-icon {
+        width: 21px;
+        height: 21px;
+    }
+
+    .layer-control-copy strong {
+        font-size: 10px;
+    }
+
+    .map-view-controls {
+        gap: 5px;
+        margin-right: 0;
+    }
+
+    .map-tool-button {
+        width: 42px;
+        height: 40px;
+    }
+
+    .map-tool-button--basemap {
+        display: none;
+    }
+
     .cesium-container :deep(.cesium-performanceDisplay-defaultContainer) {
-        top: 12px;
+        display: none;
+    }
+
+    .transit-workspace.has-right-workbench {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .transit-workspace.has-right-workbench .map-stage {
+        height: auto;
+        flex: 1 1 54%;
+    }
+
+    .right-workbench {
+        width: 100%;
+        flex: 1 1 46%;
+        border-radius: 12px;
+    }
+
+    .map-stage :deep(.realtime-route-progress) {
+        right: 10px;
+        bottom: 10px;
+        left: 10px;
+    }
+
+    .transit-shell :deep(.operational-alert-panel) {
         right: 12px;
-        bottom: auto;
+        bottom: 78px;
     }
 }
 </style>

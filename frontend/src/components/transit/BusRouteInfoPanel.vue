@@ -76,12 +76,11 @@ const emit = defineEmits<{
     width: 260px;
     max-width: calc(100% - 48px);
     overflow: hidden;
-    color: #f4f8ff;
-    background: rgba(13, 25, 42, 0.94);
-    border: 1px solid rgba(108, 214, 255, 0.45);
+    color: var(--transit-panel-text);
+    background: var(--transit-panel-bg);
+    border: 1px solid var(--transit-panel-border);
     border-radius: 12px;
-    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.38);
-    backdrop-filter: blur(12px);
+    box-shadow: var(--transit-panel-shadow);
 }
 
 .route-panel__header {
@@ -89,11 +88,11 @@ const emit = defineEmits<{
     align-items: center;
     justify-content: space-between;
     padding: 14px 16px 10px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    border-bottom: 1px solid var(--transit-panel-divider);
 }
 
 .route-panel__label {
-    color: #72d8ff;
+    color: var(--transit-panel-primary);
     font-size: 13px;
     letter-spacing: 0.08em;
 }
@@ -101,7 +100,7 @@ const emit = defineEmits<{
 .route-panel__close {
     width: 28px;
     height: 28px;
-    color: #d7e8f4;
+    color: var(--transit-panel-muted);
     font-size: 24px;
     line-height: 24px;
     cursor: pointer;
@@ -111,14 +110,14 @@ const emit = defineEmits<{
 }
 
 .route-panel__close:hover {
-    color: #ffffff;
-    background: rgba(255, 255, 255, 0.12);
+    color: var(--transit-panel-primary);
+    background: var(--transit-panel-primary-soft);
 }
 
 .route-panel__title {
     margin: 0;
     padding: 16px;
-    color: #ffffff;
+    color: var(--transit-panel-text);
     font-size: 20px;
     line-height: 1.45;
     overflow-wrap: anywhere;
@@ -133,17 +132,17 @@ const emit = defineEmits<{
     grid-template-columns: 72px 1fr;
     gap: 12px;
     padding: 10px 0;
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    border-top: 1px solid var(--transit-panel-divider);
     font-size: 14px;
     line-height: 1.5;
 }
 
 .route-panel__field span {
-    color: #9db0c4;
+    color: var(--transit-panel-muted);
 }
 
 .route-panel__field strong {
-    color: #f5fbff;
+    color: var(--transit-panel-text);
     font-weight: 500;
     overflow-wrap: anywhere;
 }

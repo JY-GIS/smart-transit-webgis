@@ -246,6 +246,7 @@ watch(
     overflow-wrap: anywhere;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 3;
+    line-clamp: 3;
 }
 
 .route-progress__stop.is-selected

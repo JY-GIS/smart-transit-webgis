@@ -291,12 +291,11 @@ watch(
     bottom: 24px;
     left: 24px;
     overflow: hidden;
-    color: #e8f5ff;
-    background: rgba(8, 22, 37, 0.96);
-    border: 1px solid rgba(83, 192, 220, 0.42);
+    color: var(--transit-panel-text);
+    background: var(--transit-panel-bg);
+    border: 1px solid var(--transit-panel-border);
     border-radius: 12px;
-    box-shadow: 0 -12px 34px rgba(0, 0, 0, 0.34);
-    backdrop-filter: blur(14px);
+    box-shadow: var(--transit-panel-shadow);
 }
 
 .realtime-route-progress__header {
@@ -306,7 +305,7 @@ watch(
     gap: 24px;
     min-height: 68px;
     padding: 10px 16px;
-    border-bottom: 1px solid rgba(145, 184, 205, 0.18);
+    border-bottom: 1px solid var(--transit-panel-divider);
 }
 
 .realtime-route-progress__identity,
@@ -325,7 +324,7 @@ watch(
 
 .realtime-route-progress__identity strong {
     overflow: hidden;
-    color: #f4fbff;
+    color: var(--transit-panel-text);
     font-size: 14px;
     font-weight: 600;
     text-overflow: ellipsis;
@@ -334,15 +333,15 @@ watch(
 
 .realtime-route-progress__identity div span,
 .realtime-route-progress__next > span:first-child {
-    color: #8ea9bb;
+    color: var(--transit-panel-muted);
     font-size: 12px;
 }
 
 .realtime-route-progress__route {
     flex: 0 0 auto;
     padding: 7px 10px;
-    color: #052a35;
-    background: #42ddf7;
+    color: #ffffff;
+    background: var(--transit-panel-primary);
     border-radius: 7px;
     font-size: 13px;
     font-weight: 700;
@@ -350,37 +349,37 @@ watch(
 
 .realtime-route-progress__next {
     padding-left: 24px;
-    border-left: 1px solid rgba(145, 184, 205, 0.22);
+    border-left: 1px solid var(--transit-panel-divider);
 }
 
 .realtime-route-progress__next strong {
-    color: #ffffff;
+    color: var(--transit-panel-text);
     font-size: 14px;
     font-weight: 600;
 }
 
 .realtime-route-progress__distance {
     padding: 4px 8px;
-    color: #ffcb78;
-    background: rgba(255, 181, 74, 0.12);
+    color: #b45309;
+    background: #fef3c7;
     border-radius: 999px;
     font-size: 12px;
 }
 
 .realtime-route-progress__toggle {
     padding: 8px 11px;
-    color: #9ec8dc;
+    color: var(--transit-panel-muted);
     cursor: pointer;
-    background: rgba(31, 57, 76, 0.72);
-    border: 1px solid rgba(126, 174, 199, 0.32);
+    background: var(--transit-panel-soft);
+    border: 1px solid var(--transit-panel-divider);
     border-radius: 7px;
     font: inherit;
     font-size: 12px;
 }
 
 .realtime-route-progress__toggle:hover {
-    color: #ffffff;
-    background: rgba(42, 75, 97, 0.86);
+    color: var(--transit-panel-primary);
+    background: var(--transit-panel-primary-soft);
 }
 
 .realtime-route-progress.is-collapsed
@@ -392,7 +391,7 @@ watch(
     overflow-x: auto;
     overflow-y: hidden;
     padding: 8px 26px 12px;
-    scrollbar-color: rgba(117, 154, 175, 0.55) transparent;
+    scrollbar-color: #cbd5e1 transparent;
     scrollbar-width: thin;
 }
 
@@ -413,7 +412,7 @@ watch(
 
 .realtime-route-progress__line {
     right: var(--track-edge);
-    background: rgba(132, 157, 171, 0.34);
+    background: #cbd5e1;
 }
 
 .realtime-route-progress__completed-line {
@@ -429,7 +428,7 @@ watch(
     display: flex;
     flex-direction: column;
     align-items: center;
-    color: #ffe3b2;
+    color: #b45309;
     transform: translateX(-50%);
     transition: left 0.8s linear;
 }
@@ -448,8 +447,8 @@ watch(
 .realtime-route-progress__vehicle small {
     margin-top: 3px;
     padding: 2px 6px;
-    color: #ffcc7c;
-    background: rgba(8, 22, 37, 0.94);
+    color: #b45309;
+    background: #fff7ed;
     border-radius: 4px;
     font-size: 10px;
     white-space: nowrap;
@@ -463,7 +462,7 @@ watch(
     align-items: center;
     min-width: 0;
     padding: 0 6px;
-    color: #a9bbc7;
+    color: var(--transit-panel-muted);
     text-align: center;
 }
 
@@ -474,15 +473,15 @@ watch(
     height: 18px;
     margin: 19px 0 4px;
     color: #08251d;
-    background: #6e8795;
-    border: 4px solid #122d3c;
+    background: #94a3b8;
+    border: 4px solid #e2e8f0;
     border-radius: 50%;
     font-size: 10px;
 }
 
 .realtime-route-progress__sequence,
 .realtime-route-progress__stop small {
-    color: #7892a3;
+    color: var(--transit-panel-faint);
     font-size: 10px;
 }
 
@@ -490,7 +489,7 @@ watch(
     display: -webkit-box;
     margin-top: 2px;
     overflow: hidden;
-    color: #a9bbc7;
+    color: var(--transit-panel-muted);
     font-size: 12px;
     font-weight: 500;
     line-height: 1.35;
@@ -509,7 +508,7 @@ watch(
 
 .realtime-route-progress__stop.is-passed strong,
 .realtime-route-progress__stop.is-previous strong {
-    color: #bcebdc;
+    color: #0f766e;
 }
 
 .realtime-route-progress__stop.is-next
@@ -518,7 +517,7 @@ watch(
     height: 24px;
     margin-top: 16px;
     background: #ffb54a;
-    border-color: #3b2e1c;
+    border-color: #ffedd5;
     box-shadow:
         0 0 0 5px rgba(255, 181, 74, 0.16),
         0 0 18px rgba(255, 181, 74, 0.65);
@@ -526,7 +525,7 @@ watch(
 
 .realtime-route-progress__stop.is-next strong,
 .realtime-route-progress__stop.is-next small {
-    color: #ffd694;
+    color: #b45309;
     font-weight: 700;
 }
 
@@ -545,7 +544,7 @@ watch(
     .realtime-route-progress__next {
         padding-top: 8px;
         padding-left: 0;
-        border-top: 1px solid rgba(145, 184, 205, 0.18);
+        border-top: 1px solid var(--transit-panel-divider);
         border-left: 0;
     }
     .realtime-route-progress__toggle {

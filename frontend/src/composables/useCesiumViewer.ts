@@ -6,6 +6,27 @@ export function useCesiumViewer() {
     // 只在当前页面实例内复用 Viewer，避免重复初始化 WebGL 上下文。
     let viewer: Cesium.Viewer | undefined
 
+    // 在真实地形和椭球平面之间切换；页面默认启用真实地形。
+    function setTerrainEnabled(
+        currentViewer: Cesium.Viewer,
+        enabled: boolean,
+    ) {
+        const terrainProviderPromise: Promise<Cesium.TerrainProvider> = enabled
+            ? Cesium.CesiumTerrainProvider.fromUrl(
+                CESIUM_CONFIG.terrain.url,
+                {
+                    requestVertexNormals:
+                        CESIUM_CONFIG.terrain.requestVertexNormals,
+                },
+            )
+            : Promise.resolve(new Cesium.EllipsoidTerrainProvider())
+
+        currentViewer.scene.setTerrain(
+            new Cesium.Terrain(terrainProviderPromise),
+        )
+        currentViewer.scene.requestRender()
+    }
+
     async function createViewer(
         container: HTMLElement,
     ): Promise<Cesium.Viewer> {
@@ -24,17 +45,7 @@ export function useCesiumViewer() {
             CESIUM_CONFIG.debugShowFramesPerSecond
 
         // 使用统一配置加载地形，白膜和公交线路共用同一场景地形。
-        viewer.scene.setTerrain(
-            new Cesium.Terrain(
-                Cesium.CesiumTerrainProvider.fromUrl(
-                    CESIUM_CONFIG.terrain.url,
-                    {
-                        requestVertexNormals:
-                            CESIUM_CONFIG.terrain.requestVertexNormals,
-                    },
-                ),
-            ),
-        )
+        setTerrainEnabled(viewer, true)
 
         return viewer
     }
@@ -51,5 +62,6 @@ export function useCesiumViewer() {
     return {
         createViewer,
         destroyViewer,
+        setTerrainEnabled,
     }
 }

@@ -31,7 +31,7 @@ const MAX_EVENT_COUNT = 50
 const operationalEvents = ref<RealtimeOperationalEvent[]>([])
 
 // 右下角面板是否收起
-const isCollapsed = ref(false)
+const isCollapsed = ref(true)
 
 // 保存每辆车上一次收到的运营状态
 const previousStatusByVehicleId = new Map<string, RealtimeVehicleOperationalStatus>()
@@ -137,6 +137,13 @@ function handleSelectVehicle(vehicleId: string) {
 }
 
 /**
+ * 在完整事件列表和右下角摘要卡片之间切换。
+ */
+function toggleCollapsed() {
+    isCollapsed.value = !isCollapsed.value
+}
+
+/**
  * 监听实时车辆快照。
  */
 watch(
@@ -188,24 +195,55 @@ watch(
 </script>
 <template>
     <aside class="operational-alert-panel" :class="{ 'is-collapsed': isCollapsed }" aria-label="实时运营异常播报" aria-live="polite">
-        <button type="button" class="operational-alert-panel__toggle"
-            :aria-label="isCollapsed ? '展开运营异常播报面板' : '收起运营异常播报面板'"
-            :title="isCollapsed ? '展开面板' : '收起面板'"
-            @click="isCollapsed = !isCollapsed"
+        <button
+            v-show="isCollapsed"
+            type="button"
+            class="operational-alert-panel__collapsed-trigger"
+            aria-label="展开运营异常播报面板"
+            title="展开运营异常播报"
+            :aria-expanded="false"
+            @click="toggleCollapsed"
         >
-            {{ isCollapsed ? '《' : '》' }}
+            <span
+                class="operational-alert-panel__indicator"
+                :class="{ 'is-active': activeAbnormalVehicleCount > 0 }"
+                aria-hidden="true"
+            ></span>
+
+            <span>运营异常</span>
+
+            <strong :class="{ 'is-active': activeAbnormalVehicleCount > 0 }">
+                {{ activeAbnormalVehicleCount }}
+            </strong>
+
+            <span class="operational-alert-panel__expand-icon" aria-hidden="true">
+                ‹
+            </span>
         </button>
 
-        <div class="operational-alert-panel__content">  
+        <div v-show="!isCollapsed" class="operational-alert-panel__content">
             <header class="operational-alert-panel__header">
                 <div class="operational-alert-panel__title">
                     <span class="operational-alert-panel__indicator" :class="{ 'is-active': activeAbnormalVehicleCount > 0 }" aria-hidden="true"></span>
                     <span>运营异常播报</span>
                 </div>
 
-                <span class="operational-alert-panel__count" :class="{ 'is-active': activeAbnormalVehicleCount > 0 }">
-                    当前 {{ activeAbnormalVehicleCount }}
-                </span>
+                <div class="operational-alert-panel__header-actions">
+                    <span class="operational-alert-panel__count" :class="{ 'is-active': activeAbnormalVehicleCount > 0 }">
+                        当前 {{ activeAbnormalVehicleCount }}
+                    </span>
+
+                    <button
+                        type="button"
+                        class="operational-alert-panel__toggle"
+                        aria-label="收起运营异常播报面板"
+                        title="收起面板"
+                        :aria-expanded="true"
+                        @click="toggleCollapsed"
+                    >
+                        ›
+                    </button>
+                </div>
             </header>
 
             <div v-if="operationalEvents.length === 0" class="operational-alert-panel__empty">
@@ -263,48 +301,81 @@ watch(
     bottom: 56px;
     width: 640px;
     max-width: calc(100% - 48px);
-    overflow: visible;
-    transition: transform 220ms ease;
-    color: #1f2937;
-    background: rgba(255, 255, 255, 0.95);
-    border: 1px solid rgba(148, 163, 184, 0.55);
+    overflow: hidden;
+    transition:
+        width 220ms ease,
+        box-shadow 220ms ease;
+    color: var(--transit-panel-text);
+    background: var(--transit-panel-bg);
+    border: 1px solid var(--transit-panel-border);
     border-radius: 12px;
-    box-shadow:
-        0 12px 32px rgba(15, 23, 42, 0.22);
-    backdrop-filter: blur(10px);
+    box-shadow: var(--transit-panel-shadow);
     pointer-events: auto;
 }
 
 .operational-alert-panel.is-collapsed {
-    transform: translateX(calc(100% + 24px));
+    width: 176px;
 }
 
 .operational-alert-panel__content {
-    visibility: visible;
+    width: 100%;
 }
 
-.operational-alert-panel.is-collapsed
-.operational-alert-panel__content {
-    visibility: hidden;
+.operational-alert-panel__collapsed-trigger {
+    display: flex;
+    width: 100%;
+    min-height: 48px;
+    align-items: center;
+    gap: 9px;
+    padding: 0 10px 0 14px;
+    color: var(--transit-panel-text);
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.operational-alert-panel__collapsed-trigger:hover {
+    background: var(--transit-panel-primary-soft);
+}
+
+.operational-alert-panel__collapsed-trigger strong {
+    min-width: 26px;
+    margin-left: auto;
+    padding: 3px 7px;
+    color: var(--transit-panel-muted);
+    background: var(--transit-panel-soft);
+    border-radius: 999px;
+    font-size: 12px;
+    text-align: center;
+}
+
+.operational-alert-panel__collapsed-trigger strong.is-active {
+    color: #b91c1c;
+    background: #fee2e2;
+}
+
+.operational-alert-panel__expand-icon {
+    color: var(--transit-panel-primary);
+    font-size: 22px;
+    line-height: 1;
 }
 
 .operational-alert-panel__toggle {
-    position: absolute;
-    top: 120px;
-    left: -23px;
     display: grid;
-    width: 20px;
-    height: 30px;
+    width: 28px;
+    height: 28px;
     place-items: center;
     padding: 0;
-    color: #2563eb;
-    background: rgba(255, 255, 255, 0.96);
-    border: 1px solid rgba(148, 163, 184, 0.65);
-    border-radius: 8px;
-    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.2);
+    color: var(--transit-panel-muted);
+    background: var(--transit-panel-soft);
+    border: 1px solid var(--transit-panel-divider);
+    border-radius: 7px;
     cursor: pointer;
     font: inherit;
-    font-size: 18px;
+    font-size: 20px;
     font-weight: 700;
 }
 
@@ -326,6 +397,13 @@ watch(
     gap: 12px;
     padding: 13px 15px;
     border-bottom: 1px solid #e5e7eb;
+}
+
+.operational-alert-panel__header-actions {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 8px;
 }
 
 .operational-alert-panel__title {
@@ -535,8 +613,10 @@ watch(
     }
 
     .operational-alert-panel.is-collapsed {
-    transform: translateX(calc(100% + 12px));
-}
+        right: 12px;
+        left: auto;
+        width: 176px;
+    }
 }
 
 </style>

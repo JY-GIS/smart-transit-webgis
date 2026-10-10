@@ -70,18 +70,18 @@ function createChartOption(): echarts.EChartsOption {
             itemGap: 8,
             icon: 'roundRect',
             textStyle: {
-                color: '#c2d5da',
+                color: '#475569',
                 fontSize: 10,
                 rich: {
                     name: {
                         width: 58,
-                        color: '#b9cdd2',
+                        color: '#475569',
                         fontSize: 10,
                     },
                     value: {
                         width: 30,
                         align: 'right',
-                        color: '#eef6f7',
+                        color: '#172033',
                         fontFamily: 'Consolas, monospace',
                         fontSize: 10,
                         fontWeight: 600,
@@ -89,7 +89,7 @@ function createChartOption(): echarts.EChartsOption {
                     percent: {
                         width: 40,
                         align: 'right',
-                        color: '#8fa8b0',
+                        color: '#64748b',
                         fontFamily: 'Consolas, monospace',
                         fontSize: 10,
                     },
@@ -108,10 +108,10 @@ function createChartOption(): echarts.EChartsOption {
         tooltip: {
             trigger: 'item',
             formatter: '{b}<br/>{c} 个（{d}%）',
-            backgroundColor: 'rgba(10, 25, 47, 0.94)',
-            borderColor: 'rgba(115, 192, 222, 0.4)',
+            backgroundColor: 'rgba(255, 255, 255, 0.98)',
+            borderColor: '#cbd5e1',
             textStyle: {
-                color: '#e8f0fe',
+                color: '#172033',
                 fontSize: 12,
             },
         },
@@ -128,13 +128,13 @@ function createChartOption(): echarts.EChartsOption {
                     formatter: `{total|${totalCount}}\n{name|POI总数}`,
                     rich: {
                         total: {
-                            color: '#73c0de',
+                            color: '#2563eb',
                             fontSize: 22,
                             fontWeight: 'bold',
                             lineHeight: 28,
                         },
                         name: {
-                            color: 'rgba(210, 227, 232, 0.68)',
+                            color: '#64748b',
                             fontSize: 10,
                             lineHeight: 15,
                         },
@@ -147,7 +147,7 @@ function createChartOption(): echarts.EChartsOption {
                     {
                         value: 1,
                         itemStyle: {
-                            color: 'rgba(122, 165, 176, 0.11)',
+                            color: '#e2e8f0',
                         },
                     },
                 ],
@@ -159,7 +159,7 @@ function createChartOption(): echarts.EChartsOption {
                 padAngle: 2,
                 animation: false,
                 itemStyle: {
-                    borderColor: 'rgba(12, 30, 40, 0.92)',
+                    borderColor: '#ffffff',
                     borderWidth: 1,
                     borderRadius: 5,
                 },

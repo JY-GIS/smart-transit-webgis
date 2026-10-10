@@ -49,13 +49,12 @@ const emit = defineEmits<{
     max-width: calc(100% - 48px);
     min-height: 54px;
     padding: 10px 12px;
-    color: #f4f8ff;
-    background: rgba(13, 25, 42, 0.94);
-    border: 1px solid rgba(255, 189, 89, 0.48);
-    border-radius: 10px;
+    color: var(--transit-panel-text);
+    background: var(--transit-panel-bg);
+    border: 1px solid rgba(245, 158, 11, 0.6);
+    border-radius: 12px;
     box-sizing: border-box;
-    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.32);
-    backdrop-filter: blur(12px);
+    box-shadow: var(--transit-panel-shadow);
 }
 
 .tracking-panel__status {
@@ -72,7 +71,7 @@ const emit = defineEmits<{
 }
 
 .tracking-panel__status strong {
-    color: #ffffff;
+    color: var(--transit-panel-text);
     font-size: 13px;
     font-weight: 600;
 }
@@ -80,7 +79,7 @@ const emit = defineEmits<{
 .tracking-panel__status span {
     margin-top: 2px;
     overflow: hidden;
-    color: #9db0c4;
+    color: var(--transit-panel-muted);
     font-size: 10px;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -104,7 +103,7 @@ const emit = defineEmits<{
     padding: 7px 10px;
     color: #172033;
     cursor: pointer;
-    background: #ffbd59;
+    background: #fbbf24;
     border: 0;
     border-radius: 6px;
     font: inherit;
@@ -119,11 +118,11 @@ const emit = defineEmits<{
 .tracking-panel__active-label {
     flex: 0 0 auto;
     padding: 6px 10px;
-    color: #86efac;
+    color: #15803d;
     font-size: 11px;
     font-weight: 700;
-    background: rgba(34, 197, 94, 0.14);
-    border: 1px solid rgba(34, 197, 94, 0.45);
+    background: #dcfce7;
+    border: 1px solid #86efac;
     border-radius: 999px;
 }
 </style>

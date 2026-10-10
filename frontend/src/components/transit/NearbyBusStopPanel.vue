@@ -140,12 +140,11 @@ function formatDistance(distanceMeters: number): string {
     max-width: calc(100% - 48px);
     max-height: 420px;
     overflow: hidden;
-    color: #f4f8ff;
-    background: rgba(13, 25, 42, 0.94);
-    border: 1px solid rgba(81, 214, 255, 0.55);
+    color: var(--transit-panel-text);
+    background: var(--transit-panel-bg);
+    border: 1px solid var(--transit-panel-border);
     border-radius: 12px;
-    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.38);
-    backdrop-filter: blur(12px);
+    box-shadow: var(--transit-panel-shadow);
 }
 
 .nearby-panel__header {
@@ -153,18 +152,18 @@ function formatDistance(distanceMeters: number): string {
     align-items: flex-start;
     justify-content: space-between;
     padding: 14px 16px 10px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    border-bottom: 1px solid var(--transit-panel-divider);
 }
 
 .nearby-panel__label {
-    color: #72d8ff;
+    color: var(--transit-panel-primary);
     font-size: 13px;
     letter-spacing: 0.08em;
 }
 
 .nearby-panel__title {
     margin: 5px 0 0;
-    color: #ffffff;
+    color: var(--transit-panel-text);
     font-size: 18px;
     line-height: 1.4;
 }
@@ -180,7 +179,7 @@ function formatDistance(distanceMeters: number): string {
     width: 28px;
     height: 28px;
     padding: 0;
-    color: #d7e8f4;
+    color: var(--transit-panel-muted);
     cursor: pointer;
     background: transparent;
     border: 0;
@@ -199,20 +198,20 @@ function formatDistance(distanceMeters: number): string {
 
 .nearby-panel__toggle:hover,
 .nearby-panel__close:hover {
-    color: #ffffff;
-    background: rgba(255, 255, 255, 0.12);
+    color: var(--transit-panel-primary);
+    background: var(--transit-panel-primary-soft);
 }
 
 .nearby-panel__summary,
 .nearby-panel__message {
     padding: 14px 16px;
-    color: #bcd0df;
+    color: var(--transit-panel-muted);
     font-size: 14px;
     line-height: 1.5;
 }
 
 .nearby-panel__message--error {
-    color: #ffaaa0;
+    color: var(--transit-panel-danger);
 }
 
 .nearby-panel__list {
@@ -228,7 +227,7 @@ function formatDistance(distanceMeters: number): string {
     justify-content: space-between;
     gap: 12px;
     padding: 9px 0;
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    border-top: 1px solid var(--transit-panel-divider);
     font-size: 14px;
 }
 
@@ -238,7 +237,7 @@ function formatDistance(distanceMeters: number): string {
 
 .nearby-panel__distance {
     flex: 0 0 auto;
-    color: #72d8ff;
+    color: var(--transit-panel-primary);
     font-weight: 500;
 }
 

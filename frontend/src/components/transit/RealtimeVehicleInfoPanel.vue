@@ -295,12 +295,11 @@ onBeforeUnmount(() => {
     width: 320px;
     max-width: calc(100% - 48px);
     overflow: hidden;
-    color: #f4f8ff;
-    background: rgba(13, 25, 42, 0.94);
-    border: 1px solid rgba(255, 165, 0, 0.55);
-    border-radius: 10px;
-    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.34);
-    backdrop-filter: blur(12px);
+    color: var(--transit-panel-text);
+    background: var(--transit-panel-bg);
+    border: 1px solid rgba(245, 158, 11, 0.65);
+    border-radius: 12px;
+    box-shadow: var(--transit-panel-shadow);
 }
 
 .vehicle-panel__header {
@@ -323,13 +322,13 @@ onBeforeUnmount(() => {
 }
 
 .vehicle-panel__label {
-    color: #ffbd59;
+    color: #d97706;
     font-size: 12px;
     letter-spacing: 0.08em;
 }
 
 .vehicle-panel__title {
-    color: #ffffff;
+    color: var(--transit-panel-text);
     font-size: 17px;
     font-weight: 600;
     line-height: 1.45;
@@ -337,7 +336,7 @@ onBeforeUnmount(() => {
 }
 
 .vehicle-panel__route {
-    color: #9db0c4;
+    color: var(--transit-panel-muted);
     font-size: 13px;
     line-height: 1.55;
     overflow-wrap: anywhere;
@@ -354,7 +353,7 @@ onBeforeUnmount(() => {
     padding: 5px 8px;
     color: #172033;
     cursor: pointer;
-    background: #ffbd59;
+    background: #fbbf24;
     border: 0;
     border-radius: 5px;
     font: inherit;
@@ -364,9 +363,9 @@ onBeforeUnmount(() => {
 
 .vehicle-panel__tracking-status {
     padding: 4px 7px;
-    color: #86efac;
-    background: rgba(34, 197, 94, 0.14);
-    border: 1px solid rgba(34, 197, 94, 0.4);
+    color: #15803d;
+    background: #dcfce7;
+    border: 1px solid #86efac;
     border-radius: 999px;
     font-size: 10px;
     white-space: nowrap;
@@ -376,7 +375,7 @@ onBeforeUnmount(() => {
     width: 26px;
     height: 26px;
     padding: 0;
-    color: #c4d7e4;
+    color: var(--transit-panel-muted);
     cursor: pointer;
     background: transparent;
     border: 0;
@@ -387,8 +386,8 @@ onBeforeUnmount(() => {
 }
 
 .vehicle-panel__icon-button:hover {
-    color: #ffffff;
-    background: rgba(255, 255, 255, 0.1);
+    color: var(--transit-panel-primary);
+    background: var(--transit-panel-primary-soft);
 }
 
 .vehicle-panel__close {
@@ -397,7 +396,7 @@ onBeforeUnmount(() => {
 
 .vehicle-panel__body {
     padding: 4px 17px 16px;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    border-top: 1px solid var(--transit-panel-divider);
 }
 
 .vehicle-panel__field {
@@ -406,7 +405,7 @@ onBeforeUnmount(() => {
     align-items: start;
     gap: 12px;
     padding: 11px 0;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    border-bottom: 1px solid var(--transit-panel-divider);
     font-size: 14px;
     line-height: 1.6;
 }
@@ -416,13 +415,13 @@ onBeforeUnmount(() => {
 }
 
 .vehicle-panel__field > span {
-    color: #8fa5b7;
+    color: var(--transit-panel-muted);
     font-size: 11px;
 }
 
 .vehicle-panel__field strong {
     min-width: 0;
-    color: #f5fbff;
+    color: var(--transit-panel-text);
     font-weight: 500;
     line-height: 1.6;
     overflow-wrap: anywhere;
@@ -441,7 +440,7 @@ onBeforeUnmount(() => {
 }
 
 .vehicle-panel__combined-value i {
-    color: #668092;
+    color: var(--transit-panel-faint);
     font-style: normal;
 }
 

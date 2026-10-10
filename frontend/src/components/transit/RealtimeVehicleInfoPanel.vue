@@ -13,34 +13,23 @@ import type { RealtimeVehiclePositionSnapshot } from '@/types/realtimeVehicle'
 const props = defineProps<{
     vehicle: RealtimeVehiclePositionSnapshot | null
     route: BusRouteProperties | null
+    tracking: boolean
 }>()
 
 const emit = defineEmits<{
     close: []
+    'start-tracking': []
 }>()
 
-/**
- * 面板当前显示的平滑数值
- */
-const displayedDistanceMeters = ref(0)
-const displayedRouteProgressPercent = ref(0)
+const isCollapsed = ref(false)
 const displayedCurrentSpeedMetersPerSecond = ref(0)
-const displayedDistanceToNextStopMeters = ref<number | null>(null)
 const displayedDistanceToFrontVehicleMeters = ref<number | null>(null)
 
 interface VehicleMetricAnimation {
     startedAtMilliseconds: number
-    startDistanceMeters: number
-    targetDistanceMeters: number
-    totalDistanceMeters: number
-    fallbackProgressPercent: number
 
-    startCurrentSpeedMetersPerSecond: number
-    targetCurrentSpeedMetersPerSecond: number
-
-    interpolateNextStopDistance: boolean
-    startDistanceToNextStopMeters: number | null
-    targetDistanceToNextStopMeters: number | null
+    startSpeedMetersPerSecond: number
+    targetSpeedMetersPerSecond: number
 
     interpolateFrontVehicleDistance: boolean
     startDistanceToFrontVehicleMeters: number | null
@@ -50,7 +39,6 @@ interface VehicleMetricAnimation {
 let animationFrameId: number | undefined
 let animation: VehicleMetricAnimation | undefined
 let activeVehicleId: string | null = null
-let previousNextStopId: string | null = null
 let previousFrontVehicleId: string | null = null
 
 function formatDistance(distanceMeters: number | null,): string {
@@ -58,17 +46,6 @@ function formatDistance(distanceMeters: number | null,): string {
         return '—'
     }
     return `${distanceMeters.toFixed(0)} 米`
-}
-
-// 将线路里程限制在线路总长度范围内
-function normalizeRouteDistance(distanceMeters: number, totalDistanceMeters: number): number { 
-    if (totalDistanceMeters <= 0) {
-        return distanceMeters
-    }
-
-    return (
-        (distanceMeters % totalDistanceMeters) + totalDistanceMeters
-    ) % totalDistanceMeters
 }
 
 // 停止当前面板动画
@@ -84,17 +61,8 @@ function cancelMetricAnimation() {
 
 // 切换车辆或第一次打开面板时，直接使用服务端快照初始化
 function applySnapshotImmediately(vehicle: RealtimeVehiclePositionSnapshot) {
-    displayedDistanceMeters.value =
-        vehicle.distanceMeters
-
-    displayedRouteProgressPercent.value =
-        vehicle.routeProgressPercent
-
     displayedCurrentSpeedMetersPerSecond.value =
         vehicle.currentSpeedMetersPerSecond
-
-    displayedDistanceToNextStopMeters.value =
-        vehicle.distanceToNextStopMeters
 
     displayedDistanceToFrontVehicleMeters.value =
         vehicle.distanceToFrontVehicleMeters
@@ -118,50 +86,20 @@ function animateVehicleMetrics(currentTimeMilliseconds: number) {
         (currentTimeMilliseconds - currentAnimation.startedAtMilliseconds) / durationMiliseconds
     )
 
-    const rawDistanceMeters = 
-        currentAnimation.startDistanceMeters +
-        progress * (currentAnimation.targetDistanceMeters - currentAnimation.startDistanceMeters)
-
-    const normalizedDistanceMeters = normalizeRouteDistance(
-        rawDistanceMeters,
-        currentAnimation.totalDistanceMeters
-    )
-
-    displayedDistanceMeters.value = normalizedDistanceMeters
-
-    // 线路进度直接根据平滑里程计算
-    displayedRouteProgressPercent.value = 
-        currentAnimation.totalDistanceMeters > 0
-            ? (normalizedDistanceMeters / currentAnimation.totalDistanceMeters) * 100
-            : currentAnimation.fallbackProgressPercent
-
     // 车辆速度显示效果直接根据平滑里程计算
     displayedCurrentSpeedMetersPerSecond.value =
-        currentAnimation.startCurrentSpeedMetersPerSecond + (
-            currentAnimation.targetCurrentSpeedMetersPerSecond - currentAnimation.startCurrentSpeedMetersPerSecond
+        currentAnimation.startSpeedMetersPerSecond + (
+            currentAnimation.targetSpeedMetersPerSecond - currentAnimation.startSpeedMetersPerSecond
         ) * progress
 
     if (
-        currentAnimation.interpolateNextStopDistance &&
-        currentAnimation.startDistanceToNextStopMeters !== null &&
-        currentAnimation.targetDistanceToNextStopMeters !== null
-    ) {
-        displayedDistanceToNextStopMeters.value = 
-            currentAnimation.startDistanceToNextStopMeters +
-            progress * (currentAnimation.targetDistanceToNextStopMeters - currentAnimation.startDistanceToNextStopMeters)
-    } else {
-        displayedDistanceToNextStopMeters.value = currentAnimation.targetDistanceToNextStopMeters
-    }
-
-    // 只有前车没有发生变化时，才能对车距进行线性插值
-    if (
         currentAnimation.interpolateFrontVehicleDistance &&
-        currentAnimation.startDistanceToFrontVehicleMeters !== null &&
-        currentAnimation.targetDistanceToFrontVehicleMeters !== null
+        currentAnimation.startDistanceToFrontVehicleMeters  !== null &&
+        currentAnimation.targetDistanceToFrontVehicleMeters  !== null
     ) {
-        displayedDistanceToFrontVehicleMeters.value =
-            currentAnimation.startDistanceToFrontVehicleMeters +
-            progress * (currentAnimation.targetDistanceToFrontVehicleMeters - currentAnimation.startDistanceToFrontVehicleMeters)
+        displayedDistanceToFrontVehicleMeters.value = 
+            currentAnimation.startDistanceToFrontVehicleMeters  +
+            progress * (currentAnimation.targetDistanceToFrontVehicleMeters  - currentAnimation.startDistanceToFrontVehicleMeters)
     } else {
         displayedDistanceToFrontVehicleMeters.value = currentAnimation.targetDistanceToFrontVehicleMeters
     }
@@ -184,76 +122,40 @@ function animateVehicleMetrics(currentTimeMilliseconds: number) {
 
         if (!vehicle) {
             activeVehicleId = null
-            previousNextStopId = null
             previousFrontVehicleId = null
 
-            displayedDistanceMeters.value = 0
-            displayedRouteProgressPercent.value = 0
             displayedCurrentSpeedMetersPerSecond.value = 0
-            displayedDistanceToNextStopMeters.value = null
             displayedDistanceToFrontVehicleMeters.value = null
 
             return
         }
-
-        const nextStopId = vehicle.nextStop?.stopId ?? null
-        const frontVehicleId = vehicle.frontVehicleId
-
         // 第一次打开面板或切换到另一辆车时，不应该从上一辆车的数字插值过来
         if (activeVehicleId !== vehicle.vehicleId) {
             activeVehicleId = vehicle.vehicleId
-            previousNextStopId = nextStopId
-            previousFrontVehicleId = frontVehicleId
+            previousFrontVehicleId = vehicle.frontVehicleId
 
             applySnapshotImmediately(vehicle)
 
             return
         }
 
-        let targetDistanceMeters = vehicle.distanceMeters
-
-        /*
-         * 处理循环线路末端
-         */
-        if (
-            vehicle.totalDistanceMeters > 0 &&
-            targetDistanceMeters < displayedDistanceMeters.value &&
-            displayedDistanceMeters.value - targetDistanceMeters > vehicle.totalDistanceMeters / 2
-        ) {
-            targetDistanceMeters += vehicle.totalDistanceMeters
-        }
-
-        const interpolateNextStopDistance =
-            previousNextStopId !== null &&
-            previousNextStopId === nextStopId && 
-            displayedDistanceToNextStopMeters.value !== null && 
-            vehicle.distanceToNextStopMeters !== null
-
         // 前车编号相同且新旧距离都有值时才进行插值
         const interpolateFrontVehicleDistance =
             previousFrontVehicleId !== null &&
-            previousFrontVehicleId === frontVehicleId &&
+            previousFrontVehicleId === vehicle.frontVehicleId &&
             displayedDistanceToFrontVehicleMeters.value !== null &&
             vehicle.distanceToFrontVehicleMeters !== null
 
         animation = {
             startedAtMilliseconds: performance.now(),
-            startDistanceMeters: displayedDistanceMeters.value,
-            targetDistanceMeters,
-            totalDistanceMeters: vehicle.totalDistanceMeters,
-            fallbackProgressPercent: vehicle.routeProgressPercent,
-            startCurrentSpeedMetersPerSecond: displayedCurrentSpeedMetersPerSecond.value,
-            targetCurrentSpeedMetersPerSecond: vehicle.currentSpeedMetersPerSecond,
-            interpolateNextStopDistance,
-            startDistanceToNextStopMeters: displayedDistanceToNextStopMeters.value,
-            targetDistanceToNextStopMeters: vehicle.distanceToNextStopMeters,
+            startSpeedMetersPerSecond: displayedCurrentSpeedMetersPerSecond.value,
+            targetSpeedMetersPerSecond: vehicle.currentSpeedMetersPerSecond,
             interpolateFrontVehicleDistance,
-            startDistanceToFrontVehicleMeters: displayedDistanceToFrontVehicleMeters.value,
+            startDistanceToFrontVehicleMeters:displayedDistanceToFrontVehicleMeters.value,
             targetDistanceToFrontVehicleMeters: vehicle.distanceToFrontVehicleMeters,
         }
 
-        previousNextStopId = nextStopId
-        previousFrontVehicleId = frontVehicleId
+        previousFrontVehicleId = vehicle.frontVehicleId
 
         animationFrameId = window.requestAnimationFrame(animateVehicleMetrics)
     },
@@ -262,6 +164,10 @@ function animateVehicleMetrics(currentTimeMilliseconds: number) {
     }
 )
 
+function toggleCollapsed() {
+    isCollapsed.value = !isCollapsed.value
+}
+
 onBeforeUnmount(() => {
     cancelMetricAnimation()
 })
@@ -269,76 +175,74 @@ onBeforeUnmount(() => {
 
 <template> 
     <transition name="vehicle-panel">
-        <aside v-if="vehicle" class="vehicle-panel" @click.stop>
-            <div class="vehicle-panel__header">
-                <span class="vehicle-panel__label">
-                    实时车辆
-                </span>
+        <aside v-if="vehicle" class="vehicle-panel" :class="{ 'is-collapsed': isCollapsed }" @click.stop>
+            <header class="vehicle-panel__header">
+                <div class="vehicle-panel__header-top">
+                    <span class="vehicle-panel__label">
+                        实时车辆
+                    </span>
 
-                <button type="button" class="vehicle-panel__close" aria-label="关闭车辆信息" @click="emit('close')">
-                    ×
-                </button>
-            </div>
+                    <div class="vehicle-panel__actions">
+                        <button
+                            v-if="!tracking"
+                            type="button"
+                            class="vehicle-panel__tracking-button"
+                            @click="emit('start-tracking')"
+                        >
+                            追踪
+                        </button>
 
-            <h2 class="vehicle-panel__title">
-                {{ vehicle.vehicleId }}
-            </h2>
+                        <span v-else class="vehicle-panel__tracking-status">
+                            漫游中
+                        </span>
 
-            <div class="vehicle-panel__body">
-                <div class="vehicle-panel__field">
-                    <span>所属线路</span>
+                        <button
+                            type="button"
+                            class="vehicle-panel__icon-button"
+                            :aria-label="isCollapsed ? '展开车辆详情' : '收起车辆详情'"
+                            :title="isCollapsed ? '展开' : '收起'"
+                            @click="toggleCollapsed"
+                        >
+                            {{ isCollapsed ? '+' : '−' }}
+                        </button>
 
-                    <strong>
+                        <button
+                            type="button"
+                            class="vehicle-panel__icon-button vehicle-panel__close"
+                            aria-label="退出车辆漫游"
+                            title="退出"
+                            @click="emit('close')"
+                        >
+                            ×
+                        </button>
+                    </div>
+                </div>
+
+                <div class="vehicle-panel__identity">
+                    <strong class="vehicle-panel__title">
+                        {{ vehicle.vehicleId }}
+                    </strong>
+
+                    <span class="vehicle-panel__route">
                         {{ route?.rname ?? vehicle.routeId }}
-                    </strong>
+                    </span>
                 </div>
+            </header>
 
+            <div v-show="!isCollapsed" class="vehicle-panel__body">
                 <div class="vehicle-panel__field">
-                    <span>运行状态</span>
+                    <span>车辆状态</span>
 
-                    <strong class="vehicle-panel__status" :style="{ color: REALTIME_VEHICLE_STATUS_STYLES[vehicle.motionStatus].color }">
-                        {{ REALTIME_VEHICLE_STATUS_STYLES[vehicle.motionStatus].label }}
-                    </strong>
-                </div>
+                    <strong class="vehicle-panel__combined-value">
+                        <em :style="{ color: REALTIME_VEHICLE_STATUS_STYLES[vehicle.motionStatus].color, }">
+                            {{ REALTIME_VEHICLE_STATUS_STYLES[vehicle.motionStatus].label }}
+                        </em>
 
-                <div class="vehicle-panel__field">
-                    <span>运营状态</span>
+                        <i>·</i>
 
-                    <strong class="vehicle-panel__status" :style="{ color: REALTIME_VEHICLE_OPERATIONAL_STATUS_STYLES[vehicle.operationalStatus].color }">
-                        {{ REALTIME_VEHICLE_OPERATIONAL_STATUS_STYLES[vehicle.operationalStatus].label }}
-                    </strong>
-                </div>
-
-                <div class="vehicle-panel__field">
-                    <span>当前速度</span>
-
-                    <strong>
-                        {{ displayedCurrentSpeedMetersPerSecond.toFixed(1) }}
-                        米/秒
-                    </strong>
-                </div>
-
-                <div class="vehicle-panel__field">
-                    <span>线路进度</span>
-
-                    <strong>
-                        {{ displayedRouteProgressPercent.toFixed(2) }}%
-                    </strong>
-                </div>
-
-                <div class="vehicle-panel__field">
-                    <span>距离前车</span>
-
-                    <strong>
-                        {{ formatDistance(displayedDistanceToFrontVehicleMeters) }}
-                    </strong>
-                </div>
-
-                <div class="vehicle-panel__field">
-                    <span>参考间隔</span>
-
-                    <strong>
-                        {{ formatDistance(vehicle.referenceHeadwayMeters) }}
+                        <em :style="{ color: REALTIME_VEHICLE_OPERATIONAL_STATUS_STYLES[vehicle.operationalStatus].color }">
+                            {{ REALTIME_VEHICLE_OPERATIONAL_STATUS_STYLES[vehicle.operationalStatus].label }}
+                        </em>
                     </strong>
                 </div>
 
@@ -359,29 +263,22 @@ onBeforeUnmount(() => {
                 </div>
 
                 <div class="vehicle-panel__field">
-                    <span>下一站序</span>
+                    <span>当前速度</span>
 
                     <strong>
-                        {{ vehicle.nextStop?.stopSequence ?? '—' }}
+                        {{ displayedCurrentSpeedMetersPerSecond.toFixed(1) }}
+                        米/秒
                     </strong>
                 </div>
 
                 <div class="vehicle-panel__field">
-                    <span>距下一站</span>
+                    <span>前车间隔</span>
 
                     <strong>
-                        {{ formatDistance(displayedDistanceToNextStopMeters) }}
-                    </strong>
-                </div>
-
-                <div class="vehicle-panel__field">
-                    <span>线路里程</span>
-
-                    <strong>
-                        {{ displayedDistanceMeters.toFixed(0) }}
+                        {{ formatDistance(displayedDistanceToFrontVehicleMeters) }}
                         /
-                        {{ vehicle.totalDistanceMeters.toFixed(0) }}
-                        米
+                        参考
+                        {{ formatDistance(vehicle.referenceHeadwayMeters) }}
                     </strong>
                 </div>
             </div>
@@ -393,85 +290,164 @@ onBeforeUnmount(() => {
 .vehicle-panel {
     position: absolute;
     z-index: 20;
-    top: 180px;
+    top: 116px;
     left: 24px;
-    width: 280px;
+    width: 320px;
     max-width: calc(100% - 48px);
     overflow: hidden;
     color: #f4f8ff;
     background: rgba(13, 25, 42, 0.94);
     border: 1px solid rgba(255, 165, 0, 0.55);
-    border-radius: 12px;
-    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.38);
+    border-radius: 10px;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.34);
     backdrop-filter: blur(12px);
 }
 
 .vehicle-panel__header {
+    padding: 13px 16px 14px;
+}
+
+.vehicle-panel__header-top {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 14px 16px 10px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    gap: 12px;
+}
+
+.vehicle-panel__identity {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin-top: 10px;
+    min-width: 0;
 }
 
 .vehicle-panel__label {
     color: #ffbd59;
-    font-size: 13px;
+    font-size: 12px;
     letter-spacing: 0.08em;
 }
 
-.vehicle-panel__close {
-    width: 28px;
-    height: 28px;
-    color: #d7e8f4;
-    font-size: 24px;
-    line-height: 24px;
-    cursor: pointer;
-    background: transparent;
-    border: 0;
-    border-radius: 6px;
-}
-
-.vehicle-panel__close:hover {
-    color: #ffffff;
-    background: rgba(255, 255, 255, 0.12);
-}
-
 .vehicle-panel__title {
-    margin: 0;
-    padding: 16px;
     color: #ffffff;
-    font-size: 18px;
+    font-size: 17px;
+    font-weight: 600;
     line-height: 1.45;
     overflow-wrap: anywhere;
 }
 
+.vehicle-panel__route {
+    color: #9db0c4;
+    font-size: 13px;
+    line-height: 1.55;
+    overflow-wrap: anywhere;
+}
+
+.vehicle-panel__actions {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 3px;
+}
+
+.vehicle-panel__tracking-button {
+    padding: 5px 8px;
+    color: #172033;
+    cursor: pointer;
+    background: #ffbd59;
+    border: 0;
+    border-radius: 5px;
+    font: inherit;
+    font-size: 10px;
+    font-weight: 700;
+}
+
+.vehicle-panel__tracking-status {
+    padding: 4px 7px;
+    color: #86efac;
+    background: rgba(34, 197, 94, 0.14);
+    border: 1px solid rgba(34, 197, 94, 0.4);
+    border-radius: 999px;
+    font-size: 10px;
+    white-space: nowrap;
+}
+
+.vehicle-panel__icon-button {
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    color: #c4d7e4;
+    cursor: pointer;
+    background: transparent;
+    border: 0;
+    border-radius: 5px;
+    font: inherit;
+    font-size: 18px;
+    line-height: 24px;
+}
+
+.vehicle-panel__icon-button:hover {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.vehicle-panel__close {
+    font-size: 21px;
+}
+
 .vehicle-panel__body {
-    padding: 0 16px 16px;
+    padding: 4px 17px 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .vehicle-panel__field {
     display: grid;
-    grid-template-columns: 78px 1fr;
+    grid-template-columns: 82px minmax(0, 1fr);
+    align-items: start;
     gap: 12px;
-    padding: 9px 0;
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 11px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
     font-size: 14px;
-    line-height: 1.5;
+    line-height: 1.6;
 }
 
-.vehicle-panel__field span {
-    color: #9db0c4;
+.vehicle-panel__field:last-child {
+    border-bottom: 0;
+}
+
+.vehicle-panel__field > span {
+    color: #8fa5b7;
+    font-size: 11px;
 }
 
 .vehicle-panel__field strong {
+    min-width: 0;
     color: #f5fbff;
     font-weight: 500;
+    line-height: 1.6;
     overflow-wrap: anywhere;
+    white-space: normal;
 }
 
-.vehicle-panel__status {
+.vehicle-panel__combined-value {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.vehicle-panel__combined-value em {
+    font-style: normal;
     font-weight: 600;
+}
+
+.vehicle-panel__combined-value i {
+    color: #668092;
+    font-style: normal;
+}
+
+.vehicle-panel.is-collapsed
+.vehicle-panel__header {
+    align-items: center;
 }
 
 .vehicle-panel-enter-active,
@@ -484,6 +460,6 @@ onBeforeUnmount(() => {
 .vehicle-panel-enter-from,
 .vehicle-panel-leave-to {
     opacity: 0;
-    transform: translateY(-10px);
+    transform: translateY(-8px);
 }
 </style>

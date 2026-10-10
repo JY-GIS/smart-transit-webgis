@@ -8,10 +8,10 @@ import BusRouteInfoPanel from '@/components/transit/BusRouteInfoPanel.vue'
 import NearbyBusStopPanel from '@/components/transit/NearbyBusStopPanel.vue'
 import PoiAnalysisPanel from '@/components/transit/PoiAnalysisPanel.vue'
 import RealtimeVehicleInfoPanel from '@/components/transit/RealtimeVehicleInfoPanel.vue'
-import RealtimeVehicleTrackingPanel from '@/components/transit/RealtimeVehicleTrackingPanel.vue'
 import RealtimeOperationalAlertPanel from '@/components/transit/RealtimeOperationalAlertPanel.vue'
 import StopArrivalPanel from '@/components/transit/StopArrivalPanel.vue'
 import VehicleTrajectoryPanel from '@/components/transit/VehicleTrajectoryPanel.vue'
+import RealtimeRouteProgressPanel from '@/components/transit/RealtimeRouteProgressPanel.vue'
 import { TRANSIT_CONFIG } from '@/config/transit.config'
 import { useBusRouteLayer } from '@/composables/useBusRouteLayer'
 import { useBusRouteSelection } from '@/composables/useBusRouteSelection'
@@ -184,6 +184,36 @@ const {
 } = useRealtimeVehicleRoaming({
     getPointPosition: getRealtimeVehiclePointPosition,
     getModelPosition: getRealtimeVehicleModelPosition,
+})
+
+const trackedRealtimeVehicle = computed(() => {
+    const vehicleId = trackedRealtimeVehicleId.value
+
+    if (!vehicleId) return null
+
+    return (
+        realtimeVehicles.value.find(
+            (vehicle) => vehicle.vehicleId === vehicleId,
+        ) ?? null
+    )
+})
+
+// 根据追踪车辆线路编号读取完整有序站点。
+const trackedRealtimeRouteStops = computed(() => {
+    const vehicle = trackedRealtimeVehicle.value
+
+    if (!vehicle) return []
+
+    return getOrderedRouteStops(vehicle.routeId)
+})
+
+const trackedRealtimeRoute = computed(() => {
+    const vehicle = trackedRealtimeVehicle.value
+    const route = selectedRoute.value
+
+    if (!vehicle || route?.fid !== vehicle.routeFid) return null
+
+    return route
 })
 
 const {
@@ -473,9 +503,14 @@ function closeRealtimeRoamingMode() {
     closeRoamingMode(viewer)
 }
 
+function handleExitRealtimeVehicle() {
+    closeRealtimeRoamingMode()
+    closeRoutePanel(viewer)
+}
+
 function toggleRealtimeRoamingMode() {
     if (realtimeRoamingModeEnabled.value) {
-        closeRealtimeRoamingMode()
+        handleExitRealtimeVehicle()
         return
     }
 
@@ -849,8 +884,10 @@ function getClickCenter(clickPosition: Cesium.Cartesian2): NearbyQueryCenter | n
     }
 }
 
-// 地图点击到后端查询的桥接函数
+// 处理没有拾取到车辆、站点或线路时的地图点击
 function handleNearbyMapClick(clickPosition: Cesium.Cartesian2) {
+    closeRealtimeRoamingMode()
+
     if (!nearbyQueryEnabled.value) {
         return
     }
@@ -1250,18 +1287,21 @@ onBeforeUnmount(() => {
                 @select-vehicle="handleSelectOperationalVehicle"
             />
             
-            <RealtimeVehicleTrackingPanel
-                v-if="selectedRealtimeVehicle"
-                :vehicle-id="selectedRealtimeVehicle.vehicleId"
-                :tracking="trackedRealtimeVehicleId === selectedRealtimeVehicle.vehicleId"
-                @start-tracking="handleStartSelectedVehicleRoaming"
+            <RealtimeRouteProgressPanel
+                v-if="realtimeRoamingModeEnabled && trackedRealtimeVehicle && !selectedRouteStop"
+                :vehicle="trackedRealtimeVehicle"
+                :route="trackedRealtimeRoute"
+                :stops="trackedRealtimeRouteStops"
             />
 
             <RealtimeVehicleInfoPanel
                 :vehicle="selectedRealtimeVehicle"
                 :route="selectedRoute"
-                @close="handleCloseRoutePanel"
+                :tracking="trackedRealtimeVehicleId === selectedRealtimeVehicle?.vehicleId"
+                @start-tracking="handleStartSelectedVehicleRoaming"
+                @close="handleExitRealtimeVehicle"
             />
+
             <RealtimeOperationalAlertPanel
                 :vehicles="realtimeVehicles"
                 @select-vehicle="handleSelectOperationalVehicle"

@@ -74,6 +74,39 @@ export function useWhiteModelLayer() {
         return tileset
     }
 
+    function applyBoundaryClipping(
+        scene: Cesium.Scene,
+        boundaryPositions: Cesium.Cartesian3[],
+    ) {
+        if (!tileset || tileset.isDestroyed()) {
+            console.warn('福田白模裁剪跳过：城市白模尚未加载')
+            return false
+        }
+
+        if (!Cesium.ClippingPolygonCollection.isSupported(scene)) {
+            console.warn('当前 WebGL 环境不支持 ClippingPolygonCollection，白模保持未裁剪状态')
+            return false
+        }
+
+        try {
+            const futianPolygon = new Cesium.ClippingPolygon({
+                positions: boundaryPositions,
+            })
+
+            // inverse: true 裁掉多边形外部，只保留福田区内的白模。
+            tileset.clippingPolygons =
+                new Cesium.ClippingPolygonCollection({
+                    polygons: [futianPolygon],
+                    inverse: true,
+                })
+
+            return true
+        } catch (error) {
+            console.error('福田白模裁剪创建失败，白模保持未裁剪状态：', error)
+            return false
+        }
+    }
+
     function setWhiteModelVisible(visible: boolean) {
         whiteModelVisible.value = visible
 
@@ -106,6 +139,7 @@ export function useWhiteModelLayer() {
 
     return {
         loadWhiteModel,
+        applyBoundaryClipping,
         whiteModelVisible,
         setWhiteModelVisible,
         cleanupWhiteModel,

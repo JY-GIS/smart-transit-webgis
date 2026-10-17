@@ -364,6 +364,7 @@ const {
 
 const {
     loadWhiteModel,
+    applyBoundaryClipping,
     whiteModelVisible,
     setWhiteModelVisible,
     cleanupWhiteModel,
@@ -1125,7 +1126,10 @@ onMounted(async () => {
 
         await loadWhiteModel(viewer)
 
-        await loadFutianBoundary(viewer)
+        const futianBoundaryPositions =
+            await loadFutianBoundary(viewer)
+
+        applyBoundaryClipping( viewer.scene, futianBoundaryPositions)
 
         const futianBusRoutes = await loadBusRoutes(viewer)
 

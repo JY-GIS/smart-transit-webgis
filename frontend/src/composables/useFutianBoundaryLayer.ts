@@ -37,13 +37,19 @@ export function useFutianBoundaryLayer() {
             )
 
         if (!hierarchy) {
-            return dataSource
+            return []
         }
+
+        // GeoJSON 外环首尾重复；裁剪多边形只需要每个顶点一次。
+        const boundaryPositions = hierarchy.positions
+        const lastPosition = boundaryPositions[boundaryPositions.length - 1]
+        const clippingPositions = Cesium.Cartesian3.equals(boundaryPositions[0], lastPosition)
+            ? boundaryPositions.slice(0, -1) : boundaryPositions
 
         // 首尾闭合后单独创建 polyline，可独立控制边界宽度和发光效果。
         const groundPositions = [
-            ...hierarchy.positions,
-            hierarchy.positions[0],
+            ...clippingPositions,
+            clippingPositions[0],
         ]
 
         outlineEntity = viewer.entities.add({
@@ -63,7 +69,8 @@ export function useFutianBoundaryLayer() {
             },
         })
 
-        return dataSource
+        // 复用已解析的真实行政区外环，供白模运行时裁剪使用，避免再次请求 GeoJSON。
+        return clippingPositions
     }
 
     function cleanupFutianBoundary(

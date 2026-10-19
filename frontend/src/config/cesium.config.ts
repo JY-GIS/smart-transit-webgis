@@ -25,6 +25,9 @@ export const CESIUM_CONFIG = {
 
         // 默认底图
         baseLayer: false,
+
+        // 城市建筑边缘密集，关闭 4x MSAA 可避免显著的 GPU 多重采样开销。
+        msaaSamples: 1,
     },
 
     // 开发调试开关，发布前可改为 false。

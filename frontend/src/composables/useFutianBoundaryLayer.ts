@@ -1,29 +1,29 @@
 import * as Cesium from 'cesium'
 import { CESIUM_CONFIG } from '@/config/cesium.config'
 
-// 福田行政区图层：保留 GeoJSON 填充，同时额外绘制一条发光边界线。
+// 福田行政区图层：使用边界孔洞暗化区外底图，并绘制发光边界线。
 export function useFutianBoundaryLayer() {
     let dataSource: Cesium.GeoJsonDataSource | undefined
     let outlineEntity: Cesium.Entity | undefined
+    let outsideMaskEntity: Cesium.Entity | undefined
 
     async function loadFutianBoundary(
         viewer: Cesium.Viewer,
     ) {
-        // 行政区面使用半透明填充，便于观察白膜和公交线路。
+        // GeoJSON 只负责提供边界坐标，本身不绘制区内填充和默认边线
         dataSource =
             await Cesium.GeoJsonDataSource.load(
                 CESIUM_CONFIG.futianBoundary.url,
                 {
-                    fill: Cesium.Color.CYAN.withAlpha(
-                        CESIUM_CONFIG.futianBoundary.fillAlpha,
-                    ),
+                    fill: Cesium.Color.TRANSPARENT,
+                    stroke: Cesium.Color.TRANSPARENT,
                     clampToGround: true,
                 },
             )
 
         viewer.dataSources.add(dataSource)
 
-        console.info('福田行政区填充加载完成')
+        console.info('福田行政区边界加载完成')
 
         // 从 GeoJSON 数据源中找到行政区 polygon，读取其边界坐标。
         const boundaryEntity =
@@ -45,6 +45,31 @@ export function useFutianBoundaryLayer() {
         const lastPosition = boundaryPositions[boundaryPositions.length - 1]
         const clippingPositions = Cesium.Cartesian3.equals(boundaryPositions[0], lastPosition)
             ? boundaryPositions.slice(0, -1) : boundaryPositions
+
+        // 先创建覆盖深圳周边的外环，再把福田边界作为孔洞
+        const maskBounds = CESIUM_CONFIG.futianBoundary.outsideMask.bounds
+        const maskOuterPositions = Cesium.Cartesian3.fromDegreesArray([
+            maskBounds.west, maskBounds.south,
+            maskBounds.east, maskBounds.south,
+            maskBounds.east, maskBounds.north,
+            maskBounds.west, maskBounds.north,
+        ])
+
+        const maskHolePositions = [...clippingPositions].reverse()
+
+        outsideMaskEntity = viewer.entities.add({
+            polygon: {
+                hierarchy: new Cesium.PolygonHierarchy(
+                    maskOuterPositions,
+                    [
+                        new Cesium.PolygonHierarchy(maskHolePositions),
+                    ],
+                ),
+                material: Cesium.Color.fromCssColorString(CESIUM_CONFIG.futianBoundary.outsideMask.color).withAlpha(CESIUM_CONFIG.futianBoundary.outsideMask.alpha,),
+                classificationType: Cesium.ClassificationType.TERRAIN,
+                zIndex: -10,
+            },
+        })
 
         // 首尾闭合后单独创建 polyline，可独立控制边界宽度和发光效果。
         const groundPositions = [
@@ -76,6 +101,15 @@ export function useFutianBoundaryLayer() {
     function cleanupFutianBoundary(
         viewer: Cesium.Viewer | undefined,
     ) {
+        // 区外遮罩属于 viewer.entities，需要在页面卸载时单独移除。
+        if (
+            outsideMaskEntity &&
+            viewer &&
+            !viewer.isDestroyed()
+        ) {
+            viewer.entities.remove(outsideMaskEntity)
+        }
+
         // 填充属于 dataSource，边界线属于 viewer.entities，需要分别移除。
         if (
             outlineEntity &&
@@ -93,6 +127,7 @@ export function useFutianBoundaryLayer() {
             viewer.dataSources.remove(dataSource)
         }
 
+        outsideMaskEntity = undefined
         outlineEntity = undefined
         dataSource = undefined
     }

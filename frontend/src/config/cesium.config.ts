@@ -39,12 +39,17 @@ export const CESIUM_CONFIG = {
         maximumScreenSpaceError: 16,
     },
 
-    // 福田行政区 GeoJSON 及边界视觉样式。
+    // 福田行政区 GeoJSON、区外遮罩及边界视觉样式。
     futianBoundary: {
         url: 'test-data/futian-boundary.geojson',
-        fillAlpha: 0.07,
-        outlineWidth: 8,
-        outlineGlowPower: 0.2,
+        outsideMask: {
+            color: '#0a1c36',
+            alpha: 0.76,
+            // 遮罩覆盖深圳及周边区域，避免常用视角下看到遮罩边缘。
+            bounds: { west: 103.6, south: 12.2, east: 124.8, north: 33.0 },
+        },
+        outlineWidth: 4,
+        outlineGlowPower: 0.14,
     },
 
 } as const

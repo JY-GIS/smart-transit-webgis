@@ -1,12 +1,19 @@
 import * as Cesium from 'cesium'
 import { ref } from 'vue'
 import { CESIUM_CONFIG } from '@/config/cesium.config'
+import facadeWindowsShaderSource from '@/shaders/whiteModel/facadeWindows.glsl?raw'
+import facadeWindowsVertexShaderSource from '@/shaders/whiteModel/facadeWindowsVertex.glsl?raw'
 
 // 白膜图层封装：负责加载 Re:Earth 3D Tiles 和监听瓦片状态。
 export function useWhiteModelLayer() {
     // 保存 tileset 及事件移除函数，支持重复调用和页面卸载清理。
     let tileset: Cesium.Cesium3DTileset | undefined
+    let nightWindowsShader: Cesium.CustomShader | undefined
     const whiteModelVisible = ref(false)
+
+    let removeNightWindowsPreRenderListener:
+        | (() => void)
+        | undefined
 
     let removeAllTilesLoadedListener:
         | (() => void)
@@ -15,6 +22,61 @@ export function useWhiteModelLayer() {
     let removeTileFailedListener:
         | (() => void)
         | undefined
+
+    // 创建白模夜景 Shader
+    function createNightWindowsShader() {
+        const config = CESIUM_CONFIG.whiteModel.nightWindows
+
+        return new Cesium.CustomShader({
+            mode: Cesium.CustomShaderMode.MODIFY_MATERIAL,
+            lightingModel: Cesium.LightingModel.UNLIT,
+
+            varyings: {
+                v_normalMC: Cesium.VaryingType.VEC3,
+            },
+
+            uniforms: {
+                u_time: {
+                    type: Cesium.UniformType.FLOAT,
+                    value: 0.0,
+                },
+                u_nightEnabled: {
+                    type: Cesium.UniformType.BOOL,
+                    value: config.enabled,
+                },
+                u_windowDensity: {
+                    type: Cesium.UniformType.FLOAT,
+                    value: config.density,
+                },
+                u_windowBrightness: {
+                    type: Cesium.UniformType.FLOAT,
+                    value: config.brightness,
+                },
+                u_windowWidth: {
+                    type: Cesium.UniformType.FLOAT,
+                    value: config.windowWidth,
+                },
+                u_floorHeight: {
+                    type: Cesium.UniformType.FLOAT,
+                    value: config.floorHeight,
+                },
+            },
+
+            vertexShaderText: facadeWindowsVertexShaderSource,
+            fragmentShaderText: facadeWindowsShaderSource,
+        })
+    }
+
+    // 每帧更新夜景时间，让部分窗户产生缓慢的亮度变化。
+    function startNightWindowsAnimation(scene: Cesium.Scene, shader: Cesium.CustomShader) {
+        const startTime = performance.now()
+
+        return scene.preRender.addEventListener(() => {
+            const elapsedSeconds = (performance.now() - startTime) / 1000.0
+
+            shader.setUniform('u_time', elapsedSeconds)
+        })
+    }
 
     async function loadWhiteModel(
         viewer: Cesium.Viewer,
@@ -35,8 +97,13 @@ export function useWhiteModelLayer() {
                 },
             )
 
+        nightWindowsShader = createNightWindowsShader()
+        tileset.customShader = nightWindowsShader
+
         viewer.scene.primitives.add(tileset)
         tileset.show = whiteModelVisible.value
+
+        removeNightWindowsPreRenderListener = startNightWindowsAnimation(viewer.scene, nightWindowsShader)
 
         // 当前视角瓦片加载完成不代表整个城市数据都已下载完成。
         removeAllTilesLoadedListener =
@@ -121,9 +188,11 @@ export function useWhiteModelLayer() {
         // 先移除事件，再从场景移除 tileset，最后清空引用。
         removeAllTilesLoadedListener?.()
         removeTileFailedListener?.()
+        removeNightWindowsPreRenderListener?.()
 
         removeAllTilesLoadedListener = undefined
         removeTileFailedListener = undefined
+        removeNightWindowsPreRenderListener = undefined
 
         if (
             tileset &&
@@ -134,6 +203,11 @@ export function useWhiteModelLayer() {
             viewer.scene.primitives.remove(tileset)
         }
 
+        if (nightWindowsShader && !nightWindowsShader.isDestroyed()) {
+            nightWindowsShader.destroy()
+        }
+
+        nightWindowsShader = undefined
         tileset = undefined
     }
 

@@ -37,6 +37,15 @@ export const CESIUM_CONFIG = {
     whiteModel: {
         url: 'https://buildings.reearth.land/tileset.json',
         maximumScreenSpaceError: 16,
+
+        // 程序化夜景窗户参数。
+        nightWindows: {
+            enabled: true,
+            density: 0.65,
+            brightness: 1.2,
+            windowWidth: 4.0,
+            floorHeight: 3.0,
+        },
     },
 
     // 福田行政区 GeoJSON、区外遮罩及边界视觉样式。

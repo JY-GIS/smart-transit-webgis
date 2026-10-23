@@ -4,3 +4,6 @@
 # 操作系统文件
 .DS_Store
 Thumbs.db
+
+# 本地部署可行性测试生成的静态道路瓦片与构建产物
+test-artifacts/

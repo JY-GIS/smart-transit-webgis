@@ -7,6 +7,7 @@ uniform vec4 u_centerColor;
 uniform vec4 u_guideColor;
 uniform vec4 u_arrowColor;
 
+// 根据折线纹理坐标生成线路底色、中心引导线和移动箭头。
 czm_material czm_getMaterial(czm_materialInput materialInput)
 {
     czm_material material = czm_getDefaultMaterial(materialInput);
@@ -24,7 +25,7 @@ czm_material czm_getMaterial(czm_materialInput materialInput)
     float distanceToChevron = abs(phase - chevronCenter);
 
     // smoothstep 生成具有柔和边缘的箭头笔画。
-    float strokeMask =1.0 - smoothstep(0.055, 0.085, distanceToChevron);
+    float strokeMask = 1.0 - smoothstep(0.055, 0.085, distanceToChevron);
 
     // 限制箭头只出现在线路主体范围内。
     float widthMask = 1.0 - smoothstep(0.34, 0.42, across);

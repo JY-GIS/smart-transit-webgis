@@ -5,9 +5,16 @@ export const SHADER_CONFIG = {
     routeDirectionArrows: {
         width: 7,
 
-        spacingMeters: 110,
+        // 一个完整箭头周期期望占据的屏幕长度。
+        patternLengthPixels: 30,
 
-        speed: 0.22,
+        // 避免镜头过近时产生数量过多的小箭头。
+        minimumPatternLengthMeters: 5,
+
+        // 保留当前远景下大约110米的最大箭头间距。
+        maximumPatternLengthMeters: 110,
+
+        speed: 0.52,
 
         routeColor: '#10556d',
         routeAlpha: 0.78,

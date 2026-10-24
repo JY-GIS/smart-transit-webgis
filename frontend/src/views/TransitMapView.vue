@@ -61,6 +61,7 @@ const terrainEnabled = ref(true)
 
 // viewer 属于当前页面实例，页面卸载时必须销毁，避免 WebGL 资源泄漏。
 let viewer: Cesium.Viewer | undefined
+let baseMapInitialized = false
 
 // 公交线路图层同时维护业务线路索引，供点击后高亮同一条线路的多个片段。
 const {
@@ -1051,7 +1052,7 @@ watch(realtimeVehicles, (snapshots) => {
     const currentViewer = viewer
 
     // Viewer 尚未创建时先保留数据，暂不绘制
-    if (!currentViewer || currentViewer.isDestroyed()) {
+    if (!currentViewer || currentViewer.isDestroyed() || !baseMapInitialized) {
         return
     }
 
@@ -1116,7 +1117,18 @@ onMounted(async () => {
     try {
         viewer = await createViewer(cesiumContainer.value)
 
+        viewer.camera.setView({
+            destination: Cesium.Cartesian3.fromDegrees(114.041, 22.462, 8000),
+            orientation: {
+                heading: 0,
+                pitch: Cesium.Math.toRadians(-45),
+                roll: 0,
+            },
+        })
+
         await initializeBaseMap(viewer)
+
+        baseMapInitialized = true
 
         updateActiveRealtimeVehicleLayer(viewer, realtimeVehicles.value)
 
@@ -1124,12 +1136,7 @@ onMounted(async () => {
 
         loadCityRoadWmts(viewer)  // 城市静态路网使用 GeoServer WMTS
 
-        await loadWhiteModel(viewer)
-
-        const futianBoundaryPositions =
-            await loadFutianBoundary(viewer)
-
-        applyBoundaryClipping( viewer.scene, futianBoundaryPositions)
+        const futianBoundaryPositions = await loadFutianBoundary(viewer)
 
         const futianBusRoutes = await loadBusRoutes(viewer)
 
@@ -1142,17 +1149,17 @@ onMounted(async () => {
             handleNearbyMapClick,
         )
 
-        // 初始化完成后飞到福田区附近视角：经度、纬度、相机高度（米）。
-        viewer.camera.flyTo({
-            destination: Cesium.Cartesian3.fromDegrees(114.050, 22.490, 5000),
-            orientation: {
-                heading: 0,
-                pitch: Cesium.Math.toRadians(-45),
-                roll: 0,
-            },
-            duration: 1.2,
-        })
+        const currentViewer = viewer
 
+        void loadWhiteModel(currentViewer)
+            .then(() => {
+                if (currentViewer.isDestroyed()) return
+
+                applyBoundaryClipping(currentViewer.scene, futianBoundaryPositions)
+            })
+            .catch((error) => {
+                console.error('城市白模加载失败，核心地图继续可用：', error)
+            })
     } catch (error) { 
         console.error('地图初始化失败：', error) 
     }

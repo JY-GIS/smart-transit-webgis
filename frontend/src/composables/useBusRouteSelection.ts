@@ -5,9 +5,8 @@ import type { RealtimeVehiclePickProperties } from '@/types/realtimeVehicle'
 import type { RouteBusStopEntityProperties } from '@/types/busStop'
 import { readRouteBusStopProperties } from './useBusStopLayer'
 import { readBusRouteProperties } from './useBusRouteLayer'
+import { useRouteDirectionArrowLayer } from './useRouteDirectionArrowLayer'
 import {
-    TRANSIT_GROUND_ROUTE_CORE_COLOR,
-    TRANSIT_GROUND_ROUTE_CORE_WIDTH,
     TRANSIT_GROUND_ROUTE_OUTLINE_COLOR,
     TRANSIT_GROUND_ROUTE_OUTLINE_WIDTH,
 } from '@/utils/transitPolylineHighlight'
@@ -113,6 +112,8 @@ function appendPickedEntity(pickedEntities: Cesium.Entity[], pickedObject: unkno
 }
 
 export function useBusRouteSelection() {
+    const { showRouteDirectionArrows, clearRouteDirectionArrows } = useRouteDirectionArrowLayer()
+
     // 面板只关心当前业务线路属性，不直接暴露 Cesium Entity。
     const selectedRoute = ref<BusRouteProperties | null>(null)
 
@@ -160,11 +161,13 @@ export function useBusRouteSelection() {
 
     function clearRouteHighlight() {
         routeHighlightDataSource?.entities.removeAll()
+        clearRouteDirectionArrows()
     }
 
     function highlightRoute(
         fid: number,
         routeEntitiesByFid: Map<number, Cesium.Entity[]>,
+        time: Cesium.JulianDate,
     ) {
         clearRouteHighlight()
 
@@ -208,20 +211,13 @@ export function useBusRouteSelection() {
                     zIndex: 10,
                 },
             })
-
-            highlightDataSource.entities.add({
-                id: `bus-route-highlight-core:${sourceEntity.id}`,
-                name: `选中公交线路主体 ${fid}`,
-                polyline: {
-                    positions,
-                    width: TRANSIT_GROUND_ROUTE_CORE_WIDTH,
-                    material: TRANSIT_GROUND_ROUTE_CORE_COLOR,
-                    clampToGround: true,
-                    classificationType: Cesium.ClassificationType.TERRAIN,
-                    zIndex: 11,
-                },
-            })
         }
+
+        showRouteDirectionArrows(
+            currentViewer,
+            sourceEntities,
+            time,
+        )
 
         currentViewer.scene.requestRender()
     }
@@ -301,6 +297,7 @@ export function useBusRouteSelection() {
         highlightRoute(
             properties.fid,
             routeEntitiesByFid,
+            time,
         )
 
         console.log('公交线路选择：', properties)

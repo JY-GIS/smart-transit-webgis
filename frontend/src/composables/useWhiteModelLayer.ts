@@ -9,7 +9,11 @@ export function useWhiteModelLayer() {
     // 保存 tileset 及事件移除函数，支持重复调用和页面卸载清理。
     let tileset: Cesium.Cesium3DTileset | undefined
     let nightWindowsShader: Cesium.CustomShader | undefined
-    const whiteModelVisible = ref(false)
+    const whiteModelVisible = ref(true)
+
+    let cancelInitialTilesWait:
+        | (() => void)
+        | undefined
 
     let removeNightWindowsPreRenderListener:
         | (() => void)
@@ -75,6 +79,41 @@ export function useWhiteModelLayer() {
             const elapsedSeconds = (performance.now() - startTime) / 1000.0
 
             shader.setUniform('u_time', elapsedSeconds)
+        })
+    }
+
+    function waitForInitialWhiteModelTiles(
+        currentTileset: Cesium.Cesium3DTileset,
+        timeoutMilliseconds = 15000,
+    ): Promise<boolean> {
+        // 避免意外创建两个等待任务。
+        cancelInitialTilesWait?.()
+
+        return new Promise((resolve) => {
+            let finished = false
+
+            const finish = (loaded: boolean) => {
+                if (finished) return
+
+                finished = true
+                removeListener()
+                window.clearTimeout(timeoutId)
+
+                cancelInitialTilesWait = undefined
+                resolve(loaded)
+            }
+
+            const removeListener = currentTileset.initialTilesLoaded.addEventListener(() => {
+                finish(true)
+            })
+
+            const timeoutId = window.setTimeout(() => {
+                finish(false)
+            }, timeoutMilliseconds)
+
+            cancelInitialTilesWait = () => {
+                finish(false)
+            }
         })
     }
 
@@ -185,6 +224,9 @@ export function useWhiteModelLayer() {
     function cleanupWhiteModel(
         viewer: Cesium.Viewer | undefined,
     ) {
+        cancelInitialTilesWait?.()
+        cancelInitialTilesWait = undefined
+
         // 先移除事件，再从场景移除 tileset，最后清空引用。
         removeAllTilesLoadedListener?.()
         removeTileFailedListener?.()
@@ -213,6 +255,7 @@ export function useWhiteModelLayer() {
 
     return {
         loadWhiteModel,
+        waitForInitialWhiteModelTiles,
         applyBoundaryClipping,
         whiteModelVisible,
         setWhiteModelVisible,

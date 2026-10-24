@@ -6,6 +6,9 @@ export function useCesiumViewer() {
     // 只在当前页面实例内复用 Viewer，避免重复初始化 WebGL 上下文。
     let viewer: Cesium.Viewer | undefined
 
+    let cancelInitialGlobeTilesWait:
+        | (() => void)
+        | undefined
     // 在真实地形和椭球平面之间切换；页面默认启用真实地形。
     function setTerrainEnabled(
         currentViewer: Cesium.Viewer,
@@ -25,6 +28,58 @@ export function useCesiumViewer() {
             new Cesium.Terrain(terrainProviderPromise),
         )
         currentViewer.scene.requestRender()
+    }
+
+    function waitForInitialGlobeTiles(
+        currentViewer: Cesium.Viewer,
+        timeoutMilliseconds = 15000,
+    ): Promise<boolean> {
+        cancelInitialGlobeTilesWait?.()
+
+        return new Promise((resolve) => {
+            let finished = false
+            let stableFrameCount = 0
+            let timeoutId: number | undefined
+            let removePostRenderListener:
+                | (() => void)
+                | undefined
+
+            const finish = (loaded: boolean) => {
+                if (finished) return
+
+                finished = true
+                removePostRenderListener?.()
+
+                if (timeoutId !== undefined) {
+                    window.clearTimeout(timeoutId)
+                }
+
+                cancelInitialGlobeTilesWait = undefined
+                resolve(loaded)
+            }
+
+            removePostRenderListener = currentViewer.scene.postRender.addEventListener(() => {
+                if (currentViewer.isDestroyed()) {
+                    finish(false)
+                    return
+                }
+
+                if (currentViewer.scene.globe.tilesLoaded) {
+                    stableFrameCount += 1
+                } else {
+                    stableFrameCount = 0
+                }
+
+                // 连续两帧加载队列都为空，避免在请求尚未入队时过早完成。
+                if (stableFrameCount >= 2) {
+                    finish(true)
+                }
+            })
+
+            timeoutId = window.setTimeout(() => {
+                finish(false)
+            }, timeoutMilliseconds)
+        })
     }
 
     async function createViewer(
@@ -51,6 +106,9 @@ export function useCesiumViewer() {
     }
 
     function destroyViewer() {
+        cancelInitialGlobeTilesWait?.()
+        cancelInitialGlobeTilesWait = undefined
+
         // 销毁 Viewer 会释放 WebGL 资源和内部事件监听。
         if (viewer && !viewer.isDestroyed()) {
             viewer.destroy()
@@ -63,5 +121,6 @@ export function useCesiumViewer() {
         createViewer,
         destroyViewer,
         setTerrainEnabled,
+        waitForInitialGlobeTiles,
     }
 }

@@ -12,6 +12,7 @@ import RealtimeOperationalAlertPanel from '@/components/transit/RealtimeOperatio
 import StopArrivalPanel from '@/components/transit/StopArrivalPanel.vue'
 import VehicleTrajectoryPanel from '@/components/transit/VehicleTrajectoryPanel.vue'
 import RealtimeRouteProgressPanel from '@/components/transit/RealtimeRouteProgressPanel.vue'
+import MapLoadingView from './MapLoadingView.vue'
 import { TRANSIT_CONFIG } from '@/config/transit.config'
 import { useBusRouteLayer } from '@/composables/useBusRouteLayer'
 import { useBusRouteSelection } from '@/composables/useBusRouteSelection'
@@ -50,6 +51,18 @@ import type { NearbyQueryCenter, OrderedBusStop } from '@/types/busStop'
 import type { RealtimeVehiclePositionSnapshot, RealtimeVehicleRenderMode } from '@/types/realtimeVehicle'
 
 const cesiumContainer = ref<HTMLElement | null>(null)
+
+type MapLoadingStatus =
+    | 'initializing'
+    | 'loading'
+    | 'ready'
+    | 'degraded'
+    | 'error'
+
+const mapLoadingStatus = ref<MapLoadingStatus>('initializing')
+const mapLoadingStage = ref('正在初始化三维场景...')
+const mapLoadingIssues = ref<string[]>([])
+const loadingPanelVisible = ref(true)
 
 const nearbyQueryEnabled = ref(false)
 const selectedPoiRadiusMeters = ref<number>(TRANSIT_CONFIG.poiAnalysis.defaultRadiusMeters)
@@ -353,6 +366,7 @@ const {
     createViewer,
     destroyViewer,
     setTerrainEnabled,
+    waitForInitialGlobeTiles,
 } = useCesiumViewer()
 
 const {
@@ -365,6 +379,7 @@ const {
 
 const {
     loadWhiteModel,
+    waitForInitialWhiteModelTiles,
     applyBoundaryClipping,
     whiteModelVisible,
     setWhiteModelVisible,
@@ -967,6 +982,13 @@ function toRouteId(fid: number): string {
     return `route_${String(fid).padStart(6, '0')}`
 }
 
+function retryMapLoading() {
+    window.location.reload()
+}
+function continueWithDegradedMap() {
+    loadingPanelVisible.value = false
+}
+
 watch(nearbyPois, (pois) => {
     const currentViewer = viewer
 
@@ -1109,6 +1131,11 @@ watch(
 )
 
 onMounted(async () => { 
+    loadingPanelVisible.value = true
+    mapLoadingStatus.value = 'initializing'
+    mapLoadingStage.value = '正在初始化三维场景'
+    mapLoadingIssues.value = []
+
     // WebSocket 与 Cesium 图层初始化相互独立
     connectRealtimeVehicles()
 
@@ -1116,6 +1143,7 @@ onMounted(async () => {
 
     try {
         viewer = await createViewer(cesiumContainer.value)
+        mapLoadingStage.value = '正在定位福田区...'
 
         viewer.camera.setView({
             destination: Cesium.Cartesian3.fromDegrees(114.041, 22.462, 8000),
@@ -1125,6 +1153,9 @@ onMounted(async () => {
                 roll: 0,
             },
         })
+
+        mapLoadingStatus.value = 'loading'
+        mapLoadingStage.value = '正在加载地图影像与地形...'
 
         await initializeBaseMap(viewer)
 
@@ -1136,32 +1167,87 @@ onMounted(async () => {
 
         loadCityRoadWmts(viewer)  // 城市静态路网使用 GeoServer WMTS
 
-        const futianBoundaryPositions = await loadFutianBoundary(viewer)
+        mapLoadingStage.value = '正在加载城市建筑与公交数据...'
 
-        const futianBusRoutes = await loadBusRoutes(viewer)
+        const initialGlobeTilesPromise = waitForInitialGlobeTiles(viewer)
 
-        await loadBusStops(viewer)
-
-        bindRouteSelection(
-            viewer,
-            futianBusRoutes,
-            routeEntitiesByFid,
-            handleNearbyMapClick,
-        )
-
-        const currentViewer = viewer
-
-        void loadWhiteModel(currentViewer)
-            .then(() => {
-                if (currentViewer.isDestroyed()) return
-
-                applyBoundaryClipping(currentViewer.scene, futianBoundaryPositions)
+        const whiteModelLoadPromise = loadWhiteModel(viewer)
+        const whiteModelInitialTilesPromise = whiteModelLoadPromise
+            .then((tileset) => {
+                return waitForInitialWhiteModelTiles(tileset)
             })
-            .catch((error) => {
-                console.error('城市白模加载失败，核心地图继续可用：', error)
-            })
-    } catch (error) { 
-        console.error('地图初始化失败：', error) 
+            .catch(() => false)
+
+        // 资源互不依赖，同时开始请求
+        const [
+            futianBoundaryResult,
+            whiteModelResult,
+            busRoutesResult,
+            busStopsResult,
+        ] = await Promise.allSettled([
+            loadFutianBoundary(viewer),
+            whiteModelLoadPromise,
+            loadBusRoutes(viewer),
+            loadBusStops(viewer),
+        ])
+
+        // 只有边界坐标和白模都准备完成后，才能应用白模裁剪。
+        if (futianBoundaryResult.status === 'fulfilled' && whiteModelResult.status === 'fulfilled' && !viewer.isDestroyed()) {
+            applyBoundaryClipping(viewer.scene, futianBoundaryResult.value)
+        }
+
+        if (futianBoundaryResult.status === 'rejected') {
+            console.error('福田行政区边界加载失败：', futianBoundaryResult.reason)
+            mapLoadingIssues.value.push('福田行政区边界加载失败')
+        }
+        if (whiteModelResult.status === 'rejected') {
+            console.error('城市白模加载失败：', whiteModelResult.reason)
+            mapLoadingIssues.value.push('城市白模加载失败')
+        }
+        if (busRoutesResult.status === 'fulfilled') {
+            bindRouteSelection(
+                viewer,
+                busRoutesResult.value,
+                routeEntitiesByFid,
+                handleNearbyMapClick
+            )
+        } else {
+            console.error('公交线路加载失败：', busRoutesResult.reason)
+        }
+        if (busStopsResult.status === 'rejected') {
+            console.error('公交站点加载失败：', busStopsResult.reason)
+            mapLoadingIssues.value.push('公交站点加载失败')
+        }
+        mapLoadingStage.value = '正在完成首屏地图渲染...'
+        const [
+            initialWhiteModelLoaded,
+            initialGlobeTilesLoaded,
+        ] = await Promise.all([
+            whiteModelResult.status === 'fulfilled' ? whiteModelInitialTilesPromise : Promise.resolve(false),
+            initialGlobeTilesPromise,
+        ])
+        setWhiteModelVisible(false)
+        if (whiteModelResult.status === 'fulfilled' && !initialWhiteModelLoaded) {
+            console.warn('城市白模初始瓦片加载超时')
+            mapLoadingIssues.value.push('城市白模加载超时')
+        }
+        if (!initialGlobeTilesLoaded) {
+            console.warn('地图影像或地形加载超时')
+            mapLoadingIssues.value.push('地图影像或地形加载超时')
+        }
+        if (mapLoadingIssues.value.length === 0) {
+            mapLoadingStatus.value = 'ready'
+            mapLoadingStage.value = '地图加载完成'
+        } else {
+            mapLoadingStatus.value = 'degraded'
+            mapLoadingStage.value = '部分资源未完成，核心地图仍可使用'
+        }
+
+    } catch (error) {
+        console.error('地图初始化失败：', error)
+        mapLoadingStatus.value = 'error'
+        mapLoadingStage.value = '三维地图初始化失败'
+        mapLoadingIssues.value = [error instanceof Error ? error.message : '发生未知初始化错误']
     }
 })
 
@@ -1376,6 +1462,19 @@ onBeforeUnmount(() => {
 
             <main class="map-stage">
                 <div ref="cesiumContainer" class="cesium-container"></div>
+
+                <Teleport to="body">
+                    <Transition name="map-loading-fade" appear>
+                        <MapLoadingView
+                            v-if="loadingPanelVisible && mapLoadingStatus !== 'ready'"
+                            :status="mapLoadingStatus"
+                            :stage="mapLoadingStage"
+                            :issues="mapLoadingIssues"
+                            @retry="retryMapLoading"
+                            @continue="continueWithDegradedMap"
+                        />
+                    </Transition>
+                </Teleport>
 
                 <RealtimeRouteProgressPanel
                     v-if="realtimeRoamingModeEnabled && trackedRealtimeVehicle && !selectedRouteStop"
@@ -1903,6 +2002,20 @@ onBeforeUnmount(() => {
     right: 14px;
     bottom: 14px;
     left: 14px;
+}
+
+.map-loading-fade-enter-active,
+.map-loading-fade-leave-active {
+    transition: opacity 320ms ease;
+}
+
+.map-loading-fade-leave-active {
+    pointer-events: none;
+}
+
+.map-loading-fade-enter-from,
+.map-loading-fade-leave-to {
+    opacity: 0;
 }
 
 @media (max-width: 960px) {

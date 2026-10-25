@@ -28,12 +28,7 @@ import { useNearbyBusStops } from '@/composables/useNearbyBusStops'
 import { usePoiAnalysis } from '@/composables/usePoiAnalysis'
 import { usePoiPointLayer } from '@/composables/usePoiPointLayer'
 import { useRealtimeVehicles } from '@/composables/useRealtimeVehicles'
-import { useRealtimeVehiclePointLayer } from '@/composables/useRealtimeVehiclePointLayer'
-import { useRealtimeVehicleModelLayer } from '@/composables/useRealtimeVehicleModelLayer'
-import { useRealtimeVehicleLod } from '@/composables/useRealtimeVehicleLod'
-import { useRealtimeVehicleGridAggregation } from '@/composables/useRealtimeVehicleGridAggregation'
-import { useRealtimeVehicleGridLayer } from '@/composables/useRealtimeVehicleGridLayer'
-import { useRealtimeVehicleViewportCulling } from '@/composables/useRealtimeVehicleViewportCulling'
+import { useRealtimeVehiclePresentation } from '@/composables/useRealtimeVehiclePresentation'
 import { useTrajectoryPlaybackController } from '@/composables/useTrajectoryPlaybackController'
 import { useStopArrivals } from '@/composables/useStopArrivals'
 import { useMapDisplay } from '@/composables/useMapDisplay'
@@ -52,7 +47,7 @@ import { useNetworkTrajectoryReplayLayer } from '@/composables/useNetworkTraject
 import { useRealtimeVehicleRoaming } from '@/composables/useRealtimeVehicleRoaming'
 
 import type { NearbyQueryCenter, OrderedBusStop } from '@/types/busStop'
-import type { RealtimeVehiclePositionSnapshot, RealtimeVehicleRenderMode } from '@/types/realtimeVehicle'
+import type { RealtimeVehicleRenderMode } from '@/types/realtimeVehicle'
 
 const cesiumContainer = ref<HTMLElement | null>(null)
 
@@ -189,19 +184,16 @@ const rightWorkbenchVisible = computed(() => (
 ))
 
 const {
-    getVehiclePosition: getRealtimeVehiclePointPosition,
-    updateVehicles: updateRealtimeVehiclePointLayer,
-    setVehiclesVisible: setRealtimeVehiclePointsVisible,
-    cleanup: cleanupRealtimeVehiclePointLayer,
-} = useRealtimeVehiclePointLayer()
-
-const {
-    getVehicleEntity: getRealtimeVehicleModelEntity,
-    getVehiclePosition: getRealtimeVehicleModelPosition,
-    updateVehicles: updateRealtimeVehicleModelLayer,
-    setVehiclesVisible: setRealtimeVehicleModelsVisible,
-    cleanup: cleanupRealtimeVehicleModelLayer,
-} = useRealtimeVehicleModelLayer()
+    getPointPosition: getRealtimeVehiclePointPosition,
+    getModelPosition: getRealtimeVehicleModelPosition,
+    getVehicleEntity: getActiveRealtimeVehicleEntity,
+    setVisible: syncRealtimeVehicleLayerVisibility,
+    updateVehicles: updateActiveRealtimeVehicleLayer,
+    cleanup: cleanupRealtimeVehiclePresentation,
+} = useRealtimeVehiclePresentation({
+    renderMode: realtimeVehicleRenderMode,
+    selectedVehicleId,
+})
 
 const {
     roamingModeEnabled: realtimeRoamingModeEnabled,
@@ -245,29 +237,6 @@ const trackedRealtimeRoute = computed(() => {
 
     return route
 })
-
-const {
-    groupVehiclesByDistance,
-    getVehicleRepresentation,
-    cleanup: cleanupRealtimeVehicleLod,
-} = useRealtimeVehicleLod()
-
-const {
-    resolveAggregationActive,
-    aggregateVehicles,
-    cleanup: cleanupRealtimeVehicleGridAggregation,
-} = useRealtimeVehicleGridAggregation()
-
-const {
-    renderGridCells: renderRealtimeVehicleGridCells,
-    clearGridCells: clearRealtimeVehicleGridCells,
-    setGridsVisible: setRealtimeVehicleGridsVisible,
-    cleanup: cleanupRealtimeVehicleGridLayer,
-} = useRealtimeVehicleGridLayer()
-
-const {
-    filterVehiclesInView,
-} = useRealtimeVehicleViewportCulling()
 
 const {
     availableVehicles: historyAvailableVehicles,
@@ -431,64 +400,6 @@ const {
 } = useFutianBoundaryLayer()
 
 // ===========================【函数】===========================
-// 根据整体模式控制聚合网格、车辆点
-function syncRealtimeVehicleLayerVisibility(visible: boolean) {
-    const renderMode = realtimeVehicleRenderMode.value
-    setRealtimeVehiclePointsVisible(visible)
-    setRealtimeVehicleModelsVisible(visible && renderMode === 'auto')
-    setRealtimeVehicleGridsVisible(visible && renderMode === 'auto')
-}
-
-// 根据整体模式更新当前车辆图层
-function updateActiveRealtimeVehicleLayer(
-    currentViewer: Cesium.Viewer,
-    snapshots: RealtimeVehiclePositionSnapshot[],
-) {
-    const renderMode = realtimeVehicleRenderMode.value
-
-    if (renderMode === 'point') {
-        clearRealtimeVehicleGridCells()
-        updateRealtimeVehiclePointLayer(currentViewer, snapshots)
-        updateRealtimeVehicleModelLayer(currentViewer, [])
-        return
-    }
-
-    const aggregationActive = resolveAggregationActive(currentViewer)
-
-    if (aggregationActive) {
-        const gridCells = aggregateVehicles(snapshots)
-
-        renderRealtimeVehicleGridCells(currentViewer, gridCells)
-        updateRealtimeVehiclePointLayer(currentViewer, [])
-        updateRealtimeVehicleModelLayer(currentViewer, [])
-
-        return
-    }
-
-        clearRealtimeVehicleGridCells()
-
-    const visibleSnapshots = filterVehiclesInView(currentViewer, snapshots, selectedVehicleId.value)
-
-    const {
-        pointSnapshots,
-        modelSnapshots,
-    } = groupVehiclesByDistance(currentViewer, visibleSnapshots)
-
-    updateRealtimeVehiclePointLayer(currentViewer, pointSnapshots)
-    updateRealtimeVehicleModelLayer(currentViewer, modelSnapshots)
-}
-
-function getActiveRealtimeVehicleEntity(vehicleId: string): Cesium.Entity | undefined {
-    if (
-        realtimeVehicleRenderMode.value === 'auto' &&
-        getVehicleRepresentation(vehicleId) === 'model'
-    ) {
-        return getRealtimeVehicleModelEntity(vehicleId)
-    }
-
-    return undefined
-}
-
 // 在自动LOD和全部点模式之间切换
 function toggleRealtimeVehicleRenderMode() {
     realtimeVehicleRenderMode.value = realtimeVehicleRenderMode.value === 'auto' ? 'point' : 'auto'
@@ -1183,11 +1094,7 @@ onBeforeUnmount(() => {
     cleanupPoiAnalysis()
     cleanupPoiPointLayer(viewer)
     cleanupBusStopLayer(viewer)
-    cleanupRealtimeVehiclePointLayer(viewer)
-    cleanupRealtimeVehicleModelLayer(viewer)
-    cleanupRealtimeVehicleLod()
-    cleanupRealtimeVehicleGridAggregation()
-    cleanupRealtimeVehicleGridLayer(viewer)
+    cleanupRealtimeVehiclePresentation(viewer)
     routeEntitiesByFid.clear()
 
     cleanupFutianBoundary(viewer)

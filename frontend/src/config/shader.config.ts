@@ -5,13 +5,13 @@ export const SHADER_CONFIG = {
     routeDirectionArrows: {
         width: 7,
 
-        // 一个完整箭头周期期望占据的屏幕长度。
+        // 一个箭头循环在屏幕上的像素
         patternLengthPixels: 30,
 
-        // 避免镜头过近时产生数量过多的小箭头。
+        // 最近距离的缩小长度
         minimumPatternLengthMeters: 5,
 
-        // 保留当前远景下大约110米的最大箭头间距。
+        // 最远距离的长度
         maximumPatternLengthMeters: 110,
 
         speed: 0.52,

@@ -3,6 +3,9 @@ import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import * as Cesium from 'cesium'
 import 'cesium/Build/Cesium/Widgets/widgets.css'
 
+import TransitMapHeader from '@/components/transit-map/TransitMapHeader.vue'
+import TransitLayerToolbar from '@/components/transit-map/TransitLayerToolbar.vue'
+
 // 页面组件只负责组装各个图层和交互模块，具体实现放在 composables 中。
 import BusRouteInfoPanel from '@/components/transit/BusRouteInfoPanel.vue'
 import NearbyBusStopPanel from '@/components/transit/NearbyBusStopPanel.vue'
@@ -392,11 +395,11 @@ const {
 } = useFutianBoundaryLayer()
 
 // ===========================【函数】===========================
-// 根据整体模式控制聚合网格、车辆点和车辆模型
+// 根据整体模式控制聚合网格、车辆点
 function syncRealtimeVehicleLayerVisibility(visible: boolean) {
     const renderMode = realtimeVehicleRenderMode.value
-    setRealtimeVehiclePointsVisible(visible && renderMode !== 'model')
-    setRealtimeVehicleModelsVisible(visible && renderMode !== 'point')
+    setRealtimeVehiclePointsVisible(visible)
+    setRealtimeVehicleModelsVisible(visible && renderMode === 'auto')
     setRealtimeVehicleGridsVisible(visible && renderMode === 'auto')
 }
 
@@ -411,13 +414,6 @@ function updateActiveRealtimeVehicleLayer(
         clearRealtimeVehicleGridCells()
         updateRealtimeVehiclePointLayer(currentViewer, snapshots)
         updateRealtimeVehicleModelLayer(currentViewer, [])
-        return
-    }
-
-    if (renderMode === 'model') {
-        clearRealtimeVehicleGridCells()
-        updateRealtimeVehiclePointLayer(currentViewer, [])
-        updateRealtimeVehicleModelLayer(currentViewer, snapshots)
         return
     }
 
@@ -446,30 +442,20 @@ function updateActiveRealtimeVehicleLayer(
     updateRealtimeVehicleModelLayer(currentViewer, modelSnapshots)
 }
 
-// 只有当前使用模型表现的车辆才存在可供Cesium跟踪的Entity
 function getActiveRealtimeVehicleEntity(vehicleId: string): Cesium.Entity | undefined {
-    const renderMode = realtimeVehicleRenderMode.value
-
-    if (renderMode === 'model') {
-        return getRealtimeVehicleModelEntity(vehicleId)
-    }
-
-    if (renderMode === 'auto' && getVehicleRepresentation(vehicleId) === 'model') {
+    if (
+        realtimeVehicleRenderMode.value === 'auto' &&
+        getVehicleRepresentation(vehicleId) === 'model'
+    ) {
         return getRealtimeVehicleModelEntity(vehicleId)
     }
 
     return undefined
 }
 
-// 按自动、点、模型的顺序切换测试模式
+// 在自动LOD和全部点模式之间切换
 function toggleRealtimeVehicleRenderMode() {
-    if (realtimeVehicleRenderMode.value === 'auto') {
-        realtimeVehicleRenderMode.value = 'point'
-    } else if (realtimeVehicleRenderMode.value === 'point') {
-        realtimeVehicleRenderMode.value = 'model'
-    } else {
-        realtimeVehicleRenderMode.value = 'auto'
-    }
+    realtimeVehicleRenderMode.value = realtimeVehicleRenderMode.value === 'auto' ? 'point' : 'auto'
 
     syncRealtimeVehicleLayerVisibility(!historyModeEnabled.value)
 
@@ -488,19 +474,6 @@ function toggleRealtimeVehicleRenderMode() {
     }
 
     currentViewer.scene.requestRender()
-}
-
-// 返回当前车辆显示模式的按钮文本
-function getRealtimeVehicleRenderModeText(): string {
-    if (realtimeVehicleRenderMode.value === 'auto') {
-        return '车辆显示：自动LOD'
-    }
-
-    if (realtimeVehicleRenderMode.value === 'point') {
-        return '车辆显示：全部点'
-    }
-
-    return '车辆显示：全部模型'
 }
 
 // 开始漫游当前选中的实时车辆
@@ -1289,176 +1262,32 @@ onBeforeUnmount(() => {
 
 <template>
     <div class="transit-shell" :class="{ 'is-history-mode': historyModeEnabled }">
-        <header class="transit-header">
-            <div class="transit-brand" aria-label="深圳智慧公交">
-                <span class="transit-brand__mark" aria-hidden="true">
-                    <svg viewBox="0 0 24 24">
-                        <path d="M6.5 4.5h11l1.5 3v9.25a1.25 1.25 0 0 1-1.25 1.25H6.25A1.25 1.25 0 0 1 5 16.75V7.5l1.5-3Z" />
-                        <path d="M5 8h14M8 18v2M16 18v2M8.25 14.5h.01M15.75 14.5h.01" />
-                    </svg>
-                </span>
 
-                <div>
-                    <strong>深圳市福田区智慧公交</strong>
-                    <span>Smart Transit WebGIS</span>
-                </div>
-            </div>
-
-            <div class="map-view-controls" aria-label="地图视图控制">
-                <button
-                    class="map-tool-button map-tool-button--basemap is-active"
-                    type="button"
-                    :title="activeBaseMap === 'satellite' ? '切换到 OSM 道路图' : '切换到卫星影像'"
-                    :aria-label="activeBaseMap === 'satellite' ? '切换到 OSM 道路图' : '切换到卫星影像'"
-                    @click="handleToggleBaseMap"
-                >
-                    <svg class="map-tool-icon" viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="m12 3 9 5-9 5-9-5 9-5Z" />
-                        <path d="m3 12 9 5 9-5" />
-                        <path d="m3 16 9 5 9-5" />
-                    </svg>
-                    <span class="map-tool-label">
-                        {{ activeBaseMap === 'satellite' ? '卫星' : 'OSM' }}
-                    </span>
-                </button>
-
-                <button
-                    class="map-tool-button map-tool-button--dimension is-active"
-                    type="button"
-                    :title="sceneDimension === '3d' ? '切换到二维地图' : '切换到三维地图'"
-                    :aria-label="sceneDimension === '3d' ? '切换到二维地图' : '切换到三维地图'"
-                    @click="handleToggleSceneDimension"
-                >
-                    {{ sceneDimension === '3d' ? '3D' : '2D' }}
-                </button>
-
-                <button
-                    class="map-tool-button map-tool-button--terrain"
-                    :class="{ 'is-active': terrainEnabled }"
-                    type="button"
-                    :aria-pressed="terrainEnabled"
-                    :title="terrainEnabled ? '关闭地形' : '开启地形'"
-                    :aria-label="terrainEnabled ? '关闭地形' : '开启地形'"
-                    @click="handleToggleTerrain"
-                >
-                    <svg class="map-tool-icon" viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="m3 19 6.2-10 3.2 4.5L15.2 10 21 19H3Z" />
-                        <path d="m7.4 12 1.8 1.7 1.4-1.3" />
-                    </svg>
-                    <span class="map-tool-label">
-                        {{ terrainEnabled ? '地形' : '平面' }}
-                    </span>
-                </button>
-            </div>
-        </header>
+        <TransitMapHeader
+            :active-base-map="activeBaseMap"
+            :scene-dimension="sceneDimension"
+            :terrain-enabled="terrainEnabled"
+            @toggle-base-map="handleToggleBaseMap"
+            @toggle-scene-dimension="handleToggleSceneDimension"
+            @toggle-terrain="handleToggleTerrain"
+        />
 
         <div class="transit-workspace" :class="{ 'has-right-workbench': rightWorkbenchVisible }">
-            <nav class="layer-controls" aria-label="公交地图功能">
-            <button
-                class="layer-control-button"
-                :class="{ 'is-active': historyModeEnabled }"
-                type="button"
-                :aria-pressed="historyModeEnabled"
-                @click="toggleHistoryMode"
-            >
-                <svg class="layer-control-icon" viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M4 12a8 8 0 1 0 2.34-5.66L4 8.68" />
-                    <path d="M4 4v4.68h4.68M12 7v5l3 2" />
-                </svg>
-                <span class="layer-control-copy">
-                    <strong>历史回放</strong>
-                    <small>{{ historyModeEnabled ? '回放模式已开启' : '车辆轨迹查询' }}</small>
-                </span>
-            </button>
 
-            <button
-                class="layer-control-button"
-                :class="{ 'is-active': realtimeRoamingModeEnabled }"
-                type="button"
-                :aria-pressed="realtimeRoamingModeEnabled"
-                @click="toggleRealtimeRoamingMode"
-            >
-                <svg class="layer-control-icon" viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M5 18c3.2-5.8 5.8-3.2 8.4-8.5C14.8 6.7 16.7 5 20 5" />
-                    <circle cx="5" cy="18" r="2" />
-                    <circle cx="20" cy="5" r="2" />
-                    <path d="m14.5 17 2.5 2.5L21 15" />
-                </svg>
-                <span class="layer-control-copy">
-                    <strong>公交漫游</strong>
-                    <small>{{ realtimeRoamingModeEnabled ? '车辆跟随中' : '实时车辆跟随' }}</small>
-                </span>
-            </button>
-
-            <button
-                class="layer-control-button"
-                :class="{ 'is-active': nearbyQueryEnabled }"
-                type="button"
-                :aria-pressed="nearbyQueryEnabled"
-                @click="toggleNearbyQuery"
-            >
-                <svg class="layer-control-icon" viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z" />
-                    <circle cx="12" cy="10" r="2.5" />
-                </svg>
-                <span class="layer-control-copy">
-                    <strong>附近站点</strong>
-                    <small>{{ nearbyQueryEnabled ? '点击地图选点' : '空间范围查询' }}</small>
-                </span>
-            </button>
-
-            <button
-                class="layer-control-button"
-                :class="{ 'is-active': busRoutesVisible }"
-                type="button"
-                :aria-pressed="busRoutesVisible"
-                @click="toggleBusRoutes"
-            >
-                <svg class="layer-control-icon" viewBox="0 0 24 24" aria-hidden="true">
-                    <rect x="4" y="5" width="16" height="13" rx="3" />
-                    <path d="M7 9h10M8 18v2M16 18v2M8 14h.01M16 14h.01" />
-                </svg>
-                <span class="layer-control-copy">
-                    <strong>公交线路</strong>
-                    <small>{{ busRoutesVisible ? '线路图层已显示' : '线路图层已隐藏' }}</small>
-                </span>
-            </button>
-
-            <button
-                class="layer-control-button"
-                :class="{ 'is-active': whiteModelVisible }"
-                type="button"
-                :aria-pressed="whiteModelVisible"
-                @click="toggleWhiteModel"
-            >
-                <svg class="layer-control-icon" viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M4 20V8l5-3v15M9 20V4l6-2v18M15 20V8l5 3v9M2 20h20" />
-                    <path d="M6.5 10h.01M6.5 13h.01M12 7h.01M12 11h.01M18 13h.01" />
-                </svg>
-                <span class="layer-control-copy">
-                    <strong>城市白膜</strong>
-                    <small>{{ whiteModelVisible ? '建筑模型已显示' : '建筑模型已隐藏' }}</small>
-                </span>
-            </button>
-
-            <button
-                class="layer-control-button"
-                :class="{ 'is-active': realtimeVehicleRenderMode === 'auto' }"
-                type="button"
-                :aria-pressed="realtimeVehicleRenderMode === 'auto'"
-                :disabled="historyModeEnabled"
-                @click="toggleRealtimeVehicleRenderMode"
-            >
-                <svg class="layer-control-icon" viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="m12 3 8 4-8 4-8-4 8-4Z" />
-                    <path d="m4 11 8 4 8-4M4 15l8 4 8-4" />
-                </svg>
-                <span class="layer-control-copy">
-                    <strong>车辆 LOD</strong>
-                    <small>{{ getRealtimeVehicleRenderModeText().replace('车辆显示：', '') }}</small>
-                </span>
-            </button>
-            </nav>
+            <TransitLayerToolbar
+                :history-mode-enabled="historyModeEnabled"
+                :realtime-roaming-mode-enabled="realtimeRoamingModeEnabled"
+                :nearby-query-enabled="nearbyQueryEnabled"
+                :bus-routes-visible="busRoutesVisible"
+                :white-model-visible="whiteModelVisible"
+                :realtime-vehicle-render-mode="realtimeVehicleRenderMode"
+                @toggle-history-mode="toggleHistoryMode"
+                @toggle-realtime-roaming-mode="toggleRealtimeRoamingMode"
+                @toggle-nearby-query="toggleNearbyQuery"
+                @toggle-bus-routes="toggleBusRoutes"
+                @toggle-white-model="toggleWhiteModel"
+                @toggle-realtime-vehicle-render-mode="toggleRealtimeVehicleRenderMode"
+            />
 
             <main class="map-stage">
                 <div ref="cesiumContainer" class="cesium-container"></div>
@@ -1608,70 +1437,6 @@ onBeforeUnmount(() => {
     font-family: Inter, "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
-.transit-header {
-    position: relative;
-    z-index: 30;
-    display: flex;
-    height: 76px;
-    flex: 0 0 76px;
-    align-items: center;
-    justify-content: space-between;
-    margin: 8px 10px 8px;
-    padding: 0 18px 0 26px;
-    background: rgba(255, 255, 255, 0.97);
-    border: 1px solid rgba(219, 228, 240, 0.9);
-    border-radius: 14px;
-    box-shadow: 0 5px 18px rgba(37, 64, 109, 0.08);
-}
-
-.transit-brand {
-    display: flex;
-    min-width: 0;
-    align-items: center;
-    gap: 14px;
-}
-
-.transit-brand__mark {
-    display: grid;
-    width: 44px;
-    height: 44px;
-    flex: 0 0 44px;
-    place-items: center;
-    color: #2478ed;
-    background: #eef6ff;
-    border-radius: 12px;
-}
-
-.transit-brand__mark svg {
-    width: 45px;
-    height: 45px;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.9;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-}
-
-.transit-brand strong,
-.transit-brand span {
-    display: block;
-}
-
-.transit-brand strong {
-    color: #13223a;
-    font-size: 24px;
-    line-height: 1.2;
-    letter-spacing: 0.03em;
-}
-
-.transit-brand span {
-    margin-top: 3px;
-    color: #8492a8;
-    font-size: 11px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-}
-
 .transit-workspace {
     display: flex;
     min-width: 0;
@@ -1780,159 +1545,6 @@ onBeforeUnmount(() => {
     height: 100%;
 }
 
-.layer-controls {
-    display: flex;
-    width: 165px;
-    flex: 0 0 165px;
-    flex-direction: column;
-    overflow: hidden;
-    background: rgba(255, 255, 255, 0.97);
-    border: 1px solid #dbe4f0;
-    border-radius: 14px;
-    box-shadow: 0 6px 22px rgba(28, 51, 86, 0.08);
-}
-
-.layer-control-button {
-    position: relative;
-    display: flex;
-    width: 100%;
-    min-height: 74px;
-    align-items: center;
-    gap: 13px;
-    padding: 12px 16px;
-    color: #53647c;
-    background: transparent;
-    border: 0;
-    border-bottom: 1px solid #edf1f6;
-    cursor: pointer;
-    font: inherit;
-    text-align: left;
-    transition: color 160ms ease, background-color 160ms ease;
-}
-
-.layer-control-button:hover {
-    color: #246fde;
-    background: #f5f9ff;
-}
-
-.layer-control-button.is-active {
-    color: #1670ed;
-    background: #eef6ff;
-}
-
-.layer-control-button.is-active::before {
-    position: absolute;
-    inset: 0 auto 0 0;
-    width: 4px;
-    content: "";
-    background: #2478ed;
-    border-radius: 0 4px 4px 0;
-}
-
-.layer-control-button:disabled {
-    opacity: 0.48;
-    cursor: not-allowed;
-}
-
-.layer-control-icon {
-    width: 25px;
-    height: 25px;
-    flex: 0 0 25px;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.8;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-}
-
-.layer-control-copy {
-    min-width: 0;
-}
-
-.layer-control-copy strong,
-.layer-control-copy small {
-    display: block;
-}
-
-.layer-control-copy strong {
-    font-size: 15px;
-    line-height: 1.3;
-}
-
-.layer-control-copy small {
-    margin-top: 4px;
-    overflow: hidden;
-    color: #93a0b2;
-    font-size: 11px;
-    line-height: 1.25;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.map-view-controls {
-    display: flex;
-    align-items: stretch;
-    gap: 10px;
-    margin-right: 100px;
-}
-
-.map-tool-button {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 2px;
-    width: 58px;
-    height: 48px;
-    padding: 0;
-    border: 1px solid var(--transit-panel-border);
-    border-radius: 6px;
-    color: var(--transit-panel-text);
-    background: var(--transit-panel-bg);
-    box-shadow: none;
-    cursor: pointer;
-    font: inherit;
-    transition: background-color 160ms ease, border-color 160ms ease;
-}
-
-.map-tool-button.is-active {
-    color: #185fc7;
-    background: #f7fbff;
-    border-color: #a9c9f8;
-    box-shadow: inset 0 -3px 0 #2478ed;
-}
-
-.map-tool-button--dimension {
-    font-size: 16px;
-    font-weight: 750;
-}
-
-.map-tool-button:hover {
-    color: var(--transit-panel-primary);
-    border-color: #93c5fd;
-    background: var(--transit-panel-primary-soft);
-}
-
-.map-tool-button:focus-visible {
-    outline: 2px solid var(--transit-panel-primary);
-    outline-offset: 2px;
-}
-
-.map-tool-icon {
-    width: 21px;
-    height: 21px;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.8;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-}
-
-.map-tool-label {
-    font-size: 11px;
-    line-height: 1;
-}
-
 .cesium-container :deep(.cesium-performanceDisplay-defaultContainer) {
     position: fixed;
     top: 23px;
@@ -2018,66 +1630,7 @@ onBeforeUnmount(() => {
     opacity: 0;
 }
 
-@media (max-width: 960px) {
-    .transit-header {
-        padding-left: 18px;
-    }
-
-    .transit-brand strong {
-        font-size: 20px;
-    }
-
-    .transit-brand span,
-    .layer-control-copy small {
-        display: none;
-    }
-
-    .layer-controls {
-        width: 76px;
-        flex-basis: 76px;
-    }
-
-    .layer-control-button {
-        min-height: 70px;
-        justify-content: center;
-        padding: 10px 6px;
-        gap: 5px;
-        flex-direction: column;
-        text-align: center;
-    }
-
-    .layer-control-copy strong {
-        font-size: 12px;
-    }
-
-    .map-view-controls {
-        margin-right: 94px;
-    }
-}
-
 @media (max-width: 680px) {
-    .transit-header {
-        height: 62px;
-        flex-basis: 62px;
-        margin: 6px;
-        padding: 0 10px 0 12px;
-    }
-
-    .transit-brand__mark {
-        width: 36px;
-        height: 36px;
-        flex-basis: 36px;
-    }
-
-    .transit-brand__mark svg {
-        width: 24px;
-        height: 24px;
-    }
-
-    .transit-brand strong {
-        font-size: 16px;
-    }
-
     .transit-workspace {
         display: block;
         padding: 0 6px 72px;
@@ -2086,56 +1639,6 @@ onBeforeUnmount(() => {
     .map-stage {
         width: 100%;
         height: 100%;
-    }
-
-    .layer-controls {
-        position: fixed;
-        z-index: 60;
-        right: 6px;
-        bottom: 6px;
-        left: 6px;
-        display: grid;
-        width: auto;
-        height: 60px;
-        grid-template-columns: repeat(6, minmax(0, 1fr));
-        border-radius: 12px;
-    }
-
-    .layer-control-button {
-        min-height: 0;
-        height: 58px;
-        border-right: 1px solid #edf1f6;
-        border-bottom: 0;
-    }
-
-    .layer-control-button.is-active::before {
-        inset: auto 8px 0;
-        width: auto;
-        height: 3px;
-        border-radius: 3px 3px 0 0;
-    }
-
-    .layer-control-icon {
-        width: 21px;
-        height: 21px;
-    }
-
-    .layer-control-copy strong {
-        font-size: 10px;
-    }
-
-    .map-view-controls {
-        gap: 5px;
-        margin-right: 0;
-    }
-
-    .map-tool-button {
-        width: 42px;
-        height: 40px;
-    }
-
-    .map-tool-button--basemap {
-        display: none;
     }
 
     .cesium-container :deep(.cesium-performanceDisplay-defaultContainer) {

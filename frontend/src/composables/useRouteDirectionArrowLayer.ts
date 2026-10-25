@@ -90,21 +90,19 @@ export function useRouteDirectionArrowLayer() {
             const referenceSphere = new Cesium.BoundingSphere(closestPosition, 0)
 
             // 返回参考位置附近一个屏幕像素大约对应多少米。
-            const metersPerPixel =
-                camera.getPixelSize(
-                    referenceSphere,
-                    scene.drawingBufferWidth,
-                    scene.drawingBufferHeight,
-                )
+            const metersPerPixel = camera.getPixelSize(
+                referenceSphere,
+                scene.drawingBufferWidth,
+                scene.drawingBufferHeight,
+            )
 
             const expectedPatternLengthMeters = metersPerPixel * routeArrowConfig.patternLengthPixels
 
-            const patternLengthMeters =
-                Cesium.Math.clamp(
-                    expectedPatternLengthMeters,
-                    routeArrowConfig.minimumPatternLengthMeters,
-                    routeArrowConfig.maximumPatternLengthMeters,
-                )
+            const patternLengthMeters = Cesium.Math.clamp(
+                expectedPatternLengthMeters,
+                routeArrowConfig.minimumPatternLengthMeters,
+                routeArrowConfig.maximumPatternLengthMeters,
+            )
 
             segment.material.uniforms.u_repeat = Math.max(
                 1,
@@ -123,11 +121,7 @@ export function useRouteDirectionArrowLayer() {
         const currentViewer = routeArrowViewer
 
         for (const segment of routeArrowSegments) {
-            if (
-                currentViewer &&
-                !currentViewer.isDestroyed() &&
-                !segment.primitive.isDestroyed()
-            ) {
+            if (currentViewer && !currentViewer.isDestroyed() && !segment.primitive.isDestroyed()) {
                 currentViewer.scene.primitives.remove(segment.primitive)
             }
 

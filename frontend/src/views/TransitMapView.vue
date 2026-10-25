@@ -34,6 +34,7 @@ import { useRealtimeVehicleLod } from '@/composables/useRealtimeVehicleLod'
 import { useRealtimeVehicleGridAggregation } from '@/composables/useRealtimeVehicleGridAggregation'
 import { useRealtimeVehicleGridLayer } from '@/composables/useRealtimeVehicleGridLayer'
 import { useRealtimeVehicleViewportCulling } from '@/composables/useRealtimeVehicleViewportCulling'
+import { useTrajectoryPlaybackController } from '@/composables/useTrajectoryPlaybackController'
 import { useStopArrivals } from '@/composables/useStopArrivals'
 import { useMapDisplay } from '@/composables/useMapDisplay'
 import type {
@@ -345,23 +346,58 @@ const {
     cleanup: cleanupNetworkReplayLayer,
 } = useNetworkTrajectoryReplayLayer()
 
-// 返回当前回放模式的图层加载状态
-const activeTrajectoryLoaded = computed(() => {
-    if (historyReplayMode.value === 'vehicle') return trajectoryLoaded.value
-    if (historyReplayMode.value === 'route') return routeReplayLoaded.value
-    return networkReplayLoaded.value
-})
-// 返回当前回放模式的播放状态
-const activeTrajectoryIsPlaying = computed(() => {
-    if (historyReplayMode.value === 'vehicle') return trajectoryIsPlaying.value
-    if (historyReplayMode.value === 'route') return routeReplayIsPlaying.value
-    return networkReplayIsPlaying.value
-})
-// 返回当前回放模式的播放倍速
-const activeTrajectoryPlaybackSpeed = computed(() => {
-    if (historyReplayMode.value === 'vehicle') return trajectoryPlaybackSpeed.value
-    if (historyReplayMode.value === 'route') return routeReplayPlaybackSpeed.value
-    return networkReplayPlaybackSpeed.value
+const {
+    activeLoaded: activeTrajectoryLoaded,
+    activeIsPlaying: activeTrajectoryIsPlaying,
+    activePlaybackSpeed: activeTrajectoryPlaybackSpeed,
+    play: handleTrajectoryPlay,
+    pause: handleTrajectoryPause,
+    reset: handleTrajectoryReset,
+    setPlaybackSpeed: handleTrajectoryPlaybackSpeed,
+    clearAll: clearAllTrajectoryPlayback,
+    cleanupAll: cleanupAllTrajectoryPlayback,
+    changeMode: changeTrajectoryPlaybackMode,
+} = useTrajectoryPlaybackController({
+    mode: historyReplayMode,
+    vehicle: {
+        loaded: trajectoryLoaded,
+        isPlaying: trajectoryIsPlaying,
+        playbackSpeed: trajectoryPlaybackSpeed,
+        play: playVehicleTrajectory,
+        pause: pauseVehicleTrajectory,
+        reset: resetVehicleTrajectory,
+        setPlaybackSpeed: setVehicleTrajectoryPlaybackSpeed,
+        clearData: clearVehicleTrajectory,
+        clearLayer: clearTrajectoryLayer,
+        cleanupData: cleanupVehicleTrajectoryQuery,
+        cleanupLayer: () => cleanupVehicleTrajectoryLayer(viewer),
+    },
+    route: {
+        loaded: routeReplayLoaded,
+        isPlaying: routeReplayIsPlaying,
+        playbackSpeed: routeReplayPlaybackSpeed,
+        play: playRouteReplay,
+        pause: pauseRouteReplay,
+        reset: resetRouteReplay,
+        setPlaybackSpeed: setRouteReplayPlaybackSpeed,
+        clearData: clearVehicleRouteReplay,
+        clearLayer: clearRouteReplayLayer,
+        cleanupData: cleanupVehicleRouteReplayQuery,
+        cleanupLayer: () => cleanupRouteReplayLayer(viewer),
+    },
+    network: {
+        loaded: networkReplayLoaded,
+        isPlaying: networkReplayIsPlaying,
+        playbackSpeed: networkReplayPlaybackSpeed,
+        play: playNetworkReplay,
+        pause: pauseNetworkReplay,
+        reset: resetNetworkReplay,
+        setPlaybackSpeed: setNetworkReplayPlaybackSpeed,
+        clearData: clearVehicleNetworkReplay,
+        clearLayer: clearNetworkReplayLayer,
+        cleanupData: cleanupVehicleNetworkReplayQuery,
+        cleanupLayer: () => cleanupNetworkReplayLayer(viewer),
+    },
 })
 
 // Cesium Viewer 和各基础图层分别管理，页面只按业务顺序调用它们。
@@ -565,12 +601,7 @@ function openHistoryMode() {
     // 隐藏两种实时车辆图层，但不关闭 WebSocket。
     syncRealtimeVehicleLayerVisibility(false)
 
-    clearVehicleTrajectory()
-    clearTrajectoryLayer()
-    clearVehicleRouteReplay()
-    clearRouteReplayLayer()
-    clearVehicleNetworkReplay()
-    clearNetworkReplayLayer()
+    clearAllTrajectoryPlayback()
 
     void loadVehicleHistoryAvailability()
 }
@@ -579,14 +610,7 @@ function openHistoryMode() {
  * 退出历史轨迹模式。
  */
 function closeHistoryMode() {
-    /*
-     * 先清理历史图层并恢复Cesium时钟，
-     * 再重新显示实时车辆。
-     */
-    cleanupVehicleTrajectoryLayer(viewer)
-    cleanupRouteReplayLayer(viewer)
-    cleanupVehicleTrajectoryQuery()
-    cleanupVehicleRouteReplayQuery()
+    cleanupAllTrajectoryPlayback()
     handleCloseRoutePanel()
 
     syncRealtimeVehicleLayerVisibility(true)
@@ -603,21 +627,11 @@ function toggleHistoryMode() {
     openHistoryMode()
 }
 
-// 切换回放模式并清理上一种模式留下的图层和查询结果
+// 切换历史回放模式，并关闭上一种模式关联的线路面板
 function handleHistoryReplayModeChange(mode: TrajectoryReplayMode) {
-    if (historyReplayMode.value === mode) return
-
-    cleanupVehicleTrajectoryLayer(viewer)
-    cleanupRouteReplayLayer(viewer)
-    cleanupNetworkReplayLayer(viewer)
-
-    clearVehicleTrajectory()
-    clearVehicleRouteReplay()
-    clearVehicleNetworkReplay()
+    if (!changeTrajectoryPlaybackMode(mode)) return
 
     handleCloseRoutePanel()
-
-    historyReplayMode.value = mode
 }
 
 // 接收历史面板提交的单车查询参数。
@@ -635,79 +649,10 @@ function handleNetworkTrajectoryQuery(query: NetworkTrajectoryQuery) {
     void queryVehicleNetworkTrajectories(query)
 }
 
-/**
- * 清除上一辆车或上一次查询的轨迹。
- */
-function handleClearVehicleTrajectory() {
-    clearVehicleTrajectory()
-    clearVehicleRouteReplay()
-    clearVehicleNetworkReplay()
-
-    clearTrajectoryLayer()
-    clearRouteReplayLayer()
-    clearNetworkReplayLayer()
-
+// 清空当前历史查询和三种回放图层
+function handleClearTrajectoryReplay() {
+    clearAllTrajectoryPlayback()
     handleCloseRoutePanel()
-}
-
-// 播放当前模式的历史轨迹
-function handleTrajectoryPlay() {
-    if (historyReplayMode.value === 'vehicle') {
-        playVehicleTrajectory()
-        return
-    }
-
-    if (historyReplayMode.value === 'route') {
-        playRouteReplay()
-        return
-    }
-
-    playNetworkReplay()
-}
-
-// 暂停当前模式的历史轨迹
-function handleTrajectoryPause() {
-    if (historyReplayMode.value === 'vehicle') {
-        pauseVehicleTrajectory()
-        return
-    }
-
-    if (historyReplayMode.value === 'route') {
-        pauseRouteReplay()
-        return
-    }
-
-    pauseNetworkReplay()
-}
-
-// 将当前模式的历史回放重置到起点
-function handleTrajectoryReset() {
-    if (historyReplayMode.value === 'vehicle') {
-        resetVehicleTrajectory()
-        return
-    }
-
-    if (historyReplayMode.value === 'route') {
-        resetRouteReplay()
-        return
-    }
-
-    resetNetworkReplay()
-}
-
-// 修改当前模式的历史回放倍速
-function handleTrajectoryPlaybackSpeed(speed: number) {
-    if (historyReplayMode.value === 'vehicle') {
-        setVehicleTrajectoryPlaybackSpeed(speed)
-        return
-    }
-
-    if (historyReplayMode.value === 'route') {
-        setRouteReplayPlaybackSpeed(speed)
-        return
-    }
-
-    setNetworkReplayPlaybackSpeed(speed)
 }
 
 // 跟随全网回放中的指定车辆，并高亮车辆所属线路
@@ -1230,12 +1175,7 @@ onBeforeUnmount(() => {
 
     cleanupRealtimeVehicleRoaming(viewer)
 
-    cleanupVehicleTrajectoryQuery()
-    cleanupVehicleTrajectoryLayer(viewer)
-    cleanupVehicleRouteReplayQuery()
-    cleanupRouteReplayLayer(viewer)
-    cleanupVehicleNetworkReplayQuery()
-    cleanupNetworkReplayLayer(viewer)
+    cleanupAllTrajectoryPlayback()
 
     cleanupRouteSelection()
     cleanupStopArrivals()
@@ -1402,7 +1342,7 @@ onBeforeUnmount(() => {
             @query-network="handleNetworkTrajectoryQuery"
             @close="closeHistoryMode"
             @retry-availability="loadVehicleHistoryAvailability"
-            @clear-trajectory="handleClearVehicleTrajectory"
+            @clear-trajectory="handleClearTrajectoryReplay"
             @play="handleTrajectoryPlay"
             @pause="handleTrajectoryPause"
             @reset="handleTrajectoryReset"

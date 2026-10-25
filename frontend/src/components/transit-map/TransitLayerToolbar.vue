@@ -1,10 +1,9 @@
 <script setup lang="ts">
-import { computed } from 'vue'
 
 import type { RealtimeVehicleRenderMode } from '@/types/realtimeVehicle'
 
 // 左侧工具栏只接收按钮显示所需的状态
-const props = defineProps<{
+defineProps<{
     historyModeEnabled: boolean
     realtimeRoamingModeEnabled: boolean
     nearbyQueryEnabled: boolean
@@ -23,18 +22,6 @@ const emit = defineEmits<{
     'toggle-realtime-vehicle-render-mode': []
 }>()
 
-// 返回当前车辆渲染模式对应的按钮说明文字
-const realtimeVehicleRenderModeText = computed(() => {
-    if (props.realtimeVehicleRenderMode === 'auto') {
-        return '自动LOD'
-    }
-
-    if (props.realtimeVehicleRenderMode === 'point') {
-        return '全部点'
-    }
-
-    return '全部模型'
-})
 </script>
 
 <template>
@@ -146,7 +133,7 @@ const realtimeVehicleRenderModeText = computed(() => {
 
             <span class="layer-control-copy">
                 <strong>车辆 LOD</strong>
-                <small>{{ realtimeVehicleRenderModeText }}</small>
+                <small>{{ realtimeVehicleRenderMode === 'auto' ? '自动LOD' : '全部点' }}</small>
             </span>
         </button>
     </nav>

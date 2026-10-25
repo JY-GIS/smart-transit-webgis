@@ -395,11 +395,11 @@ const {
 } = useFutianBoundaryLayer()
 
 // ===========================【函数】===========================
-// 根据整体模式控制聚合网格、车辆点和车辆模型
+// 根据整体模式控制聚合网格、车辆点
 function syncRealtimeVehicleLayerVisibility(visible: boolean) {
     const renderMode = realtimeVehicleRenderMode.value
-    setRealtimeVehiclePointsVisible(visible && renderMode !== 'model')
-    setRealtimeVehicleModelsVisible(visible && renderMode !== 'point')
+    setRealtimeVehiclePointsVisible(visible)
+    setRealtimeVehicleModelsVisible(visible && renderMode === 'auto')
     setRealtimeVehicleGridsVisible(visible && renderMode === 'auto')
 }
 
@@ -414,13 +414,6 @@ function updateActiveRealtimeVehicleLayer(
         clearRealtimeVehicleGridCells()
         updateRealtimeVehiclePointLayer(currentViewer, snapshots)
         updateRealtimeVehicleModelLayer(currentViewer, [])
-        return
-    }
-
-    if (renderMode === 'model') {
-        clearRealtimeVehicleGridCells()
-        updateRealtimeVehiclePointLayer(currentViewer, [])
-        updateRealtimeVehicleModelLayer(currentViewer, snapshots)
         return
     }
 
@@ -449,30 +442,20 @@ function updateActiveRealtimeVehicleLayer(
     updateRealtimeVehicleModelLayer(currentViewer, modelSnapshots)
 }
 
-// 只有当前使用模型表现的车辆才存在可供Cesium跟踪的Entity
 function getActiveRealtimeVehicleEntity(vehicleId: string): Cesium.Entity | undefined {
-    const renderMode = realtimeVehicleRenderMode.value
-
-    if (renderMode === 'model') {
-        return getRealtimeVehicleModelEntity(vehicleId)
-    }
-
-    if (renderMode === 'auto' && getVehicleRepresentation(vehicleId) === 'model') {
+    if (
+        realtimeVehicleRenderMode.value === 'auto' &&
+        getVehicleRepresentation(vehicleId) === 'model'
+    ) {
         return getRealtimeVehicleModelEntity(vehicleId)
     }
 
     return undefined
 }
 
-// 按自动、点、模型的顺序切换测试模式
+// 在自动LOD和全部点模式之间切换
 function toggleRealtimeVehicleRenderMode() {
-    if (realtimeVehicleRenderMode.value === 'auto') {
-        realtimeVehicleRenderMode.value = 'point'
-    } else if (realtimeVehicleRenderMode.value === 'point') {
-        realtimeVehicleRenderMode.value = 'model'
-    } else {
-        realtimeVehicleRenderMode.value = 'auto'
-    }
+    realtimeVehicleRenderMode.value = realtimeVehicleRenderMode.value === 'auto' ? 'point' : 'auto'
 
     syncRealtimeVehicleLayerVisibility(!historyModeEnabled.value)
 

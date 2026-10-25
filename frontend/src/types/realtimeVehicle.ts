@@ -3,7 +3,6 @@
  */
 export type RealtimeVehicleRenderMode =
     | 'point'
-    | 'model'
     | 'auto'
 
 /**

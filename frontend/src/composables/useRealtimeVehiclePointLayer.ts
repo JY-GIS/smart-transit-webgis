@@ -198,7 +198,7 @@ export function useRealtimeVehiclePointLayer() {
             color: getRealtimeVehiclePointColor(snapshot.motionStatus),
             outlineColor: Cesium.Color.WHITE,
             outlineWidth: 3,
-            scaleByDistance: new Cesium.NearFarScalar(1000, 1, 8000, 0.6),
+            scaleByDistance: new Cesium.NearFarScalar(1000, 0.9, 8000, 0.3),
             disableDepthTestDistance: Number.POSITIVE_INFINITY,
         })
 

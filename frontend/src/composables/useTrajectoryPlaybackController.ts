@@ -10,6 +10,10 @@ interface TrajectoryPlaybackControls {
     pause: () => void
     reset: () => void
     setPlaybackSpeed: (speed: number) => void
+    clearData: () => void
+    clearLayer: () => void
+    cleanupData: () => void
+    cleanupLayer: () => void
 }
 
 interface UseTrajectoryPlaybackControllerOptions {
@@ -29,6 +33,8 @@ export function useTrajectoryPlaybackController(
         route,
         network,
     } = options
+
+    const playbacks = [vehicle, route, network]
 
     // 根据当前模式返回单车、线路或全网回放控制组
     function getActivePlayback(): TrajectoryPlaybackControls {
@@ -72,6 +78,35 @@ export function useTrajectoryPlaybackController(
         getActivePlayback().setPlaybackSpeed(speed)
     }
 
+    // 清空三种回放结果，但保留历史模式使用的图层和公共数据
+    function clearAll() {
+        for (const playback of playbacks) {
+            playback.clearData()
+            playback.clearLayer()
+        }
+    }
+
+    // 退出历史功能并释放三种回放模式使用的资源
+    function cleanupAll() {
+        for (const playback of playbacks) {
+            playback.cleanupLayer()
+            playback.cleanupData()
+        }
+    }
+
+    // 切换回放模式，并清除上一种模式留下的图层和查询结果
+    function changeMode(nextMode: TrajectoryReplayMode): boolean {
+        if (mode.value === nextMode) return false
+
+        for (const playback of playbacks) {
+            playback.cleanupLayer()
+            playback.clearData()
+        }
+
+        mode.value = nextMode
+        return true
+    }
+
     return {
         activeLoaded,
         activeIsPlaying,
@@ -80,5 +115,8 @@ export function useTrajectoryPlaybackController(
         pause,
         reset,
         setPlaybackSpeed,
+        clearAll,
+        cleanupAll,
+        changeMode,
     }
 }

@@ -354,6 +354,9 @@ const {
     pause: handleTrajectoryPause,
     reset: handleTrajectoryReset,
     setPlaybackSpeed: handleTrajectoryPlaybackSpeed,
+    clearAll: clearAllTrajectoryPlayback,
+    cleanupAll: cleanupAllTrajectoryPlayback,
+    changeMode: changeTrajectoryPlaybackMode,
 } = useTrajectoryPlaybackController({
     mode: historyReplayMode,
     vehicle: {
@@ -364,6 +367,10 @@ const {
         pause: pauseVehicleTrajectory,
         reset: resetVehicleTrajectory,
         setPlaybackSpeed: setVehicleTrajectoryPlaybackSpeed,
+        clearData: clearVehicleTrajectory,
+        clearLayer: clearTrajectoryLayer,
+        cleanupData: cleanupVehicleTrajectoryQuery,
+        cleanupLayer: () => cleanupVehicleTrajectoryLayer(viewer),
     },
     route: {
         loaded: routeReplayLoaded,
@@ -373,6 +380,10 @@ const {
         pause: pauseRouteReplay,
         reset: resetRouteReplay,
         setPlaybackSpeed: setRouteReplayPlaybackSpeed,
+        clearData: clearVehicleRouteReplay,
+        clearLayer: clearRouteReplayLayer,
+        cleanupData: cleanupVehicleRouteReplayQuery,
+        cleanupLayer: () => cleanupRouteReplayLayer(viewer),
     },
     network: {
         loaded: networkReplayLoaded,
@@ -382,6 +393,10 @@ const {
         pause: pauseNetworkReplay,
         reset: resetNetworkReplay,
         setPlaybackSpeed: setNetworkReplayPlaybackSpeed,
+        clearData: clearVehicleNetworkReplay,
+        clearLayer: clearNetworkReplayLayer,
+        cleanupData: cleanupVehicleNetworkReplayQuery,
+        cleanupLayer: () => cleanupNetworkReplayLayer(viewer),
     },
 })
 
@@ -586,12 +601,7 @@ function openHistoryMode() {
     // 隐藏两种实时车辆图层，但不关闭 WebSocket。
     syncRealtimeVehicleLayerVisibility(false)
 
-    clearVehicleTrajectory()
-    clearTrajectoryLayer()
-    clearVehicleRouteReplay()
-    clearRouteReplayLayer()
-    clearVehicleNetworkReplay()
-    clearNetworkReplayLayer()
+    clearAllTrajectoryPlayback()
 
     void loadVehicleHistoryAvailability()
 }
@@ -600,14 +610,7 @@ function openHistoryMode() {
  * 退出历史轨迹模式。
  */
 function closeHistoryMode() {
-    /*
-     * 先清理历史图层并恢复Cesium时钟，
-     * 再重新显示实时车辆。
-     */
-    cleanupVehicleTrajectoryLayer(viewer)
-    cleanupRouteReplayLayer(viewer)
-    cleanupVehicleTrajectoryQuery()
-    cleanupVehicleRouteReplayQuery()
+    cleanupAllTrajectoryPlayback()
     handleCloseRoutePanel()
 
     syncRealtimeVehicleLayerVisibility(true)
@@ -624,21 +627,11 @@ function toggleHistoryMode() {
     openHistoryMode()
 }
 
-// 切换回放模式并清理上一种模式留下的图层和查询结果
+// 切换历史回放模式，并关闭上一种模式关联的线路面板
 function handleHistoryReplayModeChange(mode: TrajectoryReplayMode) {
-    if (historyReplayMode.value === mode) return
-
-    cleanupVehicleTrajectoryLayer(viewer)
-    cleanupRouteReplayLayer(viewer)
-    cleanupNetworkReplayLayer(viewer)
-
-    clearVehicleTrajectory()
-    clearVehicleRouteReplay()
-    clearVehicleNetworkReplay()
+    if (!changeTrajectoryPlaybackMode(mode)) return
 
     handleCloseRoutePanel()
-
-    historyReplayMode.value = mode
 }
 
 // 接收历史面板提交的单车查询参数。
@@ -656,18 +649,9 @@ function handleNetworkTrajectoryQuery(query: NetworkTrajectoryQuery) {
     void queryVehicleNetworkTrajectories(query)
 }
 
-/**
- * 清除上一辆车或上一次查询的轨迹。
- */
-function handleClearVehicleTrajectory() {
-    clearVehicleTrajectory()
-    clearVehicleRouteReplay()
-    clearVehicleNetworkReplay()
-
-    clearTrajectoryLayer()
-    clearRouteReplayLayer()
-    clearNetworkReplayLayer()
-
+// 清空当前历史查询和三种回放图层
+function handleClearTrajectoryReplay() {
+    clearAllTrajectoryPlayback()
     handleCloseRoutePanel()
 }
 
@@ -1191,12 +1175,7 @@ onBeforeUnmount(() => {
 
     cleanupRealtimeVehicleRoaming(viewer)
 
-    cleanupVehicleTrajectoryQuery()
-    cleanupVehicleTrajectoryLayer(viewer)
-    cleanupVehicleRouteReplayQuery()
-    cleanupRouteReplayLayer(viewer)
-    cleanupVehicleNetworkReplayQuery()
-    cleanupNetworkReplayLayer(viewer)
+    cleanupAllTrajectoryPlayback()
 
     cleanupRouteSelection()
     cleanupStopArrivals()
@@ -1363,7 +1342,7 @@ onBeforeUnmount(() => {
             @query-network="handleNetworkTrajectoryQuery"
             @close="closeHistoryMode"
             @retry-availability="loadVehicleHistoryAvailability"
-            @clear-trajectory="handleClearVehicleTrajectory"
+            @clear-trajectory="handleClearTrajectoryReplay"
             @play="handleTrajectoryPlay"
             @pause="handleTrajectoryPause"
             @reset="handleTrajectoryReset"

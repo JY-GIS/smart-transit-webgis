@@ -34,6 +34,7 @@ import { useRealtimeVehicleLod } from '@/composables/useRealtimeVehicleLod'
 import { useRealtimeVehicleGridAggregation } from '@/composables/useRealtimeVehicleGridAggregation'
 import { useRealtimeVehicleGridLayer } from '@/composables/useRealtimeVehicleGridLayer'
 import { useRealtimeVehicleViewportCulling } from '@/composables/useRealtimeVehicleViewportCulling'
+import { useTrajectoryPlaybackController } from '@/composables/useTrajectoryPlaybackController'
 import { useStopArrivals } from '@/composables/useStopArrivals'
 import { useMapDisplay } from '@/composables/useMapDisplay'
 import type {
@@ -345,23 +346,43 @@ const {
     cleanup: cleanupNetworkReplayLayer,
 } = useNetworkTrajectoryReplayLayer()
 
-// 返回当前回放模式的图层加载状态
-const activeTrajectoryLoaded = computed(() => {
-    if (historyReplayMode.value === 'vehicle') return trajectoryLoaded.value
-    if (historyReplayMode.value === 'route') return routeReplayLoaded.value
-    return networkReplayLoaded.value
-})
-// 返回当前回放模式的播放状态
-const activeTrajectoryIsPlaying = computed(() => {
-    if (historyReplayMode.value === 'vehicle') return trajectoryIsPlaying.value
-    if (historyReplayMode.value === 'route') return routeReplayIsPlaying.value
-    return networkReplayIsPlaying.value
-})
-// 返回当前回放模式的播放倍速
-const activeTrajectoryPlaybackSpeed = computed(() => {
-    if (historyReplayMode.value === 'vehicle') return trajectoryPlaybackSpeed.value
-    if (historyReplayMode.value === 'route') return routeReplayPlaybackSpeed.value
-    return networkReplayPlaybackSpeed.value
+const {
+    activeLoaded: activeTrajectoryLoaded,
+    activeIsPlaying: activeTrajectoryIsPlaying,
+    activePlaybackSpeed: activeTrajectoryPlaybackSpeed,
+    play: handleTrajectoryPlay,
+    pause: handleTrajectoryPause,
+    reset: handleTrajectoryReset,
+    setPlaybackSpeed: handleTrajectoryPlaybackSpeed,
+} = useTrajectoryPlaybackController({
+    mode: historyReplayMode,
+    vehicle: {
+        loaded: trajectoryLoaded,
+        isPlaying: trajectoryIsPlaying,
+        playbackSpeed: trajectoryPlaybackSpeed,
+        play: playVehicleTrajectory,
+        pause: pauseVehicleTrajectory,
+        reset: resetVehicleTrajectory,
+        setPlaybackSpeed: setVehicleTrajectoryPlaybackSpeed,
+    },
+    route: {
+        loaded: routeReplayLoaded,
+        isPlaying: routeReplayIsPlaying,
+        playbackSpeed: routeReplayPlaybackSpeed,
+        play: playRouteReplay,
+        pause: pauseRouteReplay,
+        reset: resetRouteReplay,
+        setPlaybackSpeed: setRouteReplayPlaybackSpeed,
+    },
+    network: {
+        loaded: networkReplayLoaded,
+        isPlaying: networkReplayIsPlaying,
+        playbackSpeed: networkReplayPlaybackSpeed,
+        play: playNetworkReplay,
+        pause: pauseNetworkReplay,
+        reset: resetNetworkReplay,
+        setPlaybackSpeed: setNetworkReplayPlaybackSpeed,
+    },
 })
 
 // Cesium Viewer 和各基础图层分别管理，页面只按业务顺序调用它们。
@@ -648,66 +669,6 @@ function handleClearVehicleTrajectory() {
     clearNetworkReplayLayer()
 
     handleCloseRoutePanel()
-}
-
-// 播放当前模式的历史轨迹
-function handleTrajectoryPlay() {
-    if (historyReplayMode.value === 'vehicle') {
-        playVehicleTrajectory()
-        return
-    }
-
-    if (historyReplayMode.value === 'route') {
-        playRouteReplay()
-        return
-    }
-
-    playNetworkReplay()
-}
-
-// 暂停当前模式的历史轨迹
-function handleTrajectoryPause() {
-    if (historyReplayMode.value === 'vehicle') {
-        pauseVehicleTrajectory()
-        return
-    }
-
-    if (historyReplayMode.value === 'route') {
-        pauseRouteReplay()
-        return
-    }
-
-    pauseNetworkReplay()
-}
-
-// 将当前模式的历史回放重置到起点
-function handleTrajectoryReset() {
-    if (historyReplayMode.value === 'vehicle') {
-        resetVehicleTrajectory()
-        return
-    }
-
-    if (historyReplayMode.value === 'route') {
-        resetRouteReplay()
-        return
-    }
-
-    resetNetworkReplay()
-}
-
-// 修改当前模式的历史回放倍速
-function handleTrajectoryPlaybackSpeed(speed: number) {
-    if (historyReplayMode.value === 'vehicle') {
-        setVehicleTrajectoryPlaybackSpeed(speed)
-        return
-    }
-
-    if (historyReplayMode.value === 'route') {
-        setRouteReplayPlaybackSpeed(speed)
-        return
-    }
-
-    setNetworkReplayPlaybackSpeed(speed)
 }
 
 // 跟随全网回放中的指定车辆，并高亮车辆所属线路

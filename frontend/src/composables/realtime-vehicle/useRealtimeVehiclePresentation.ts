@@ -1,12 +1,12 @@
 import * as Cesium from 'cesium'
 import type { Ref } from 'vue'
 
-import { useRealtimeVehicleGridAggregation } from '@/composables/useRealtimeVehicleGridAggregation'
-import { useRealtimeVehicleGridLayer } from '@/composables/useRealtimeVehicleGridLayer'
-import { useRealtimeVehicleLod } from '@/composables/useRealtimeVehicleLod'
-import { useRealtimeVehicleModelLayer } from '@/composables/useRealtimeVehicleModelLayer'
-import { useRealtimeVehiclePointLayer } from '@/composables/useRealtimeVehiclePointLayer'
-import { useRealtimeVehicleViewportCulling } from '@/composables/useRealtimeVehicleViewportCulling'
+import { useRealtimeVehicleGridAggregation } from '@/composables/realtime-vehicle/useRealtimeVehicleGridAggregation'
+import { useRealtimeVehicleGridLayer } from '@/composables/realtime-vehicle/useRealtimeVehicleGridLayer'
+import { useRealtimeVehicleLod } from '@/composables/realtime-vehicle/useRealtimeVehicleLod'
+import { useRealtimeVehicleModelLayer } from '@/composables/realtime-vehicle/useRealtimeVehicleModelLayer'
+import { useRealtimeVehiclePointLayer } from '@/composables/realtime-vehicle/useRealtimeVehiclePointLayer'
+import { useRealtimeVehicleViewportCulling } from '@/composables/realtime-vehicle/useRealtimeVehicleViewportCulling'
 
 import type {
     RealtimeVehiclePositionSnapshot,

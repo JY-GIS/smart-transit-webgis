@@ -15,56 +15,54 @@ import RealtimeOperationalAlertPanel from '@/components/transit/RealtimeOperatio
 import StopArrivalPanel from '@/components/transit/StopArrivalPanel.vue'
 import VehicleTrajectoryPanel from '@/components/transit/VehicleTrajectoryPanel.vue'
 import RealtimeRouteProgressPanel from '@/components/transit/RealtimeRouteProgressPanel.vue'
-import MapLoadingView from './MapLoadingView.vue'
-import { TRANSIT_CONFIG } from '@/config/transit.config'
-import { useBusRouteLayer } from '@/composables/useBusRouteLayer'
-import { useBusRouteSelection } from '@/composables/useBusRouteSelection'
-import { useBusStopLayer } from '@/composables/useBusStopLayer'
-import { useCesiumViewer } from '@/composables/useCesiumViewer'
-import { useWhiteModelLayer } from '@/composables/useWhiteModelLayer'
-import { useFutianBoundaryLayer } from '@/composables/useFutianBoundaryLayer'
-import { useCityRoadWmtsLayer } from '@/composables/useCityRoadWmtsLayer'
-import { useNearbyBusStops } from '@/composables/useNearbyBusStops'
-import { usePoiAnalysis } from '@/composables/usePoiAnalysis'
-import { usePoiPointLayer } from '@/composables/usePoiPointLayer'
-import { useRealtimeVehicles } from '@/composables/useRealtimeVehicles'
-import { useRealtimeVehiclePresentation } from '@/composables/useRealtimeVehiclePresentation'
-import { useTrajectoryPlaybackController } from '@/composables/useTrajectoryPlaybackController'
-import { useStopArrivals } from '@/composables/useStopArrivals'
-import { useMapDisplay } from '@/composables/useMapDisplay'
+import MapLoadingView from '@/components/transit-map/MapLoadingView.vue'
+import { useBusRouteLayer } from '@/composables/transit-network/useBusRouteLayer'
+import { useBusRouteSelection } from '@/composables/transit-network/useBusRouteSelection'
+import { useMapLoadingState } from '@/composables/map/useMapLoadingState'
+import { useBusStopLayer } from '@/composables/transit-network/useBusStopLayer'
+import { useCesiumViewer } from '@/composables/map/useCesiumViewer'
+import { useWhiteModelLayer } from '@/composables/map/useWhiteModelLayer'
+import { useNearbyAnalysisController } from '@/composables/spatial-analysis/useNearbyAnalysisController'
+import { useFutianBoundaryLayer } from '@/composables/map/useFutianBoundaryLayer'
+import { useCityRoadWmtsLayer } from '@/composables/map/useCityRoadWmtsLayer'
+import { useRealtimeVehicles } from '@/composables/realtime-vehicle/useRealtimeVehicles'
+import { useRealtimeVehiclePresentation } from '@/composables/realtime-vehicle/useRealtimeVehiclePresentation'
+import { useTrajectoryPlaybackController } from '@/composables/trajectory-replay/useTrajectoryPlaybackController'
+import { useStopArrivals } from '@/composables/transit-network/useStopArrivals'
+import { useMapDisplay } from '@/composables/map/useMapDisplay'
 import type {
     NetworkTrajectoryQuery,
     RouteTrajectoryQuery,
     TrajectoryReplayMode,
     VehicleTrajectoryQuery,
 } from '@/types/vehicleTrajectory'
-import { useVehicleTrajectoryLayer } from '@/composables/useVehicleTrajectoryLayer'
-import { useVehicleTrajectory } from '@/composables/useVehicleTrajectory'
-import { useRouteTrajectoryReplay } from '@/composables/useRouteTrajectoryReplay'
-import { useRouteTrajectoryReplayLayer } from '@/composables/useRouteTrajectoryReplayLayer'
-import { useNetworkTrajectoryReplay } from '@/composables/useNetworkTrajectoryReplay'
-import { useNetworkTrajectoryReplayLayer } from '@/composables/useNetworkTrajectoryReplayLayer'
-import { useRealtimeVehicleRoaming } from '@/composables/useRealtimeVehicleRoaming'
+import { useVehicleTrajectoryLayer } from '@/composables/trajectory-replay/useVehicleTrajectoryLayer'
+import { useVehicleTrajectory } from '@/composables/trajectory-replay/useVehicleTrajectory'
+import { useRouteTrajectoryReplay } from '@/composables/trajectory-replay/useRouteTrajectoryReplay'
+import { useRouteTrajectoryReplayLayer } from '@/composables/trajectory-replay/useRouteTrajectoryReplayLayer'
+import { useNetworkTrajectoryReplay } from '@/composables/trajectory-replay/useNetworkTrajectoryReplay'
+import { useNetworkTrajectoryReplayLayer } from '@/composables/trajectory-replay/useNetworkTrajectoryReplayLayer'
+import { useRealtimeVehicleRoaming } from '@/composables/realtime-vehicle/useRealtimeVehicleRoaming'
 
-import type { NearbyQueryCenter, OrderedBusStop } from '@/types/busStop'
+import type { OrderedBusStop } from '@/types/busStop'
 import type { RealtimeVehicleRenderMode } from '@/types/realtimeVehicle'
 
 const cesiumContainer = ref<HTMLElement | null>(null)
 
-type MapLoadingStatus =
-    | 'initializing'
-    | 'loading'
-    | 'ready'
-    | 'degraded'
-    | 'error'
+const {
+    status: mapLoadingStatus,
+    stage: mapLoadingStage,
+    issues: mapLoadingIssues,
+    panelVisible: loadingPanelVisible,
+    start: startMapLoading,
+    setStage: setMapLoadingStage,
+    beginLoading: beginMapResourceLoading,
+    addIssue: addMapLoadingIssue,
+    finish: finishMapLoading,
+    fail: failMapLoading,
+    hidePanel: hideMapLoadingPanel,
+} = useMapLoadingState()
 
-const mapLoadingStatus = ref<MapLoadingStatus>('initializing')
-const mapLoadingStage = ref('正在初始化三维场景...')
-const mapLoadingIssues = ref<string[]>([])
-const loadingPanelVisible = ref(true)
-
-const nearbyQueryEnabled = ref(false)
-const selectedPoiRadiusMeters = ref<number>(TRANSIT_CONFIG.poiAnalysis.defaultRadiusMeters)
 const historyModeEnabled = ref(false)
 const historyReplayMode = ref<TrajectoryReplayMode>('vehicle')
 const realtimeVehicleRenderMode = ref<RealtimeVehicleRenderMode>('auto')
@@ -102,38 +100,31 @@ const {
 } = useBusRouteSelection()
 
 const {
+    enabled: nearbyQueryEnabled,
+    selectedRadiusMeters: selectedPoiRadiusMeters,
+
     nearbyStops,
-    queryRadiusMeters,
-    queryStatus,
-    errorMessage,
-    queryNearby,
-    clearNearbyQuery,
-    cleanup: cleanupNearbyBusStops,
-} = useNearbyBusStops()
+    nearbyRadiusMeters: queryRadiusMeters,
+    nearbyStatus: queryStatus,
+    nearbyErrorMessage: errorMessage,
 
-const {
-    summary: poiSummary,
-    nearbyPois,
-    queryCenter: poiQueryCenter,
-    queryStatus: poiAnalysisStatus,
-    errorMessage: poiAnalysisErrorMessage,
-    pointsVisible: poiPointsVisible,
-    typeVisibility: poiTypeVisibility,
-    queryAnalysis: queryPoiAnalysis,
-    setZeroRadius: setPoiZeroRadius,
-    setPointsVisible: setPoiPointsVisible,
-    focusType: focusPoiType,
-    clearAnalysis: clearPoiAnalysis,
-    cleanup: cleanupPoiAnalysis,
-} = usePoiAnalysis()
+    poiSummary,
+    poiStatus: poiAnalysisStatus,
+    poiErrorMessage: poiAnalysisErrorMessage,
+    poiPointsVisible,
+    poiTypeVisibility,
 
-const {
-    renderPoints: renderPoiPoints,
-    clearPoints: clearPoiPoints,
-    setPointsVisible: setPoiLayerVisible,
-    setTypeVisibility: setPoiLayerTypeVisibility,
-    cleanup: cleanupPoiPointLayer,
-} = usePoiPointLayer()
+    clear: handleClearNearbyQuery,
+    toggle: toggleNearbyQuery,
+    setRadiusInput: handlePoiRadiusInput,
+    changeRadius: handlePoiRadiusChange,
+    handleMapClick: handleNearbyAnalysisMapClick,
+    setPoiPointsVisible,
+    focusPoiType,
+    cleanup: cleanupNearbyAnalysis,
+} = useNearbyAnalysisController({
+    getViewer: () => viewer,
+})
 
 const {
     arrivalBoard,
@@ -654,118 +645,10 @@ function handleSelectOperationalVehicle(vehicleId: string,) {
     )
 }
 
-function handleClearNearbyQuery() {
-    nearbyQueryEnabled.value = false
-    selectedPoiRadiusMeters.value = TRANSIT_CONFIG.poiAnalysis.defaultRadiusMeters
-    clearNearbyQuery()
-    clearPoiAnalysis()
-    clearPoiPoints()
-}
-
-function toggleNearbyQuery() {
-    if (nearbyQueryEnabled.value) {
-        handleClearNearbyQuery()
-        return
-    }
-    // 重新进入查询模式前清理旧结果，避免上一次结果残留。
-    clearNearbyQuery()
-    clearPoiAnalysis()
-    nearbyQueryEnabled.value = true
-}
-
-// 使用当前滑动条半径，同时查询附近公交站和POI分析
-function runNearbyAnalysis(center: NearbyQueryCenter) {
-    const currentViewer = viewer
-
-    if (!currentViewer || currentViewer.isDestroyed()) {
-        return
-    }
-
-    const radiusMeters = selectedPoiRadiusMeters.value
-
-    if (radiusMeters === 0) {
-        clearNearbyQuery()
-        setPoiZeroRadius(center)
-        clearPoiPoints()
-        return
-    }
-
-    void queryNearby(currentViewer, center, radiusMeters)
-    void queryPoiAnalysis(center, radiusMeters)
-}
-
-// 拖动滑动条时只更新界面显示的半径
-function handlePoiRadiusInput(radiusMeters: number) {
-    selectedPoiRadiusMeters.value = radiusMeters
-}
-
-// 松开滑动条或点击预设值后，围绕原查询中心重新查询
-function handlePoiRadiusChange(radiusMeters: number) {
-    selectedPoiRadiusMeters.value = radiusMeters
-
-    if (!poiQueryCenter.value) {
-        return
-    }
-
-    runNearbyAnalysis(poiQueryCenter.value)
-}
-
-function getClickCenter(clickPosition: Cesium.Cartesian2): NearbyQueryCenter | null { 
-    const currentViewer = viewer
-
-    if (!currentViewer || currentViewer.isDestroyed()) {
-        return null
-    }
-
-    const ray = currentViewer.camera.getPickRay(clickPosition)
-
-    if (!ray) {
-        return null
-    }
-
-    const cartesian = currentViewer.scene.globe.pick(
-        ray, 
-        currentViewer.scene
-    ) ?? currentViewer.camera.pickEllipsoid(
-        clickPosition, 
-        currentViewer.scene.globe.ellipsoid
-    )
-
-    if (!cartesian) {
-        return null
-    }
-
-    const cartographic = Cesium.Cartographic.fromCartesian(cartesian)
-
-    return {
-        longitude: Cesium.Math.toDegrees(cartographic.longitude),
-        latitude: Cesium.Math.toDegrees(cartographic.latitude),
-    }
-}
-
-// 处理没有拾取到车辆、站点或线路时的地图点击
+// 点击地图空白位置时先退出车辆漫游，再交给周边分析控制器
 function handleNearbyMapClick(clickPosition: Cesium.Cartesian2) {
     closeRealtimeRoamingMode()
-
-    if (!nearbyQueryEnabled.value) {
-        return
-    }
-
-    const currentViewer = viewer
-
-    if (!currentViewer || currentViewer.isDestroyed()) {
-        return
-    }
-
-    const center = getClickCenter(clickPosition)
-
-    if (!center) {
-        clearNearbyQuery()
-        clearPoiAnalysis()
-        return
-    }
-
-    runNearbyAnalysis(center)
+    handleNearbyAnalysisMapClick(clickPosition)
 }
 
 function toggleBusRoutes() {
@@ -814,31 +697,6 @@ function toRouteId(fid: number): string {
 function retryMapLoading() {
     window.location.reload()
 }
-function continueWithDegradedMap() {
-    loadingPanelVisible.value = false
-}
-
-watch(nearbyPois, (pois) => {
-    const currentViewer = viewer
-
-    if (!currentViewer || currentViewer.isDestroyed()) {
-        return
-    }
-
-    if (pois.length === 0) {
-        clearPoiPoints()
-        return
-    }
-
-    renderPoiPoints(currentViewer, pois)
-})
-
-watch(poiPointsVisible, (visible) => {
-    setPoiLayerVisible(visible)
-})
-watch(poiTypeVisibility, (visibility) => {
-    setPoiLayerTypeVisibility(visibility)
-})
 
 watch(
     selectedRouteStop, (stop) => {
@@ -960,10 +818,7 @@ watch(
 )
 
 onMounted(async () => { 
-    loadingPanelVisible.value = true
-    mapLoadingStatus.value = 'initializing'
-    mapLoadingStage.value = '正在初始化三维场景'
-    mapLoadingIssues.value = []
+    startMapLoading()
 
     // WebSocket 与 Cesium 图层初始化相互独立
     connectRealtimeVehicles()
@@ -972,7 +827,7 @@ onMounted(async () => {
 
     try {
         viewer = await createViewer(cesiumContainer.value)
-        mapLoadingStage.value = '正在定位福田区...'
+        setMapLoadingStage('正在定位福田区...')
 
         viewer.camera.setView({
             destination: Cesium.Cartesian3.fromDegrees(114.041, 22.462, 8000),
@@ -983,8 +838,7 @@ onMounted(async () => {
             },
         })
 
-        mapLoadingStatus.value = 'loading'
-        mapLoadingStage.value = '正在加载地图影像与地形...'
+        beginMapResourceLoading('正在加载地图影像与地形...')
 
         await initializeBaseMap(viewer)
 
@@ -996,7 +850,7 @@ onMounted(async () => {
 
         loadCityRoadWmts(viewer)  // 城市静态路网使用 GeoServer WMTS
 
-        mapLoadingStage.value = '正在加载城市建筑与公交数据...'
+        setMapLoadingStage('正在加载城市建筑与公交数据...')
 
         const initialGlobeTilesPromise = waitForInitialGlobeTiles(viewer)
 
@@ -1027,11 +881,11 @@ onMounted(async () => {
 
         if (futianBoundaryResult.status === 'rejected') {
             console.error('福田行政区边界加载失败：', futianBoundaryResult.reason)
-            mapLoadingIssues.value.push('福田行政区边界加载失败')
+            addMapLoadingIssue('福田行政区边界加载失败')
         }
         if (whiteModelResult.status === 'rejected') {
             console.error('城市白模加载失败：', whiteModelResult.reason)
-            mapLoadingIssues.value.push('城市白模加载失败')
+            addMapLoadingIssue('城市白模加载失败')
         }
         if (busRoutesResult.status === 'fulfilled') {
             bindRouteSelection(
@@ -1045,9 +899,9 @@ onMounted(async () => {
         }
         if (busStopsResult.status === 'rejected') {
             console.error('公交站点加载失败：', busStopsResult.reason)
-            mapLoadingIssues.value.push('公交站点加载失败')
+            addMapLoadingIssue('公交站点加载失败')
         }
-        mapLoadingStage.value = '正在完成首屏地图渲染...'
+        setMapLoadingStage('正在完成首屏地图渲染...')
         const [
             initialWhiteModelLoaded,
             initialGlobeTilesLoaded,
@@ -1058,25 +912,18 @@ onMounted(async () => {
         setWhiteModelVisible(false)
         if (whiteModelResult.status === 'fulfilled' && !initialWhiteModelLoaded) {
             console.warn('城市白模初始瓦片加载超时')
-            mapLoadingIssues.value.push('城市白模加载超时')
+            addMapLoadingIssue('城市白模加载超时')
         }
         if (!initialGlobeTilesLoaded) {
             console.warn('地图影像或地形加载超时')
-            mapLoadingIssues.value.push('地图影像或地形加载超时')
+            addMapLoadingIssue('地图影像或地形加载超时')
         }
-        if (mapLoadingIssues.value.length === 0) {
-            mapLoadingStatus.value = 'ready'
-            mapLoadingStage.value = '地图加载完成'
-        } else {
-            mapLoadingStatus.value = 'degraded'
-            mapLoadingStage.value = '部分资源未完成，核心地图仍可使用'
-        }
+
+        finishMapLoading()
 
     } catch (error) {
         console.error('地图初始化失败：', error)
-        mapLoadingStatus.value = 'error'
-        mapLoadingStage.value = '三维地图初始化失败'
-        mapLoadingIssues.value = [error instanceof Error ? error.message : '发生未知初始化错误']
+        failMapLoading(error)
     }
 })
 
@@ -1090,9 +937,7 @@ onBeforeUnmount(() => {
 
     cleanupRouteSelection()
     cleanupStopArrivals()
-    cleanupNearbyBusStops(viewer)
-    cleanupPoiAnalysis()
-    cleanupPoiPointLayer(viewer)
+    cleanupNearbyAnalysis()
     cleanupBusStopLayer(viewer)
     cleanupRealtimeVehiclePresentation(viewer)
     routeEntitiesByFid.clear()
@@ -1147,7 +992,7 @@ onBeforeUnmount(() => {
                             :stage="mapLoadingStage"
                             :issues="mapLoadingIssues"
                             @retry="retryMapLoading"
-                            @continue="continueWithDegradedMap"
+                            @continue="hideMapLoadingPanel"
                         />
                     </Transition>
                 </Teleport>

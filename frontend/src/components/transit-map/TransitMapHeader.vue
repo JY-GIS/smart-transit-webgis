@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { BaseMapType, SceneDimension } from '@/composables/useMapDisplay'
+import type { BaseMapType, SceneDimension } from '@/composables/map/useMapDisplay'
 
 // 接收显示所需的状态
 defineProps<{

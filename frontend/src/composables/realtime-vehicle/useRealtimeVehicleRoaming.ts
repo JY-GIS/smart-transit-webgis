@@ -1,13 +1,5 @@
 /** 
  *    公交漫游
- * 
- * 职责：
- *  - 管理公交漫游是否开启。
- *  - 保存当前追踪车辆编号。
- *  - 创建唯一的不可见追踪锚点。
- *  - 从车辆点、车辆模型或 WebSocket 快照中取得实时位置。
- *  - 让 Cesium 相机追踪锚点。
- *  - 退出漫游时清理锚点。
  */
 import { ref } from 'vue'
 import * as Cesium from 'cesium'
@@ -157,10 +149,10 @@ export function useRealtimeVehicleRoaming(positionSources: RealtimeVehicleRoamin
         removeCameraTrackingListener?.()
         removeCameraTrackingListener = undefined
 
-        if (currentViewer && !currentViewer.isDestroyed()) {
-            // lookAtTransform(Matrix4.IDENTITY)：退出观察目标后恢复Cesium默认的地球固定坐标系
+        // 只有实时漫游真正修改过相机坐标系时，才恢复Cesium默认坐标系。
+        // 历史轨迹跟随也会使用相机局部坐标系，不能被这里误重置。
+        if (cameraViewInitialized && currentViewer && !currentViewer.isDestroyed()) {
             currentViewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY)
-
             currentViewer.scene.requestRender()
         }
 

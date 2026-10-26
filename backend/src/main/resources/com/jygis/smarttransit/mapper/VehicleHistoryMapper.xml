@@ -71,6 +71,9 @@
     <!--
         查询拥有历史记录的车辆。
 
+        先按车辆和线路汇总，再关联线路信息并排序，
+        避免让线路名称参与全部历史记录的分组和排序。
+
         每辆车最终只返回一行：
         - min取得最早记录时间；
         - max取得最晚记录时间；
@@ -85,19 +88,24 @@
             history.route_id,
             route.fid as route_fid,
             route.rname as route_name,
-            min(history.recorded_at) as first_recorded_at,
-            max(history.recorded_at) as last_recorded_at,
-            count(*) as point_count
+            history.first_recorded_at,
+            history.last_recorded_at,
+            history.point_count
 
-        from public.vehicle_position_history history
+        from (
+            select
+                vehicle_id,
+                route_id,
+                min(recorded_at) as first_recorded_at,
+                max(recorded_at) as last_recorded_at,
+                count(*) as point_count
+
+            from public.vehicle_position_history
+
+            group by vehicle_id, route_id
+        ) history
 
         join public.routes route on route.route_id = history.route_id
-
-        group by
-            history.vehicle_id,
-            history.route_id,
-            route.fid,
-            route.rname
 
         order by
             route.rname,

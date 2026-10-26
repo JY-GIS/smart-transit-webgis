@@ -669,10 +669,17 @@ async function handleToggleBaseMap() {
     await toggleBaseMap(currentViewer)
 }
 
+const sceneDimensionToggleDisabled = computed(() => (
+    realtimeRoamingModeEnabled.value ||
+    trajectoryCameraTrackingEnabled.value ||
+    Boolean(trackedRouteVehicleId.value) ||
+    Boolean(trackedNetworkVehicleId.value)
+))
+
 function handleToggleSceneDimension() {
     const currentViewer = viewer
 
-    if (!currentViewer || currentViewer.isDestroyed()) {
+    if (!currentViewer || currentViewer.isDestroyed() || sceneDimensionToggleDisabled.value) {
         return
     }
 
@@ -817,6 +824,21 @@ watch(
     },
 )
 
+// 将相机恢复到福田区默认观察位置。
+function restoreView() {
+    const currentViewer = viewer
+    if (!currentViewer || currentViewer.isDestroyed()) return
+
+    currentViewer.camera.setView({
+        destination: Cesium.Cartesian3.fromDegrees(114.041, 22.462, 8000),
+        orientation: {
+            heading: 0,
+            pitch: Cesium.Math.toRadians(-45),
+            roll: 0,
+        },
+    })
+}
+
 onMounted(async () => { 
     startMapLoading()
 
@@ -829,14 +851,7 @@ onMounted(async () => {
         viewer = await createViewer(cesiumContainer.value)
         setMapLoadingStage('正在定位福田区...')
 
-        viewer.camera.setView({
-            destination: Cesium.Cartesian3.fromDegrees(114.041, 22.462, 8000),
-            orientation: {
-                heading: 0,
-                pitch: Cesium.Math.toRadians(-45),
-                roll: 0,
-            },
-        })
+        restoreView()
 
         beginMapResourceLoading('正在加载地图影像与地形...')
 
@@ -954,11 +969,12 @@ onBeforeUnmount(() => {
 
 <template>
     <div class="transit-shell" :class="{ 'is-history-mode': historyModeEnabled }">
-
         <TransitMapHeader
             :active-base-map="activeBaseMap"
             :scene-dimension="sceneDimension"
+            :scene-dimension-toggle-disabled="sceneDimensionToggleDisabled"
             :terrain-enabled="terrainEnabled"
+            @restore-view="restoreView"
             @toggle-base-map="handleToggleBaseMap"
             @toggle-scene-dimension="handleToggleSceneDimension"
             @toggle-terrain="handleToggleTerrain"
@@ -1237,15 +1253,6 @@ onBeforeUnmount(() => {
     height: 100%;
 }
 
-.cesium-container :deep(.cesium-performanceDisplay-defaultContainer) {
-    position: fixed;
-    top: 23px;
-    right: 26px;
-    left: auto;
-    bottom: auto;
-    z-index: 50;
-}
-
 .cesium-container :deep(.cesium-viewer-toolbar) {
     display: none;
 }
@@ -1331,10 +1338,6 @@ onBeforeUnmount(() => {
     .map-stage {
         width: 100%;
         height: 100%;
-    }
-
-    .cesium-container :deep(.cesium-performanceDisplay-defaultContainer) {
-        display: none;
     }
 
     .transit-workspace.has-right-workbench {

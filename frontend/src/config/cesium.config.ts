@@ -30,8 +30,7 @@ export const CESIUM_CONFIG = {
         msaaSamples: 1,
     },
 
-    // 开发调试开关，发布前可改为 false。
-    debugShowFramesPerSecond: true,
+    debugShowFramesPerSecond: false,
 
     // Re:Earth 城市白膜 3D Tiles 配置。
     whiteModel: {

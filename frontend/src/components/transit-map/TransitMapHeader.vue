@@ -5,11 +5,13 @@ import type { BaseMapType, SceneDimension } from '@/composables/map/useMapDispla
 defineProps<{
     activeBaseMap: BaseMapType
     sceneDimension: SceneDimension
+    sceneDimensionToggleDisabled: boolean
     terrainEnabled: boolean
 }>()
 
 // 子组件通过自定义事件告诉父组件“用户点击了什么”
 const emit = defineEmits<{
+    'restore-view': []
     'toggle-base-map': []
     'toggle-scene-dimension': []
     'toggle-terrain': []
@@ -54,8 +56,13 @@ const emit = defineEmits<{
             <button
                 class="map-tool-button map-tool-button--dimension is-active"
                 type="button"
-                :title="sceneDimension === '3d' ? '切换到二维地图' : '切换到三维地图'"
-                :aria-label="sceneDimension === '3d' ? '切换到二维地图' : '切换到三维地图'"
+                :disabled="sceneDimensionToggleDisabled"
+                :title="sceneDimensionToggleDisabled
+                    ? '请先退出车辆镜头跟随'
+                    : sceneDimension === '3d' ? '切换到二维地图' : '切换到三维地图'"
+                :aria-label="sceneDimensionToggleDisabled
+                    ? '请先退出车辆镜头跟随'
+                    : sceneDimension === '3d' ? '切换到二维地图' : '切换到三维地图'"
                 @click="emit('toggle-scene-dimension')"
             >
                 {{ sceneDimension === '3d' ? '3D' : '2D' }}
@@ -78,6 +85,20 @@ const emit = defineEmits<{
                 <span class="map-tool-label">
                     {{ terrainEnabled ? '地形' : '平面' }}
                 </span>
+            </button>
+
+            <button
+                class="restore-view-button"
+                type="button"
+                title="恢复默认视野"
+                aria-label="恢复默认视野"
+                @click="emit('restore-view')"
+            >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="m4 11 8-7 8 7" />
+                    <path d="M6.5 10v9.5h11V10" />
+                    <path d="M9.5 19.5v-6h5v6" />
+                </svg>
             </button>
         </div>
     </header>
@@ -150,9 +171,8 @@ const emit = defineEmits<{
 
 .map-view-controls {
     display: flex;
-    align-items: stretch;
+    align-items: center;
     gap: 10px;
-    margin-right: 100px;
 }
 
 .map-tool-button {
@@ -192,6 +212,17 @@ const emit = defineEmits<{
     border-color: #93c5fd;
 }
 
+.map-tool-button:disabled {
+    opacity: 0.48;
+    cursor: not-allowed;
+}
+
+.map-tool-button:disabled:hover {
+    color: var(--transit-panel-text);
+    background: var(--transit-panel-bg);
+    border-color: var(--transit-panel-border);
+}
+
 .map-tool-button:focus-visible {
     outline: 2px solid var(--transit-panel-primary);
     outline-offset: 2px;
@@ -212,6 +243,48 @@ const emit = defineEmits<{
     line-height: 1;
 }
 
+.restore-view-button {
+    display: grid;
+    width: 44px;
+    height: 44px;
+    flex: 0 0 44px;
+    padding: 0;
+    place-items: center;
+    color: #185fc7;
+    cursor: pointer;
+    background: #f7fbff;
+    border: 1px solid #a9c9f8;
+    border-radius: 50%;
+    box-shadow: 0 5px 16px rgba(37, 120, 237, 0.18);
+    transition: color 160ms ease, background-color 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+
+.restore-view-button:hover {
+    color: #ffffff;
+    background: #2478ed;
+    border-color: #2478ed;
+    transform: translateY(-1px);
+}
+
+.restore-view-button:active {
+    transform: translateY(0);
+}
+
+.restore-view-button:focus-visible {
+    outline: 2px solid #2478ed;
+    outline-offset: 3px;
+}
+
+.restore-view-button svg {
+    width: 22px;
+    height: 22px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.9;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
 @media (max-width: 960px) {
     .transit-header {
         padding-left: 18px;
@@ -223,10 +296,6 @@ const emit = defineEmits<{
 
     .transit-brand span {
         display: none;
-    }
-
-    .map-view-controls {
-        margin-right: 94px;
     }
 }
 
@@ -265,6 +334,12 @@ const emit = defineEmits<{
 
     .map-tool-button--basemap {
         display: none;
+    }
+
+    .restore-view-button {
+        width: 40px;
+        height: 40px;
+        flex-basis: 40px;
     }
 }
 </style>

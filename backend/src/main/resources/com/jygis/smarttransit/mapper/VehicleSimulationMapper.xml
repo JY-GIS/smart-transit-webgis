@@ -468,7 +468,11 @@
             SELECT
                 rs.route_id,
                 rs.stop_id,
-                s.stop_name,
+                regexp_replace(
+                    stop_name,
+                    '[[:space:]]*(（公交站）|[(]公交站[)]|公交站)[[:space:]]*$',
+                    ''
+                ) as stop_name,
                 rs.stop_sequence,
 
                 ST_Transform(

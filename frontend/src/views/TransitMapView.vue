@@ -911,6 +911,7 @@ onMounted(async () => {
             )
         } else {
             console.error('公交线路加载失败：', busRoutesResult.reason)
+            addMapLoadingIssue('公交线路加载失败')
         }
         if (busStopsResult.status === 'rejected') {
             console.error('公交站点加载失败：', busStopsResult.reason)

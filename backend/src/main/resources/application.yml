@@ -2,6 +2,13 @@ spring:
   application:
     name: smart-transit-backend
 
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6379
+      connect-timeout: 2s
+      timeout: 1s
+
   datasource:
     url: jdbc:postgresql://127.0.0.1:15433/smart_transit
     username: smart_transit
@@ -21,6 +28,12 @@ transit-simulation-defaults:
 
 # 后端车辆模拟配置
 transit:
+  cache:
+    route-stops:
+      # 默认关闭；学习时使用 redis-lab Profile，或设置对应环境变量启用。
+      enabled: ${TRANSIT_ROUTE_STOPS_CACHE_ENABLED:false}
+      ttl-seconds: 600
+
   # 车辆历史轨迹配置
   history:
     # 是否启用历史位置采样

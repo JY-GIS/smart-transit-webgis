@@ -1,0 +1,10 @@
+# Redis 入门实验：启用缓存；观察缓存和 SQL 日志时，将下面两个 INFO 改为 DEBUG。
+transit:
+  cache:
+    route-stops:
+      enabled: true
+
+logging:
+  level:
+    com.jygis.smarttransit.service.impl.RouteStopServiceImpl: debug
+    com.jygis.smarttransit.mapper.RouteStopMapper: debug

@@ -1,0 +1,14 @@
+**
+!frontend/
+frontend/**
+!frontend/dist/
+!frontend/dist/**
+!test-artifacts/
+test-artifacts/**
+!test-artifacts/static-road-tiles/
+!test-artifacts/static-road-tiles/xyz/
+!test-artifacts/static-road-tiles/xyz/**
+!deploy/
+deploy/**
+!deploy/frontend.Dockerfile
+!deploy/nginx.conf

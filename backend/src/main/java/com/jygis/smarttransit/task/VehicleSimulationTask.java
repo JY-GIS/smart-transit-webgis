@@ -57,9 +57,6 @@ public class VehicleSimulationTask {
 
     private static final double DISTANCE_EPSILON_METERS = 1e-6;
 
-    // 历史数据每小时清理一次
-    private static final Duration HISTORY_CLEANUP_INTERVAL = Duration.ofHours(1);
-
     private final VehicleSimulationProperties properties;
 
     private final VehicleSimulationService vehicleSimulationService;
@@ -305,7 +302,7 @@ public class VehicleSimulationTask {
     }
 
     /**
-     * 到达清理时间时，删除超过保留天数的历史位置。
+     * 到达清理时间时，删除超过保留时长的历史位置。
      */
     private void cleanupVehicleHistoryIfDue(Instant now) {
         if (!historyProperties.isEnabled()) {
@@ -320,7 +317,9 @@ public class VehicleSimulationTask {
          * 先推进下一次清理时间。
          * 即使本次数据库操作失败，也不会每秒重复执行删除。
          */
-        nextHistoryCleanupAt = now.plus(HISTORY_CLEANUP_INTERVAL);
+        nextHistoryCleanupAt = now.plus(
+                Duration.ofMinutes(historyProperties.getCleanupIntervalMinutes())
+        );
 
         try {
             int deletedCount = vehicleHistoryService.deleteExpiredHistory(now);

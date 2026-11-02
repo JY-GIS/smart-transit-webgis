@@ -1,0 +1,9 @@
+**
+!backend/
+backend/**
+!backend/target/
+backend/target/**
+!backend/target/smart-transit-backend-0.0.1-SNAPSHOT.jar
+!deploy/
+deploy/**
+!deploy/backend.Dockerfile

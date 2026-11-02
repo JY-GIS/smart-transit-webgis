@@ -1,0 +1,126 @@
+name: smart-transit-prod
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  postgis:
+    image: postgis/postgis:14-3.5
+    environment:
+      POSTGRES_DB: smart_transit
+      POSTGRES_USER: smart_transit
+      POSTGRES_PASSWORD: ${SMART_TRANSIT_DB_PASSWORD:?Set SMART_TRANSIT_DB_PASSWORD}
+    command:
+      - postgres
+      - -c
+      - shared_buffers=128MB
+      - -c
+      - effective_cache_size=384MB
+      - -c
+      - work_mem=4MB
+      - -c
+      - maintenance_work_mem=64MB
+      - -c
+      - max_connections=30
+      - -c
+      - jit=off
+    volumes:
+      - smart_transit_postgis_data:/var/lib/postgresql/data
+    shm_size: 128m
+    mem_limit: 768m
+    memswap_limit: 896m
+    mem_reservation: 512m
+    cpus: "1.0"
+    restart: unless-stopped
+    stop_grace_period: 60s
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U smart_transit -d smart_transit"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - app-network
+    logging: *default-logging
+
+  backend:
+    image: smart-transit-backend:${SMART_TRANSIT_IMAGE_TAG:-1.0.0-demo}
+    build:
+      context: ..
+      dockerfile: deploy/backend.Dockerfile
+    environment:
+      SPRING_PROFILES_ACTIVE: cloud
+      SPRING_DATASOURCE_URL: ${SMART_TRANSIT_DATASOURCE_URL:-jdbc:postgresql://postgis:5432/smart_transit}
+      SPRING_DATASOURCE_USERNAME: smart_transit
+      SPRING_DATASOURCE_PASSWORD: ${SMART_TRANSIT_DB_PASSWORD:?Set SMART_TRANSIT_DB_PASSWORD}
+      SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "8"
+      SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE: "2"
+      TRANSIT_WEBSOCKET_ALLOWED_ORIGIN: ${TRANSIT_WEBSOCKET_ALLOWED_ORIGIN:?Set TRANSIT_WEBSOCKET_ALLOWED_ORIGIN}
+      TRANSIT_HISTORY_SAMPLE_INTERVAL_SECONDS: ${TRANSIT_HISTORY_SAMPLE_INTERVAL_SECONDS:-5}
+      TRANSIT_HISTORY_RETENTION_MINUTES: ${TRANSIT_HISTORY_RETENTION_MINUTES:-30}
+      TRANSIT_HISTORY_CLEANUP_INTERVAL_MINUTES: ${TRANSIT_HISTORY_CLEANUP_INTERVAL_MINUTES:-30}
+      TRANSIT_HISTORY_ENABLED: ${TRANSIT_HISTORY_ENABLED:-true}
+      TRANSIT_SIMULATION_ENABLED: ${TRANSIT_SIMULATION_ENABLED:-true}
+      TRANSIT_SIMULATION_DEFAULTS_VEHICLE_COUNT: ${TRANSIT_SIMULATION_DEFAULTS_VEHICLE_COUNT:-3}
+      JAVA_TOOL_OPTIONS: >-
+        -Xms96m -Xmx320m
+        -XX:MaxMetaspaceSize=128m
+        -XX:ReservedCodeCacheSize=32m
+        -XX:+UseSerialGC
+    depends_on:
+      postgis:
+        condition: service_healthy
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    mem_limit: 448m
+    memswap_limit: 512m
+    mem_reservation: 352m
+    cpus: "1.5"
+    restart: unless-stopped
+    stop_grace_period: 30s
+    healthcheck:
+      test: ["CMD-SHELL", "bash -ec ': > /dev/tcp/127.0.0.1/8080'"]
+      interval: 10s
+      timeout: 3s
+      retries: 18
+      start_period: 20s
+    networks:
+      - app-network
+    logging: *default-logging
+
+  frontend:
+    image: smart-transit-frontend:${SMART_TRANSIT_IMAGE_TAG:-1.0.0-demo}
+    build:
+      context: ..
+      dockerfile: deploy/frontend.Dockerfile
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${SMART_TRANSIT_HTTP_PORT:-80}:80"
+    mem_limit: 64m
+    memswap_limit: 64m
+    mem_reservation: 32m
+    cpus: "0.25"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/healthz >/dev/null"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    networks:
+      - app-network
+    logging: *default-logging
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  smart_transit_postgis_data:

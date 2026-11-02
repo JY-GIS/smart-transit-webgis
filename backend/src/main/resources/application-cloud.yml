@@ -1,0 +1,11 @@
+transit:
+  history:
+    # 2 GiB 求职演示环境：保持真实历史回放，同时限制数据库增长。
+    sample-interval-seconds: 5
+    retention-minutes: 30
+    cleanup-interval-minutes: 30
+
+  websocket:
+    # 云端必须显式提供真实浏览器来源，例如 https://transit.example.com。
+    allowed-origin-patterns:
+      - "${TRANSIT_WEBSOCKET_ALLOWED_ORIGIN}"

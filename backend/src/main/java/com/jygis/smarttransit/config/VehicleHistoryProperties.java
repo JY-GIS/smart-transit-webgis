@@ -23,9 +23,13 @@ public class VehicleHistoryProperties {
     @Positive
     private long sampleIntervalSeconds;
 
-    // 历史数据保留天数
+    // 历史数据保留时间，单位为分钟
     @Positive
-    private int retentionDays;
+    private int retentionMinutes;
+
+    // 清理过期历史数据的执行间隔，单位为分钟
+    @Positive
+    private int cleanupIntervalMinutes;
 
     // 单次轨迹查询允许的最大时间跨度，单位为分钟 - ( 防止一次请求读取过多轨迹点 )
     @Positive

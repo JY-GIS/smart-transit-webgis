@@ -24,6 +24,12 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
 @EnableWebSocketMessageBroker  // 启用 Spring 的 STOMP 消息基础设施
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
+    private final WebSocketProperties properties;
+
+    public WebSocketConfig(WebSocketProperties properties) {
+        this.properties = properties;
+    }
+
     /**
      * 配置 STOMP 消息代理。
      */
@@ -52,15 +58,13 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
          * /ws 是连接地址；
          * /topic/vehicles 是建立连接后订阅的消息目的地。
          *
-         * setAllowedOriginPatterns：允许本地 Vite 开发服务器从不同端口发起握手。
-         *
-         * 如果不配置允许来源，localhost:5173 访问 localhost:8080 可能因为不同端口而被判定为跨源请求并拒绝握手。
+         * setAllowedOriginPatterns：本地允许 Vite 开发服务器跨端口握手；
+         * 云端通过 cloud Profile 和环境变量限制为真实站点来源。
          */
         registry
                 .addEndpoint("/ws")
                 .setAllowedOriginPatterns(
-                        "http://localhost:*",
-                        "http://127.0.0.1:*"
+                        properties.getAllowedOriginPatterns().toArray(String[]::new)
                 );
     }
 }

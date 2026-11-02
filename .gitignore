@@ -7,3 +7,7 @@ Thumbs.db
 
 # 本地部署可行性测试生成的静态道路瓦片与构建产物
 test-artifacts/
+
+# 正式部署时在本机生成的密码文件、镜像包和交付包
+deploy/.env.production
+deploy/artifacts/

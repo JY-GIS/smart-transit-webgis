@@ -81,7 +81,7 @@ public class VehicleHistoryServiceImpl implements VehicleHistoryService {
     public int deleteExpiredHistory(Instant now) {
         Objects.requireNonNull(now, "now 不能为空");
 
-        Instant cutoffTime = now.minus(Duration.ofDays(historyProperties.getRetentionDays()));
+        Instant cutoffTime = now.minus(Duration.ofMinutes(historyProperties.getRetentionMinutes()));
 
         return vehicleHistoryMapper.deleteBefore(cutoffTime);
     }

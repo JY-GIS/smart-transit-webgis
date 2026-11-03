@@ -17,6 +17,7 @@ import tools.jackson.databind.ObjectMapper;
 import java.time.Duration;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
 
 @Slf4j
 @Service
@@ -97,6 +98,13 @@ public class RouteStopServiceImpl implements RouteStopService {
             long ttlSeconds = stops.isEmpty()
                     ? cacheProperties.getEmptyTtlSeconds()
                     : cacheProperties.getTtlSeconds();
+
+            if (!stops.isEmpty()) {
+                long jitterRange = ttlSeconds / 10;
+                long jitterSeconds = ThreadLocalRandom.current().nextLong(jitterRange + 1);
+                ttlSeconds = ttlSeconds - jitterSeconds;
+            }
+
             try {
                 // 转为 JSON 字符串，再以一次 SET 同时写入内容与有效期。
                 String json = objectMapper.writeValueAsString(stops);

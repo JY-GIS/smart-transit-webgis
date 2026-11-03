@@ -22,7 +22,7 @@ Java 中的 `StringRedisTemplate` 负责读写字符串，`ObjectMapper` 负责�
 
 - Key：`transit:route:route_000010:stops:v1`，其中 `v1` 表示缓存结构版本。
 - Value：该线路的站点列表 JSON，包含中文名称、经纬度和站序。
-- TTL：默认 600 秒；读取缓存不会重新延长有效期。
+- TTL：正常结果默认随机为 540～600 秒；读取缓存不会重新延长有效期。
 - 空站点列表也缓存为 JSON 文本 `[]`，默认有效期 30 秒；命中空列表时直接返回，不查询数据库。
 - Redis 读取失败时直接查询数据库；写入失败时仍返回已经查到的数据。
 
@@ -74,7 +74,7 @@ Set-Location D:\smart-transit-webgis\backend
 | `spring.data.redis.connect-timeout` | `2s` | 连接建立超时 |
 | `spring.data.redis.timeout` | `1s` | 命令超时 |
 | `transit.cache.route-stops.enabled` | `false` | 缓存开关，实验 Profile 为 `true` |
-| `transit.cache.route-stops.ttl-seconds` | `600` | 写入时的有效秒数，必须为正数 |
+| `transit.cache.route-stops.ttl-seconds` | `600` | 正常结果有效期上限，必须为正数 |
 | `transit.cache.route-stops.empty-ttl-seconds` | `30` | 空结果的有效秒数，必须为正数 |
 
 环境变量 `TRANSIT_ROUTE_STOPS_CACHE_ENABLED=true` 也可以在默认 Profile 下开启缓存，但不会自动开启 DEBUG 日志。云端容器连接 Redis 时应配置实际服务地址，而不是沿用本机回环地址。
@@ -126,7 +126,7 @@ $json = [System.Text.Encoding]::UTF8.GetString($response.RawContentStream.ToArra
 docker exec smart-transit-redis redis-cli EXPIRE transit:route:route_000010:stops:v1 5
 ```
 
-过 5 秒后先检查 `TTL`，应返回 `-2`；再请求接口，应重新查询数据库并写入一份有效期为 600 秒的新缓存。
+过 5 秒后先检查 `TTL`，应返回 `-2`；再请求接口，应重新查询数据库并写入一份有效期为 540～600 秒的新缓存。
 
 如果手工修改或导入了 PostGIS 的线路站点数据，可删除对应缓存键，使下一次查询加载最新数据：
 
@@ -179,7 +179,7 @@ Redis 故障或缓存写入失败时，仍可能重复查库。
 
 ## 空结果缓存：缓解重复查询不存在的数据
 
-初版对空站点列表不写缓存，因此重复查询不存在的线路编号会每次查库。当前版将成功查库得到的空列表保存为 `[]`，默认有效期 30 秒。有站点的数据仍默认缓存 600 秒。这个方案也适用于存在但尚未关联站点的线路；它缓存的是站点查询结果，不判断线路是否存在。
+初版对空站点列表不写缓存，因此重复查询不存在的线路编号会每次查库。当前版将成功查库得到的空列表保存为 `[]`，默认有效期 30 秒。有站点的数据仍默认缓存 540 ~ 600 秒。这个方案也适用于存在但尚未关联站点的线路；它缓存的是站点查询结果，不判断线路是否存在。
 
 在 IDEA 重新运行后端，保留 `redis-lab` Profile、`enabled: true` 及两个 `DEBUG` 日志级别。在浏览器访问 `http://localhost:8080/api/routes/route_999999/stops` 并立即刷新：
 

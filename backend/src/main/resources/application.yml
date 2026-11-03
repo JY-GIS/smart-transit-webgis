@@ -33,6 +33,8 @@ transit:
       # 默认关闭；学习时使用 redis-lab Profile，或设置对应环境变量启用。
       enabled: ${TRANSIT_ROUTE_STOPS_CACHE_ENABLED:false}
       ttl-seconds: 600
+      # 空列表短暂缓存，减少同一无结果线路的重复查库。
+      empty-ttl-seconds: 30
 
   # 车辆历史轨迹配置
   history:

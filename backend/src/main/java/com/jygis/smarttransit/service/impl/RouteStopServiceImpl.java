@@ -53,7 +53,7 @@ public class RouteStopServiceImpl implements RouteStopService {
             if (cachedJson != null) {
                 List<RouteStopDetail> cachedStops = objectMapper.readValue(cachedJson, STOP_LIST_TYPE);
                 if (cachedStops != null) {
-                    log.debug("线路站点缓存命中：key={}", key);
+                    log.debug("线路站点缓存命中：key={}, stopCount={}", key, cachedStops.size());
                     return cachedStops;
                 }
             }
@@ -71,20 +71,23 @@ public class RouteStopServiceImpl implements RouteStopService {
         // 数据库异常应正常向上传递，不能当成缓存故障吞掉。
         List<RouteStopDetail> stops = routeStopMapper.findStopsByRouteId(routeId);
 
-        // 暂不缓存空结果，避免任意不存在的线路编号产生缓存键。
-        if (!stops.isEmpty()) {
-            try {
-                // 转为 JSON 字符串，再以一次 SET 同时写入内容与有效期。
-                String json = objectMapper.writeValueAsString(stops);
-                redisTemplate.opsForValue().set(
-                        key, json, Duration.ofSeconds(cacheProperties.getTtlSeconds()));
-            } catch (DataAccessException | JacksonException exception) {
-                // 查询已经成功，缓存写入失败不应使接口失败。
-                log.warn("线路站点缓存写入失败，返回数据库结果：key={}, cause={}",
-                        key, exception.getClass().getSimpleName());
-            }
+        // 空列表会转换成 "[]"，同样属于有效缓存；短 TTL 让新导入的站点更快可见。
+        long ttlSeconds = stops.isEmpty()
+                ? cacheProperties.getEmptyTtlSeconds()
+                : cacheProperties.getTtlSeconds();
+        try {
+            // 转为 JSON 字符串，再以一次 SET 同时写入内容与有效期。
+            String json = objectMapper.writeValueAsString(stops);
+            redisTemplate.opsForValue().set(key, json, Duration.ofSeconds(ttlSeconds));
+            log.debug("线路站点缓存已写入：key={}, stopCount={}, ttlSeconds={}",
+                    key, stops.size(), ttlSeconds);
+        } catch (DataAccessException | JacksonException exception) {
+            // 查询已经成功，缓存写入失败不应使接口失败。
+            log.warn("线路站点缓存写入失败，返回数据库结果：key={}, cause={}",
+                    key, exception.getClass().getSimpleName());
         }
 
         return stops;
     }
+
 }

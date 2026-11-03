@@ -23,7 +23,7 @@ Java 中的 `StringRedisTemplate` 负责读写字符串，`ObjectMapper` 负责�
 - Key：`transit:route:route_000010:stops:v1`，其中 `v1` 表示缓存结构版本。
 - Value：该线路的站点列表 JSON，包含中文名称、经纬度和站序。
 - TTL：默认 600 秒；读取缓存不会重新延长有效期。
-- 空站点列表暂不缓存。
+- 空站点列表也缓存为 JSON 文本 `[]`，默认有效期 30 秒；命中空列表时直接返回，不查询数据库。
 - Redis 读取失败时直接查询数据库；写入失败时仍返回已经查到的数据。
 
 ## 1. 启动并验证 Redis
@@ -45,7 +45,7 @@ docker exec smart-transit-redis redis-cli PING
 
 ## 2. 启用实验配置
 
-默认配置关闭缓存，保持原有数据库查询行为。`redis-lab` Profile 开启缓存。该 Profile 中的 Service 和 Mapper 日志目前为 `INFO`，便于计时；需要观察缓存命中和 SQL 时，将 `application-redis-lab.yml` 的两个日志级别改为 `DEBUG`：
+默认配置关闭缓存，保持原有数据库查询行为。`redis-lab` Profile 开启缓存。需要观察缓存命中和 SQL 时，将 `application-redis-lab.yml` 的两个日志级别设为 `DEBUG`；计时时则都设为 `INFO`：
 
 ```yaml
 logging:
@@ -75,6 +75,7 @@ Set-Location D:\smart-transit-webgis\backend
 | `spring.data.redis.timeout` | `1s` | 命令超时 |
 | `transit.cache.route-stops.enabled` | `false` | 缓存开关，实验 Profile 为 `true` |
 | `transit.cache.route-stops.ttl-seconds` | `600` | 写入时的有效秒数，必须为正数 |
+| `transit.cache.route-stops.empty-ttl-seconds` | `30` | 空结果的有效秒数，必须为正数 |
 
 环境变量 `TRANSIT_ROUTE_STOPS_CACHE_ENABLED=true` 也可以在默认 Profile 下开启缓存，但不会自动开启 DEBUG 日志。云端容器连接 Redis 时应配置实际服务地址，而不是沿用本机回环地址。
 
@@ -170,20 +171,34 @@ $times | Measure-Object -Average -Minimum -Maximum
 
 去掉 `redis-lab` Profile 并确认没有启用缓存的环境变量，重启后即可恢复默认的直接查库行为。无需删除数据或容器。
 
-本实现是单接口入门实践，未引入缓存击穿保护。大量请求同时遇到未命中时，仍可能重复查询数据库；Redis 故障时回退数据库也不代表数据库能够承受任意流量。
+本实现是单接口入门实践，尚未加入缓存重建锁。大量请求同时遇到未命中时，仍可能重复查询数据库；Redis 故障时回退数据库也不代表数据库能够承受任意流量。
 
-## 行为测试
+## 空结果缓存：缓解重复查询不存在的数据
 
-无需连接真实数据库或 Redis 的单元测试：
+初版对空站点列表不写缓存，因此重复查询不存在的线路编号会每次查库。当前版将成功查库得到的空列表保存为 `[]`，默认有效期 30 秒。有站点的数据仍默认缓存 600 秒。这个方案也适用于存在但尚未关联站点的线路；它缓存的是站点查询结果，不判断线路是否存在。
+
+在 IDEA 重新运行后端，保留 `redis-lab` Profile、`enabled: true` 及两个 `DEBUG` 日志级别。在浏览器访问 `http://localhost:8080/api/routes/route_999999/stops` 并立即刷新：
+
+1. 第一次未命中，执行 SQL 返回 0 条；日志显示 `缓存已写入`，其中 `stopCount=0, ttlSeconds=30`。
+2. 后续在有效期内命中缓存，日志显示 `stopCount=0`，不再执行对应站点 SQL。
+3. 从写入算起超过 30 秒，再次请求会重新查库，然后再次缓存结果。
+
+可以在第一次请求后尽快用 PowerShell 查看：
 
 ```powershell
-Set-Location D:\smart-transit-webgis\backend
-.\mvnw.cmd '-Dtest=RouteStopServiceImplTest' test
+docker exec smart-transit-redis redis-cli --raw GET transit:route:route_999999:stops:v1
+docker exec smart-transit-redis redis-cli TTL transit:route:route_999999:stops:v1
 ```
 
-测试覆盖开关关闭、缓存命中、未命中写入及 TTL、读写故障、JSON 损坏、空结果与数据库异常。
+`GET` 应返回 `[]`，`TTL` 应为不超过 30 的正数。若键已过期，先访问接口重新建立缓存，再查看。
 
-## 本次验证记录
+注意区分：没有缓存时 `GET` 得到空值（Java 中是 `null`）；命中空结果缓存时得到字符串 `"[]"`，转换后是一个非 null 的空列表。当前读取逻辑可以直接处理这两种情况，无需特殊占位符。
+
+只有数据库成功查询返回的结果才会缓存，数据库异常仍向上传递。短期空缓存可以缓解对同一无结果编号的重复请求；持续使用不同编号查询仍会产生首次查库和新的缓存键。后来为该线路添加站点时，应删除对应键，或等待这份空缓存过期。
+
+2026-11-02 空结果缓存验证：10 项缓存行为测试通过，后端打包成功。使用本机临时后端及 Redis 第 15 号库验证，两次无结果查询只执行 1 次站点 SQL，Redis 内容为 `[]`，TTL 为 30 秒；临时缩短有效期后，过期请求会重新查库并重建空缓存。有站点的线路仍返回 11 条记录，缓存 TTL 为 600 秒。验证结束后清理了临时后端与两个测试键。
+
+## 首次接入验证记录
 
 2026-11-02，本机真实 PostGIS 与 Redis 验证通过。临时后端使用 18082 端口及 Redis 第 15 号库，并关闭自身的车辆仿真和历史写入；测试结束后清理临时后端及单个测试键。
 

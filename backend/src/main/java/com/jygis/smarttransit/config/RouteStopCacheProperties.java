@@ -17,4 +17,8 @@ public class RouteStopCacheProperties {
 
     @Positive
     private long ttlSeconds = 600;
+
+    // 查不到站点时也缓存空列表，但用更短的有效期。
+    @Positive
+    private long emptyTtlSeconds = 30;
 }

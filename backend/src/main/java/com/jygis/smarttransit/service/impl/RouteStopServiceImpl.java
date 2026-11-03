@@ -15,6 +15,7 @@ import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
 import java.time.Duration;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.List;
 
 @Slf4j
@@ -29,6 +30,8 @@ public class RouteStopServiceImpl implements RouteStopService {
     private final ObjectMapper objectMapper;
 
     private final RouteStopCacheProperties cacheProperties;
+
+    private final ReentrantLock cacheRebuildLock = new ReentrantLock();
 
     private static final TypeReference<List<RouteStopDetail>> STOP_LIST_TYPE =
             new TypeReference<>() {};
@@ -67,27 +70,49 @@ public class RouteStopServiceImpl implements RouteStopService {
             log.warn("线路站点缓存 JSON 无效，重新查询数据库：key={}", key);
         }
 
-        log.debug("线路站点缓存未命中，查询数据库：key={}", key);
-        // 数据库异常应正常向上传递，不能当成缓存故障吞掉。
-        List<RouteStopDetail> stops = routeStopMapper.findStopsByRouteId(routeId);
-
-        // 空列表会转换成 "[]"，同样属于有效缓存；短 TTL 让新导入的站点更快可见。
-        long ttlSeconds = stops.isEmpty()
-                ? cacheProperties.getEmptyTtlSeconds()
-                : cacheProperties.getTtlSeconds();
+        log.debug("准备获取缓存重建锁：key={}", key);
+        cacheRebuildLock.lock();
         try {
-            // 转为 JSON 字符串，再以一次 SET 同时写入内容与有效期。
-            String json = objectMapper.writeValueAsString(stops);
-            redisTemplate.opsForValue().set(key, json, Duration.ofSeconds(ttlSeconds));
-            log.debug("线路站点缓存已写入：key={}, stopCount={}, ttlSeconds={}",
-                    key, stops.size(), ttlSeconds);
-        } catch (DataAccessException | JacksonException exception) {
-            // 查询已经成功，缓存写入失败不应使接口失败。
-            log.warn("线路站点缓存写入失败，返回数据库结果：key={}, cause={}",
-                    key, exception.getClass().getSimpleName());
-        }
+            log.debug("已获取缓存重建锁：key={}", key);
+            try {
+                String cachedJson = redisTemplate.opsForValue().get(key);
+                if (cachedJson != null) {
+                    List<RouteStopDetail> cachedStops =
+                            objectMapper.readValue(cachedJson, STOP_LIST_TYPE);
+                    if (cachedStops != null) {
+                        log.debug("锁内二次检查命中缓存：key={}", key);
+                        return cachedStops;
+                    }
+                }
+            } catch (DataAccessException | JacksonException exception) {
+                log.warn("锁内读取缓存失败，继续查询数据库：key={}, cause={}",
+                        key, exception.getClass().getSimpleName());
+            }
 
-        return stops;
+            log.debug("线路站点缓存未命中，查询数据库：key={}", key);
+            // 数据库异常应正常向上传递，不能当成缓存故障吞掉。
+            List<RouteStopDetail> stops = routeStopMapper.findStopsByRouteId(routeId);
+
+            // 空列表会转换成 "[]"，同样属于有效缓存；短 TTL 让新导入的站点更快可见。
+            long ttlSeconds = stops.isEmpty()
+                    ? cacheProperties.getEmptyTtlSeconds()
+                    : cacheProperties.getTtlSeconds();
+            try {
+                // 转为 JSON 字符串，再以一次 SET 同时写入内容与有效期。
+                String json = objectMapper.writeValueAsString(stops);
+                redisTemplate.opsForValue().set(key, json, Duration.ofSeconds(ttlSeconds));
+                log.debug("线路站点缓存已写入：key={}, stopCount={}, ttlSeconds={}",
+                        key, stops.size(), ttlSeconds);
+            } catch (DataAccessException | JacksonException exception) {
+                // 查询已经成功，缓存写入失败不应使接口失败。
+                log.warn("线路站点缓存写入失败，返回数据库结果：key={}, cause={}",
+                        key, exception.getClass().getSimpleName());
+            }
+            return stops;
+        } finally {
+            // 释放锁
+            cacheRebuildLock.unlock();
+        }
     }
 
 }

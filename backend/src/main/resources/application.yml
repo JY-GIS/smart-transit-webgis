@@ -1,4 +1,8 @@
 spring:
+  config:
+    # 支持从项目根目录或 backend 目录启动；本地 .env 已被 Git 忽略。
+    import: optional:file:../.env[.properties],optional:file:.env[.properties]
+
   application:
     name: smart-transit-backend
 
@@ -28,6 +32,9 @@ transit-simulation-defaults:
 
 # 后端车辆模拟配置
 transit:
+  amap:
+    key: ${AMAP_WEB_SERVICE_KEY:}
+
   cache:
     route-stops:
       # 默认关闭；学习时使用 redis-lab Profile，或设置对应环境变量启用。

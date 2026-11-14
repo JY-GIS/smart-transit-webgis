@@ -53,6 +53,7 @@ services:
       dockerfile: deploy/backend.Dockerfile
     environment:
       SPRING_PROFILES_ACTIVE: cloud
+      AMAP_WEB_SERVICE_KEY: ${AMAP_WEB_SERVICE_KEY:-}
       SPRING_DATASOURCE_URL: ${SMART_TRANSIT_DATASOURCE_URL:-jdbc:postgresql://postgis:5432/smart_transit}
       SPRING_DATASOURCE_USERNAME: smart_transit
       SPRING_DATASOURCE_PASSWORD: ${SMART_TRANSIT_DB_PASSWORD:?Set SMART_TRANSIT_DB_PASSWORD}

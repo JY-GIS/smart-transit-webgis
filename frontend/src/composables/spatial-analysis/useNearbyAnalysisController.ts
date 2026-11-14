@@ -128,6 +128,15 @@ export function useNearbyAnalysisController(
         runAnalysis(viewer, center)
     }
 
+    // 搜索地点与地图选点共用一套范围查询和图层。
+    function queryAt(center: NearbyQueryCenter, radiusMeters: number) {
+        const viewer = getViewer()
+        if (!viewer || viewer.isDestroyed()) return
+        enabled.value = true
+        selectedRadiusMeters.value = radiusMeters
+        runAnalysis(viewer, center)
+    }
+
     // 将Cesium屏幕点击坐标转换成地球表面的经纬度
     function getClickCenter(
         viewer: Cesium.Viewer,
@@ -241,6 +250,7 @@ export function useNearbyAnalysisController(
         toggle,
         setRadiusInput,
         changeRadius,
+        queryAt,
         handleMapClick,
         setPoiPointsVisible,
         focusPoiType,

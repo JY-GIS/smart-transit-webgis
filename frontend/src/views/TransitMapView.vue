@@ -5,6 +5,9 @@ import 'cesium/Build/Cesium/Widgets/widgets.css'
 
 import TransitMapHeader from '@/components/transit-map/TransitMapHeader.vue'
 import TransitLayerToolbar from '@/components/transit-map/TransitLayerToolbar.vue'
+import PlaceSearchPanel from '@/components/transit-map/PlaceSearchPanel.vue'
+import { usePlaceSearchLayer } from '@/composables/map/usePlaceSearchLayer'
+import { hasPlaceCoordinates, type PlaceSearchResult } from '@/types/placeSearch'
 
 // 页面组件只负责组装各个图层和交互模块，具体实现放在 composables 中。
 import BusRouteInfoPanel from '@/components/transit/BusRouteInfoPanel.vue'
@@ -48,6 +51,8 @@ import type { OrderedBusStop } from '@/types/busStop'
 import type { RealtimeVehicleRenderMode } from '@/types/realtimeVehicle'
 
 const cesiumContainer = ref<HTMLElement | null>(null)
+const placeSearchMapReady = ref(false)
+let placeNearbyQueryActive = false
 
 const {
     status: mapLoadingStatus,
@@ -118,6 +123,7 @@ const {
     toggle: toggleNearbyQuery,
     setRadiusInput: handlePoiRadiusInput,
     changeRadius: handlePoiRadiusChange,
+    queryAt: queryNearbyAtPlace,
     handleMapClick: handleNearbyAnalysisMapClick,
     setPoiPointsVisible,
     focusPoiType,
@@ -125,6 +131,34 @@ const {
 } = useNearbyAnalysisController({
     getViewer: () => viewer,
 })
+
+const { locate: locateSearchPlace, clear: clearSearchPlaceMarker } = usePlaceSearchLayer(() => viewer)
+
+function handleSelectSearchPlace(place: PlaceSearchResult) {
+    if (!hasPlaceCoordinates(place)) return
+    if (historyModeEnabled.value) closeHistoryMode()
+    closeRealtimeRoamingMode()
+    if (placeNearbyQueryActive) handleClearNearbyQuery()
+    placeNearbyQueryActive = false
+    locateSearchPlace(place)
+}
+
+function handleSearchPlaceNearby(place: PlaceSearchResult, radiusMeters: number) {
+    if (!hasPlaceCoordinates(place)) return
+    if (historyModeEnabled.value) closeHistoryMode()
+    closeRealtimeRoamingMode()
+    if (placeNearbyQueryActive) handleClearNearbyQuery()
+    handleCloseRoutePanel()
+    handleCloseStopArrivalPanel()
+    placeNearbyQueryActive = true
+    queryNearbyAtPlace({ longitude: place.longitude, latitude: place.latitude }, radiusMeters)
+}
+
+function handleClearSearchPlace() {
+    clearSearchPlaceMarker()
+    if (placeNearbyQueryActive) handleClearNearbyQuery()
+    placeNearbyQueryActive = false
+}
 
 const {
     arrivalBoard,
@@ -648,6 +682,7 @@ function handleSelectOperationalVehicle(vehicleId: string,) {
 // 点击地图空白位置时先退出车辆漫游，再交给周边分析控制器
 function handleNearbyMapClick(clickPosition: Cesium.Cartesian2) {
     closeRealtimeRoamingMode()
+    if (nearbyQueryEnabled.value) placeNearbyQueryActive = false
     handleNearbyAnalysisMapClick(clickPosition)
 }
 
@@ -849,6 +884,7 @@ onMounted(async () => {
 
     try {
         viewer = await createViewer(cesiumContainer.value)
+        placeSearchMapReady.value = true
         setMapLoadingStage('正在定位福田区...')
 
         restoreView()
@@ -945,6 +981,8 @@ onMounted(async () => {
 
 // 卸载时按“交互监听 → 业务索引 → 图层 → Viewer”的顺序释放资源。
 onBeforeUnmount(() => { 
+    placeSearchMapReady.value = false
+    clearSearchPlaceMarker()
     void disconnectRealtimeVehicles()
 
     cleanupRealtimeVehicleRoaming(viewer)
@@ -1000,6 +1038,13 @@ onBeforeUnmount(() => {
 
             <main class="map-stage">
                 <div ref="cesiumContainer" class="cesium-container"></div>
+
+                <PlaceSearchPanel
+                    :map-ready="placeSearchMapReady"
+                    @select="handleSelectSearchPlace"
+                    @nearby="handleSearchPlaceNearby"
+                    @clear="handleClearSearchPlace"
+                />
 
                 <Teleport to="body">
                     <Transition name="map-loading-fade" appear>

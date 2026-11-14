@@ -30,6 +30,7 @@
 - **公交业务联动**：线路、车辆、站点、到站预测与运营异常相互联动，可从面板直接定位地图对象。
 - **运营状态分析**：根据同线路车辆的沿线距离间隔识别串车和大间隔，当前页面保留最近 50 条异常发现与恢复事件。
 - **站点服务分析**：以地图点击位置为中心查询附近公交站和 POI，支持 300、500、800 米常用半径及六类 POI 统计。
+- **地点搜索与公交联动**：地图左上角支持高德地点联想和关键词搜索，选中后定位并显示标记，可按 300、500、800 米查询本地公交站；需配置后端高德 Web 服务 Key。
 - **时空轨迹回放**：支持单车、线路多车和全网三种历史回放模式，可调节倍速并跟随指定车辆。
 - **多种地图视图**：支持卫星影像与 OSM 道路图切换、二维/三维场景切换以及地形开关。
 - **首屏加载面板**：地图初始化按阶段提示进度，资源失败或超时时列出未完成项，可在“重新加载”和“降级进入”之间选择。
@@ -225,7 +226,7 @@ smart-transit-webgis/
 Copy-Item .env.example .env
 ```
 
-编辑 `.env`，将示例值替换为本机密码：
+编辑 `.env`，将示例值替换为本机密码；后端从项目根目录或 `backend` 目录启动时会自动读取此文件：
 
 ```dotenv
 SMART_TRANSIT_DB_PASSWORD=your-local-database-password
@@ -301,7 +302,7 @@ $env:SMART_TRANSIT_DB_PASSWORD = 'your-local-database-password'
 .\mvnw.cmd spring-boot:run
 ```
 
-后端默认运行在 `http://localhost:8080`，按配置加载仿真线路并生成车辆；可通过 `/api/vehicles/current` 核对实际运行数量。根目录 `.env` 供 Docker Compose 使用，单独启动后端仍需设置上述环境变量。首次启动后需要积累历史采样，每辆车在查询时间范围内至少有 2 个点才可回放。
+后端默认运行在 `http://localhost:8080`，按配置加载仿真线路并生成车辆；可通过 `/api/vehicles/current` 核对实际运行数量。后端会读取根目录 `.env`，也可使用上述环境变量覆盖配置。首次启动后需要积累历史采样，每辆车在查询时间范围内至少有 2 个点才可回放。
 
 ### 7. 启动前端
 
@@ -314,6 +315,10 @@ npm run dev
 ```
 
 浏览器访问 `http://localhost:5173`。Vite 开发服务器会将 `/api` 和 `/ws` 代理到后端，将 `/geoserver` 代理到 GeoServer。
+
+### 8. 启用高德地点搜索
+
+在高德开放平台创建 **Web 服务** 类型的 Key，将 `AMAP_WEB_SERVICE_KEY=你的Key` 写入根目录 `.env`，重启后端即可。
 
 ## 使用方式
 
@@ -341,6 +346,8 @@ npm run dev
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | GET | `/api/routes` | 查询全部线路属性 |
+| GET | `/api/places/suggestions?keywords=市民中心` | 高德地点联想，返回统一 WGS84 坐标；无坐标提示需继续搜索 |
+| GET | `/api/places/search?keywords=市民中心` | 高德关键词搜索，最多返回 10 个可定位地点 |
 | GET | `/api/routes/geojson` | 获取线路 GeoJSON |
 | GET | `/api/routes/{routeId}/stops` | 查询指定线路的有序站点 |
 | GET | `/api/route-stops` | 查询线路—站点关系 |

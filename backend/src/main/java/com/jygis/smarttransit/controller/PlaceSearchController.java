@@ -24,6 +24,15 @@ public class PlaceSearchController {
         return query(keywords, false);
     }
 
+    @GetMapping("/search/page")
+    public Result searchPage(@RequestParam String keywords, @RequestParam(defaultValue = "1") int page) {
+        try {
+            return Result.success(placeSearchService.searchPage(keywords, page));
+        } catch (IllegalArgumentException | IllegalStateException exception) {
+            return Result.error(exception.getMessage());
+        }
+    }
+
     private Result query(String keywords, boolean suggest) {
         try {
             return Result.success(suggest ? placeSearchService.suggestions(keywords) : placeSearchService.search(keywords));

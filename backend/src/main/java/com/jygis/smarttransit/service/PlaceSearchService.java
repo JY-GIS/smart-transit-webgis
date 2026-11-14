@@ -41,14 +41,19 @@ public class PlaceSearchService {
     }
 
     public List<PlaceSearchResult> suggestions(String keywords) {
-        return query(keywords, true);
+        return query(keywords, true, 1, 10).places();
     }
 
     public List<PlaceSearchResult> search(String keywords) {
-        return query(keywords, false);
+        return query(keywords, false, 1, 10).places();
     }
 
-    private List<PlaceSearchResult> query(String keywords, boolean suggest) {
+    public SearchPage searchPage(String keywords, int page) {
+        if (page < 1) throw new IllegalArgumentException("页码必须大于 0");
+        return query(keywords, false, page, 5);
+    }
+
+    private SearchPage query(String keywords, boolean suggest, int page, int pageSize) {
         String normalized = keywords == null ? "" : keywords.strip();
         if (normalized.isEmpty() || normalized.length() > 80) {
             throw new IllegalArgumentException("请输入 1～80 个字符的地点或地址");
@@ -60,7 +65,7 @@ public class PlaceSearchService {
             String path = suggest ? "/v3/assistant/inputtips" : "/v5/place/text";
             String parameters = suggest
                     ? "&city=440300&citylimit=true&datatype=poi"
-                    : "&region=" + FUTIAN_ADCODE + "&city_limit=true&page_size=10&page_num=1";
+                    : "&region=" + FUTIAN_ADCODE + "&city_limit=true&page_size=" + pageSize + "&page_num=" + page;
             URI uri = URI.create("https://restapi.amap.com" + path + "?key=" + encode(key)
                     + "&keywords=" + encode(normalized) + parameters + "&output=json");
             HttpRequest request = HttpRequest.newBuilder(uri)
@@ -69,7 +74,7 @@ public class PlaceSearchService {
             if (response.statusCode() != 200) {
                 throw new IllegalStateException("地点服务暂时不可用，请稍后重试");
             }
-            return parse(response.body(), suggest);
+            return parse(response.body(), suggest, page, pageSize);
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("地点搜索已中断，请重试");
@@ -81,7 +86,7 @@ public class PlaceSearchService {
         }
     }
 
-    private List<PlaceSearchResult> parse(String body, boolean suggest) {
+    private SearchPage parse(String body, boolean suggest, int page, int pageSize) {
         JsonNode root = mapper.readTree(body);
         if (root == null || !root.isObject()) {
             throw new IllegalStateException("地点服务返回格式异常，请稍后重试");
@@ -106,8 +111,12 @@ public class PlaceSearchService {
             results.add(new PlaceSearchResult(text(item, "id"), name, district, text(item, "address"), adcode,
                     coordinates == null ? null : coordinates[0], coordinates == null ? null : coordinates[1]));
         }
-        return results;
+        // 用高德原始页判断是否还有后续页，过滤掉的地点不影响翻页。
+        Integer nextPage = !suggest && items.size() == pageSize && page < Integer.MAX_VALUE ? page + 1 : null;
+        return new SearchPage(results, nextPage);
     }
+
+    public record SearchPage(List<PlaceSearchResult> places, Integer nextPage) { }
 
     private static double[] parseLocation(String location) {
         String[] parts = location.split(",");

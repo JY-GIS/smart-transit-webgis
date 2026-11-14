@@ -5,6 +5,7 @@ import 'cesium/Build/Cesium/Widgets/widgets.css'
 
 import TransitMapHeader from '@/components/transit-map/TransitMapHeader.vue'
 import TransitLayerToolbar from '@/components/transit-map/TransitLayerToolbar.vue'
+import TransitAssistantPanel from '@/components/transit-map/TransitAssistantPanel.vue'
 import PlaceSearchPanel from '@/components/transit-map/PlaceSearchPanel.vue'
 import { usePlaceSearchLayer } from '@/composables/map/usePlaceSearchLayer'
 import { hasPlaceCoordinates, type PlaceSearchResult } from '@/types/placeSearch'
@@ -52,6 +53,7 @@ import type { RealtimeVehicleRenderMode } from '@/types/realtimeVehicle'
 
 const cesiumContainer = ref<HTMLElement | null>(null)
 const placeSearchMapReady = ref(false)
+const assistantOpen = ref(false)
 let placeNearbyQueryActive = false
 
 const {
@@ -679,6 +681,12 @@ function handleSelectOperationalVehicle(vehicleId: string,) {
     )
 }
 
+function handleLocateAssistantVehicle(vehicleId: string) {
+    if (historyModeEnabled.value) closeHistoryMode()
+    closeRealtimeRoamingMode()
+    handleSelectOperationalVehicle(vehicleId)
+}
+
 // 点击地图空白位置时先退出车辆漫游，再交给周边分析控制器
 function handleNearbyMapClick(clickPosition: Cesium.Cartesian2) {
     closeRealtimeRoamingMode()
@@ -1025,12 +1033,14 @@ onBeforeUnmount(() => {
                 :history-mode-enabled="historyModeEnabled"
                 :realtime-roaming-mode-enabled="realtimeRoamingModeEnabled"
                 :nearby-query-enabled="nearbyQueryEnabled"
+                :assistant-open="assistantOpen"
                 :bus-routes-visible="busRoutesVisible"
                 :white-model-visible="whiteModelVisible"
                 :realtime-vehicle-render-mode="realtimeVehicleRenderMode"
                 @toggle-history-mode="toggleHistoryMode"
                 @toggle-realtime-roaming-mode="toggleRealtimeRoamingMode"
                 @toggle-nearby-query="toggleNearbyQuery"
+                @toggle-assistant="assistantOpen = !assistantOpen"
                 @toggle-bus-routes="toggleBusRoutes"
                 @toggle-white-model="toggleWhiteModel"
                 @toggle-realtime-vehicle-render-mode="toggleRealtimeVehicleRenderMode"
@@ -1038,6 +1048,17 @@ onBeforeUnmount(() => {
 
             <main class="map-stage">
                 <div ref="cesiumContainer" class="cesium-container"></div>
+
+                <TransitAssistantPanel
+                    v-show="assistantOpen"
+                    :map-ready="placeSearchMapReady"
+                    :nearby-stops="nearbyStops"
+                    :vehicles="realtimeVehicles"
+                    @close="assistantOpen = false"
+                    @select="handleSelectSearchPlace"
+                    @nearby="handleSearchPlaceNearby"
+                    @select-vehicle="handleLocateAssistantVehicle"
+                />
 
                 <PlaceSearchPanel
                     :map-ready="placeSearchMapReady"

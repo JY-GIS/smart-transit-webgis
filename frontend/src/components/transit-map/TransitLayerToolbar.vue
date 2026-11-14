@@ -7,6 +7,7 @@ defineProps<{
     historyModeEnabled: boolean
     realtimeRoamingModeEnabled: boolean
     nearbyQueryEnabled: boolean
+    assistantOpen: boolean
     busRoutesVisible: boolean
     whiteModelVisible: boolean
     realtimeVehicleRenderMode: RealtimeVehicleRenderMode
@@ -17,6 +18,7 @@ const emit = defineEmits<{
     'toggle-history-mode': []
     'toggle-realtime-roaming-mode': []
     'toggle-nearby-query': []
+    'toggle-assistant': []
     'toggle-bus-routes': []
     'toggle-white-model': []
     'toggle-realtime-vehicle-render-mode': []
@@ -26,6 +28,18 @@ const emit = defineEmits<{
 
 <template>
     <nav class="layer-controls" aria-label="公交地图功能">
+        <button
+            class="layer-control-button"
+            :class="{ 'is-active': assistantOpen }"
+            type="button"
+            :aria-expanded="assistantOpen"
+            aria-controls="transit-assistant"
+            @click="emit('toggle-assistant')"
+        >
+            <span class="layer-control-icon" aria-hidden="true">💬</span>
+            <span class="layer-control-copy"><strong>公交助手</strong></span>
+        </button>
+
         <button
             class="layer-control-button"
             :class="{ 'is-active': historyModeEnabled }"
@@ -263,13 +277,14 @@ const emit = defineEmits<{
         display: grid;
         width: auto;
         height: 60px;
-        grid-template-columns: repeat(6, minmax(0, 1fr));
+        grid-template-columns: repeat(7, minmax(0, 1fr));
         border-radius: 12px;
     }
 
     .layer-control-button {
         min-height: 0;
         height: 58px;
+        padding-inline: 1px;
         border-right: 1px solid #edf1f6;
         border-bottom: 0;
     }

@@ -110,12 +110,12 @@ function formatDistance(distanceMeters: number): string {
 
                     <ol class="nearby-panel__list">
                         <li
-                            v-for="stop in props.stops"
+                            v-for="(stop, index) in props.stops"
                             :key="stop.stopId"
                             class="nearby-panel__item"
                         >
                             <span class="nearby-panel__stop-name">
-                                {{ stop.stopName }}
+                                {{ index + 1 }}. {{ stop.stopName }}
                             </span>
 
                             <strong class="nearby-panel__distance">

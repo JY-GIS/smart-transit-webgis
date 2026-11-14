@@ -16,6 +16,19 @@
         ORDER BY stop_id
     </select>
 
+    <!-- 附近站点列表会合并同名近邻，这里一并查出这些站点记录对应的线路。 -->
+    <select id="findRoutesAtStop" resultType="com.jygis.smarttransit.pojo.StopRouteOption">
+        SELECT DISTINCT ON (r.route_id)
+            r.route_id, s.stop_id, r.rname AS route_name, s.stop_name
+        FROM public.stops selected
+        JOIN public.stops s ON s.stop_name = selected.stop_name
+            AND ST_DWithin(ST_Transform(s.geom, 3857), ST_Transform(selected.geom, 3857), 10)
+        JOIN public.route_stops rs ON rs.stop_id = s.stop_id
+        JOIN public.routes r ON r.route_id = rs.route_id
+        WHERE selected.stop_id = #{stopId}
+        ORDER BY r.route_id, ST_Distance(s.geom::geography, selected.geom::geography), rs.stop_sequence
+    </select>
+
     <select id="findNearby"
             resultType="com.jygis.smarttransit.pojo.NearbyStop">
         WITH query_point AS (
